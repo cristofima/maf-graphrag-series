@@ -1,56 +1,84 @@
-encoding_model: cl100k_base
-skip_workflows: []
+### This config file contains required core defaults that must be set, along with a handful of common optional settings.
+### For a full list of available settings, see https://microsoft.github.io/graphrag/config/yaml/
+
+### LLM settings ###
+## There are a number of settings to tune the threading and token limits for LLM calls - check the docs.
+
+encoding_model: o200k_base # for gpt-4o model!
+
 llm:
   api_key: ${AZURE_OPENAI_API_KEY}
   type: azure_openai_chat
   model: gpt-4o
   model_supports_json: true
-  deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
   api_base: ${AZURE_OPENAI_ENDPOINT}
   api_version: 2024-08-01-preview
+  deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
 
 parallelization:
   stagger: 0.3
+  # num_threads: 50
 
-async_mode: threaded
+async_mode: threaded # or asyncio
 
 embeddings:
-  async_mode: threaded
+  async_mode: threaded # or asyncio
+  vector_store: 
+    type: lancedb # one of [lancedb, azure_ai_search, cosmosdb]
+    db_uri: 'output/lancedb'
+    collection_name: default
+    overwrite: true
   llm:
     api_key: ${AZURE_OPENAI_API_KEY}
     type: azure_openai_embedding
     model: text-embedding-3-small
-    deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
     api_base: ${AZURE_OPENAI_ENDPOINT}
     api_version: 2024-08-01-preview
+    deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+
+### Input settings ###
+
+input:
+  type: file # or blob
+  file_type: text # or csv
+  base_dir: "input/documents"
+  file_encoding: utf-8
+  file_pattern: ".*\\.md$"
 
 chunks:
   size: 1200
   overlap: 100
   group_by_columns: [id]
 
-input:
-  type: file
-  file_type: text
-  base_dir: "input/documents"
-  file_encoding: utf-8
-  file_pattern: ".*\\.md$"
+### Storage settings ###
+## If blob storage is specified in the following four sections,
+## connection_string and container_name must be provided
 
 cache:
-  type: file
+  type: file # one of [blob, cosmosdb, file]
   base_dir: "cache"
 
+reporting:
+  type: file # or console, blob
+  base_dir: "logs"
+
 storage:
-  type: file
+  type: file # one of [blob, cosmosdb, file]
   base_dir: "output"
 
-reporting:
-  type: file
-  base_dir: "output"
+## only turn this on if running `graphrag index` with custom settings
+## we normally use `graphrag update` with the defaults
+update_index_storage:
+  # type: file # or blob
+  # base_dir: "update_output"
+
+### Workflow settings ###
+
+skip_workflows: []
 
 entity_extraction:
   prompt: "prompts/entity_extraction.txt"
-  entity_types: [person, organization, project, department, technology, location]
+  entity_types: [organization,person,geo,event]
   max_gleanings: 1
 
 summarize_descriptions:
@@ -58,9 +86,9 @@ summarize_descriptions:
   max_length: 500
 
 claim_extraction:
-  enabled: true
+  enabled: false
   prompt: "prompts/claim_extraction.txt"
-  description: "Structured claims from documents"
+  description: "Any claims or facts that could be relevant to information discovery."
   max_gleanings: 1
 
 community_reports:
@@ -72,27 +100,31 @@ cluster_graph:
   max_cluster_size: 10
 
 embed_graph:
-  enabled: false
+  enabled: false # if true, will generate node2vec embeddings for nodes
 
 umap:
-  enabled: false
+  enabled: false # if true, will generate UMAP embeddings for nodes (embed_graph must also be enabled)
 
 snapshots:
-  graphml: true
-  raw_entities: true
-  top_level_nodes: true
+  graphml: false
+  embeddings: false
+  transient: false
+
+### Query settings ###
+## The prompt locations are required here, but each search method has a number of optional knobs that can be tuned.
+## See the config docs: https://microsoft.github.io/graphrag/config/yaml/#query
 
 local_search:
-  text_unit_prop: 0.5
-  community_prop: 0.1
-  conversation_history_max_turns: 5
-  top_k_entities: 10
-  top_k_relationships: 10
-  max_tokens: 12000
+  prompt: "prompts/local_search_system_prompt.txt"
 
 global_search:
-  max_tokens: 12000
-  data_max_tokens: 12000
-  map_max_tokens: 1000
-  reduce_max_tokens: 2000
-  concurrency: 32
+  map_prompt: "prompts/global_search_map_system_prompt.txt"
+  reduce_prompt: "prompts/global_search_reduce_system_prompt.txt"
+  knowledge_prompt: "prompts/global_search_knowledge_system_prompt.txt"
+
+drift_search:
+  prompt: "prompts/drift_search_system_prompt.txt"
+  reduce_prompt: "prompts/drift_search_reduce_prompt.txt"
+
+basic_search:
+  prompt: "prompts/basic_search_system_prompt.txt"

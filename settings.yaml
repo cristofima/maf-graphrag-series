@@ -1,0 +1,98 @@
+encoding_model: cl100k_base
+skip_workflows: []
+llm:
+  api_key: ${AZURE_OPENAI_API_KEY}
+  type: azure_openai_chat
+  model: gpt-4o
+  model_supports_json: true
+  deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
+  api_base: ${AZURE_OPENAI_ENDPOINT}
+  api_version: 2024-08-01-preview
+
+parallelization:
+  stagger: 0.3
+
+async_mode: threaded
+
+embeddings:
+  async_mode: threaded
+  llm:
+    api_key: ${AZURE_OPENAI_API_KEY}
+    type: azure_openai_embedding
+    model: text-embedding-3-small
+    deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+    api_base: ${AZURE_OPENAI_ENDPOINT}
+    api_version: 2024-08-01-preview
+
+chunks:
+  size: 1200
+  overlap: 100
+  group_by_columns: [id]
+
+input:
+  type: file
+  file_type: text
+  base_dir: "input/documents"
+  file_encoding: utf-8
+  file_pattern: ".*\\.md$"
+
+cache:
+  type: file
+  base_dir: "cache"
+
+storage:
+  type: file
+  base_dir: "output"
+
+reporting:
+  type: file
+  base_dir: "output"
+
+entity_extraction:
+  prompt: "prompts/entity_extraction.txt"
+  entity_types: [person, organization, project, department, technology, location]
+  max_gleanings: 1
+
+summarize_descriptions:
+  prompt: "prompts/summarize_descriptions.txt"
+  max_length: 500
+
+claim_extraction:
+  enabled: true
+  prompt: "prompts/claim_extraction.txt"
+  description: "Structured claims from documents"
+  max_gleanings: 1
+
+community_reports:
+  prompt: "prompts/community_report.txt"
+  max_length: 2000
+  max_input_length: 8000
+
+cluster_graph:
+  max_cluster_size: 10
+
+embed_graph:
+  enabled: false
+
+umap:
+  enabled: false
+
+snapshots:
+  graphml: true
+  raw_entities: true
+  top_level_nodes: true
+
+local_search:
+  text_unit_prop: 0.5
+  community_prop: 0.1
+  conversation_history_max_turns: 5
+  top_k_entities: 10
+  top_k_relationships: 10
+  max_tokens: 12000
+
+global_search:
+  max_tokens: 12000
+  data_max_tokens: 12000
+  map_max_tokens: 1000
+  reduce_max_tokens: 2000
+  concurrency: 32

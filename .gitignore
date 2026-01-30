@@ -31,6 +31,14 @@ output/
 cache/
 logs/
 
+# Terraform
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.backup
+infra/**/terraform.tfvars
+infra/**/backend.hcl
+infra/**/.terraform.lock.hcl
+
 # Jupyter
 .ipynb_checkpoints/
 

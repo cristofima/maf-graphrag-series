@@ -1,0 +1,11 @@
+# Example configuration file
+# Copy this to terraform.tfvars and add your Azure subscription ID
+
+subscription_id = "your-azure-subscription-id-here"
+
+# Optional: Customize settings
+# project_name = "maf-graphrag"
+# environment = "dev"
+# location = "southcentralus"
+# openai_location = "southcentralus"
+# openai_capacity = 30

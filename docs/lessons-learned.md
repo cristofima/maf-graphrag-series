@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document captures key insights, challenges, and solutions encountered during the Azure infrastructure setup for the MAF + GraphRAG series Week 1 implementation.
+This document captures key insights, challenges, and solutions encountered during the Azure infrastructure setup for the MAF + GraphRAG series Part 1 implementation.
 
 ---
 
@@ -376,12 +376,12 @@ Based on lessons learned, use this checklist for future deployments:
 1. Test Terraform deployment with updated configuration
 2. Generate `.env` file from outputs
 3. Commit infrastructure code to git
-4. Implement Python indexing pipeline (Week 1, Part 2)
-5. Document GraphRAG query patterns (Week 1, Part 3)
+4. Implement MCP Server (Part 2)
+5. Document integration patterns (Part 3+)
 
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: January 30, 2026  
+**Last Updated**: January 31, 2026  
 **Author**: Cristopher Coronado (Microsoft MVP AI)  
-**Series**: MAF + GraphRAG - Week 1
+**Series**: MAF + GraphRAG - Part 1

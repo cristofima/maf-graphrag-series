@@ -7,7 +7,7 @@ This project uses a **cross-region architecture** to optimize for cost, model av
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    Client Application               │
-│                  (Future: Week 2-3)                 │
+│                  (Future: Part 2-3)                 │
 └───────────────────────┬─────────────────────────────┘
                         │
                         │ HTTPS API Calls
@@ -256,6 +256,6 @@ az storage account network-rule list --account-name <storage-account>
 
 ---
 
-**Last Updated**: January 30, 2026  
+**Last Updated**: January 31, 2026  
 **Architecture Version**: 1.0  
-**Status**: Production-Ready for Week 1
+**Status**: Production-Ready for Part 1

@@ -6,18 +6,18 @@ Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 
 This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft Agent Framework.
 
-| Week | Article | Status |
-|------|---------|--------|
-| 1 | GraphRAG Fundamentals | ✅ Complete |
-| 2 | GraphRAG MCP Server | ⏳ Planned |
-| 3 | Supervisor Agent Pattern | ⏳ Planned |
-| 4 | Workflow Patterns | ⏳ Planned |
-| 5 | Agent Evaluation | ⏳ Planned |
-| 6 | Human-in-the-Loop | ⏳ Planned |
-| 7 | Tool Registry | ⏳ Planned |
-| 8 | Production Deployment | ⏳ Planned |
+| Part | Title | Status | Folder/Module |
+|------|-------|--------|---------------|
+| 1 | GraphRAG Fundamentals | ✅ Complete | Root (`settings.yaml`, `run_*.ps1`) |
+| 2 | GraphRAG MCP Server | ⏳ Planned | `mcp_server/` |
+| 3 | Supervisor Agent Pattern | ⏳ Planned | `agents/`, `orchestration/` |
+| 4 | Workflow Patterns | ⏳ Planned | `workflows/` |
+| 5 | Agent Evaluation | ⏳ Planned | `evaluation/` |
+| 6 | Human-in-the-Loop | ⏳ Planned | `middleware/` |
+| 7 | Tool Registry | ⏳ Planned | `registry/` |
+| 8 | Production Deployment | ⏳ Planned | `deploy/` |
 
-## Week 1: GraphRAG Fundamentals
+## Part 1: GraphRAG Fundamentals
 
 Learn the basics of Microsoft GraphRAG - transforming documents into knowledge graphs for complex reasoning.
 

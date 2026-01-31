@@ -24,11 +24,11 @@ These documents serve as:
 
 ## Contributing
 
-As this series progresses through Week 2-8, additional documentation will be added:
-- Week 2: Advanced GraphRAG patterns
-- Week 3: Performance optimization
-- Week 4: Production deployment strategies
-- Week 5-8: Integration patterns and real-world applications
+As this series progresses through Part 2-8, additional documentation will be added:
+- Part 2: MCP Server Integration
+- Part 3: Supervisor Agent Pattern
+- Part 4: Workflow Patterns
+- Part 5-8: Evaluation, Human-in-the-Loop, Tool Registry, Production
 
 ## Related Resources
 
@@ -38,6 +38,6 @@ As this series progresses through Week 2-8, additional documentation will be add
 
 ---
 
-**Series**: MAF + GraphRAG (8-Week Program)  
-**Week**: 1 - GraphRAG Fundamentals  
+**Series**: MAF + GraphRAG (8-Part Series)  
+**Part**: 1 - GraphRAG Fundamentals  
 **Author**: Cristopher Coronado (Microsoft MVP AI)

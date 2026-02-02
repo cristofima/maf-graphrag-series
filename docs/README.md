@@ -4,15 +4,22 @@ This directory contains detailed documentation, lessons learned, and reference m
 
 ## Contents
 
-### [Lessons Learned](./lessons-learned.md)
-Comprehensive documentation of challenges, solutions, and key insights encountered during infrastructure deployment and configuration.
+### Implementation Notes (by Part)
 
-**Topics Covered**:
-- Azure Storage Account SKU validation errors
-- Azure OpenAI regional model availability
-- Cost vs performance optimization for embedding models
-- Multi-region architecture design patterns
-- Terraform remote state management
+| Part | Notes | Description |
+|------|-------|-------------|
+| 1 | [part1-implementation-notes.md](./part1-implementation-notes.md) | GraphRAG setup, Azure config, version fixes |
+| 2 | *Coming soon* | MCP Server integration |
+| 3+ | *Coming soon* | Agent patterns, workflows, etc. |
+
+### Reference Documents
+
+| Document | Description |
+|----------|-------------|
+| [lessons-learned.md](./lessons-learned.md) | Azure deployment challenges and solutions |
+| [qa-examples.md](./qa-examples.md) | Real Q&A responses from GraphRAG |
+| [query-guide.md](./query-guide.md) | Query syntax and search types |
+| [multi-region-architecture.md](./multi-region-architecture.md) | Cross-region strategy |
 
 ## Documentation Purpose
 

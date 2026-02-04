@@ -40,7 +40,8 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
 
 ### Prerequisites
 
-- Python 3.10+ (tested with 3.11)
+- **Python 3.10+** (tested with 3.11)
+- **Poetry** for dependency management
 - Azure OpenAI resource with:
   - GPT-4o deployment (for entity extraction and queries)
   - text-embedding-3-small deployment (for embeddings)
@@ -50,17 +51,22 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
 ### Quick Start
 
 ```powershell
+# Install Poetry (if not installed)
+# Windows PowerShell:
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+
+# Linux/macOS:
+# curl -sSL https://install.python-poetry.org | python3 -
+
 # Clone the repository
 git clone https://github.com/cristofima/maf-graphrag-series.git
 cd maf-graphrag-series
 
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/Mac
+# RECOMMENDED: Configure Poetry to create .venv in project folder
+poetry config virtualenvs.in-project true
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (Poetry creates virtual environment automatically)
+poetry install
 
 # Configure environment variables
 cp .env.example .env
@@ -74,26 +80,33 @@ cp .env.example .env
 .\run_query.ps1 "Summarize the organization" -Method global
 ```
 
+💡 **Note:** Poetry manages virtual environments automatically. You don't need to manually create `.venv` like with pip.
+
+📖 **Poetry Guide:** See [docs/poetry-guide.md](docs/poetry-guide.md) for detailed usage instructions.
+
 ### Project Structure
 
 ```
 maf-graphrag-series/
 ├── README.md
-├── requirements.txt
+├── pyproject.toml             # Poetry dependency management
+├── poetry.lock                # Locked dependency versions
 ├── settings.yaml              # GraphRAG configuration
 ├── run_index.ps1              # Build knowledge graph (CLI wrapper)
 ├── run_query.ps1              # Query knowledge graph (CLI wrapper)
 ├── .env.example
 ├── input/
-│   └── *.md                   # Sample interconnected documents
+│   └── documents/*.md         # Sample interconnected documents
 ├── output/                    # Generated knowledge graph
 │   ├── create_final_*.parquet
 │   └── lancedb/               # Vector store
 ├── prompts/                   # Custom prompt templates
 ├── docs/
-│   ├── query-guide.md         # Query reference
-│   ├── qa-examples.md         # Q&A examples with responses
-│   └── lessons-learned.md     # Deployment insights
+│   ├── poetry-guide.md              # Poetry usage guide
+│   ├── dependency-management-analysis.md  # Why Poetry?
+│   ├── query-guide.md               # Query reference
+│   ├── qa-examples.md               # Q&A examples with responses
+│   └── lessons-learned.md           # Deployment insights
 ├── src/                       # Legacy Python scripts (reference only)
 └── notebooks/
     └── 01_explore_graph.ipynb # Graph visualization

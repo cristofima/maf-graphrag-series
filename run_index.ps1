@@ -21,7 +21,24 @@ Get-Content (Join-Path $ScriptDir ".env") | ForEach-Object {
     }
 }
 
-# Run GraphRAG indexing
+# Detect Poetry or venv
 Write-Host "`nStarting GraphRAG indexing..." -ForegroundColor Cyan
-$VenvPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
-& $VenvPath -m graphrag index --root $ScriptDir
+
+if (Get-Command poetry -ErrorAction SilentlyContinue) {
+    Write-Host "✓ Using Poetry environment" -ForegroundColor Green
+    poetry run python -m graphrag index --root $ScriptDir
+} elseif (Test-Path (Join-Path $ScriptDir ".venv\Scripts\python.exe")) {
+    Write-Host "⚠ Using legacy virtualenv (.venv) - Consider migrating to Poetry" -ForegroundColor Yellow
+    $VenvPath = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+    & $VenvPath -m graphrag index --root $ScriptDir
+} else {
+    Write-Host "`n❌ ERROR: Poetry not found and no virtualenv available" -ForegroundColor Red
+    Write-Host "`nThis project uses Poetry for dependency management. Install it:" -ForegroundColor Yellow
+    Write-Host "`n  1. Install Poetry:" -ForegroundColor Cyan
+    Write-Host "     (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -" -ForegroundColor White
+    Write-Host "`n  2. Install dependencies:" -ForegroundColor Cyan
+    Write-Host "     poetry install" -ForegroundColor White
+    Write-Host "`n  3. Run this script again" -ForegroundColor Cyan
+    Write-Host "`nSee docs/poetry-guide.md for more information.`n" -ForegroundColor Gray
+    exit 1
+}

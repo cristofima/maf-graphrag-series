@@ -1,0 +1,143 @@
+[tool.poetry]
+name = "maf-graphrag-series"
+version = "1.0.0"
+description = "MAF + GraphRAG: Enterprise Knowledge Agents - A tutorial series on building knowledge graph-powered AI agents with Microsoft Agent Framework"
+authors = ["Cristopher Coronado <cgcoronadom@gmail.com>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://github.com/cristofima/maf-graphrag-series"
+repository = "https://github.com/cristofima/maf-graphrag-series"
+documentation = "https://github.com/cristofima/maf-graphrag-series/tree/main/docs"
+keywords = ["graphrag", "microsoft-agent-framework", "mcp", "azure-openai", "knowledge-graph", "rag", "ai-agents"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+
+# ===== PART 1: GraphRAG Fundamentals =====
+# Microsoft GraphRAG - Knowledge graph construction
+graphrag = "~1.2.0"
+
+# Azure OpenAI SDK
+openai = "^1.40.0"
+
+# Data processing for parquet files and dataframes
+pandas = "^2.0.0"
+pyarrow = "^15.0.0"
+
+# Environment variables management
+python-dotenv = "^1.0.0"
+
+# Async HTTP support
+aiohttp = "^3.9.0"
+
+# NOTE: Dependencies for Parts 2-8 will be added incrementally as each part is implemented
+# This follows YAGNI (You Aren't Gonna Need It) principle
+
+[tool.poetry.group.dev.dependencies]
+# Testing framework
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+
+# HTTP client for testing (compatible with GraphRAG requirements)
+httpx = "^0.28.0"
+
+# Jupyter notebooks for exploration
+jupyter = "^1.0.0"
+ipykernel = "^6.28.0"
+
+# Visualization libraries (for notebooks)
+networkx = "^3.0"
+matplotlib = "^3.7.0"
+
+# NOTE: Additional dev dependencies (linting, testing, etc.) will be added as needed
+
+# NOTE: Dependencies for future parts will be added incrementally as implemented
+# This section will be populated starting with Part 2
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# ===== Tool Configuration =====
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.black]
+line-length = 120
+target-version = ['py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | output
+  | cache
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["output", "cache", ".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["output", "cache", ".venv"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

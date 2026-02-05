@@ -110,65 +110,76 @@ GraphRAG v1.2.0 does **NOT** support incremental indexing:
 
 | Metric | Value |
 |--------|-------|
-| Entities | 40 |
-| Relationships | 132 |
-| Communities | 8 |
-| Text Units | 7 |
-| Documents | 3 |
+| Entities | 176 |
+| Relationships | 342 |
+| Communities | 33 |
+| Documents | 10 |
 | Hierarchy Levels | 2 |
 
 ### Entity Distribution
 
-| Type | Count |
-|------|-------|
-| PERSON | 18 |
-| ORGANIZATION | 11 |
-| DOCUMENT | 5 |
-| EVENT | 3 |
-| OTHER | 3 |
+GraphRAG extracts entities with semantic types from documents:
+- PERSON (e.g., Dr. Emily Harrison, David Kumar, Sophia Lee)
+- ORGANIZATION (e.g., TechVenture Inc., HealthCorp)
+- TECHNOLOGY (e.g., Azure OpenAI, GraphRAG, LanceDB)
+- PROJECT (e.g., Project Alpha, Project Beta)
+- EVENT (e.g., incidents, milestones)
 
 ### Network Analysis
 
-- Network density: 0.0577
-- Top connected entity: David Kumar (centrality: 0.256)
+The knowledge graph forms a dense network of interconnected entities:
+- Cross-document relationships automatically detected
+- Community detection reveals organizational clusters
+- Entity centrality identifies key organizational nodes
 
 ---
 
 ## Sample Documents
 
-Located in `input/documents/`:
+Located in `input/documents/` (10 interconnected documents):
 
 | File | Content |
 |------|---------|
 | `company_org.md` | TechVenture Inc. organizational structure |
-| `project_alpha.md` | Project Alpha details, team, technologies |
 | `team_members.md` | Team profiles and responsibilities |
+| `project_alpha.md` | Project Alpha details, team, technologies |
+| `project_beta.md` | Project Beta AI/ML platform |
+| `technical_architecture.md` | Azure architecture and infrastructure |
+| `technology_stack.md` | Technology choices and implementations |
+| `customers_partners.md` | Customer relationships and partnerships |
+| `engineering_processes.md` | Development workflows and practices |
+| `incidents_postmortems.md` | Incident reports and learnings |
+| `company_events_timeline.md` | Milestones and company history |
 
-These documents are interconnected, referencing the same people, projects, and technologies to demonstrate GraphRAG's relationship detection.
+These documents are interconnected, referencing the same people, projects, and technologies to demonstrate GraphRAG's cross-document relationship detection.
 
 ---
 
 ## Key Scripts
 
-### run_index.ps1
+### Python Indexing CLI
 
-Builds the knowledge graph:
-- Loads `.env` variables
-- Sets UTF-8 encoding (Windows fix)
-- Runs `graphrag index` CLI
+Build the knowledge graph using Python:
 
-```powershell
-.\run_index.ps1
+```bash
+# CLI usage
+poetry run python -m core.index
+poetry run python -m core.index --resume          # Resume interrupted run
+poetry run python -m core.index --memory-profile  # Enable profiling
+
+# Programmatic usage
+from core import build_index
+results = await build_index()
 ```
 
-### Python Query API
+### Python Query CLI
 
-Queries the knowledge graph using the `core/` module:
+Query the knowledge graph using the `core/` module:
 - Supports: `local`, `global`, `drift`, `basic` search types
 - Rich CLI output with statistics
 - Programmatic API for integration
 
-```powershell
+```bash
 # CLI usage
 poetry run python -m core.example "Who leads Project Alpha?"
 poetry run python -m core.example "Summarize the organization" --type global
@@ -324,12 +335,16 @@ mcp_server/                # New folder for Part 2
 
 ## Quick Reference Commands
 
-```powershell
-# Install dependencies (Poetry)
+```bash
+# Install dependencies
 poetry install
 
-# Build knowledge graph (one-time indexing)
-.\run_index.ps1
+# Build knowledge graph
+poetry run python -m core.index
+
+# Build with options
+poetry run python -m core.index --resume          # Resume interrupted
+poetry run python -m core.index --memory-profile  # Enable profiling
 
 # Query using Python CLI
 poetry run python -m core.example "Your question"
@@ -353,18 +368,22 @@ maf-graphrag-series/
 ├── .env.example               # Template for credentials
 ├── pyproject.toml             # Poetry dependencies
 ├── settings.yaml              # GraphRAG configuration
-├── run_index.ps1              # Build knowledge graph
-├── requirements.txt           # Python dependencies
-├── input/documents/           # Source documents
+├── requirements.txt           # Legacy Python dependencies
+├── input/
+│   ├── README.md              # Document descriptions
+│   └── documents/             # 10 source documents
 ├── output/                    # Generated artifacts (gitignored)
 │   ├── create_final_*.parquet
 │   └── lancedb/
 ├── prompts/                   # Custom prompt templates (fixed for v1.2.0)
 ├── core/                      # Python API module
-│   ├── config.py
-│   ├── data_loader.py
-│   ├── search.py
-│   └── example.py
+│   ├── __init__.py
+│   ├── config.py              # Configuration loading
+│   ├── data_loader.py         # Parquet data loading
+│   ├── indexer.py             # Build knowledge graph
+│   ├── search.py              # Async search functions
+│   ├── index.py               # Indexing CLI
+│   └── example.py             # Query CLI
 ├── docs/                      # Documentation
 ├── notebooks/                 # Jupyter notebooks
 └── infra/                     # Terraform infrastructure
@@ -378,4 +397,4 @@ Cristopher Coronado - Microsoft MVP AI
 
 ---
 
-*Last updated: January 31, 2026*
+*Last updated: February 5, 2026*

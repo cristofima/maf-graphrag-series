@@ -2,6 +2,30 @@
 
 This guide shows how to query the TechVenture Inc. knowledge graph built with GraphRAG.
 
+## Knowledge Graph Overview
+
+The knowledge graph is built from **10 interconnected documents** covering:
+- Company organization and team members
+- Project details (Alpha, Beta)
+- Technical architecture and technology stack
+- Customer/partner relationships
+- Engineering processes and incidents
+- Company events and timeline
+
+**Graph Statistics:**
+- 176 entities
+- 342 relationships  
+- 33 communities
+
+## Prerequisites
+
+Before querying, build the knowledge graph:
+
+```powershell
+# Using Python (recommended)
+poetry run python -m core.index
+```
+
 ## Quick Start
 
 Use the Python API to run queries:
@@ -39,8 +63,9 @@ print(response)
 **Examples:**
 - "Who leads Project Alpha?"
 - "What technologies are used in Project Alpha?"
-- "What is Sarah Chen's role?"
-- "Who works with Dr. Emily Harrison?"
+- "Who resolved the GraphRAG index corruption incident?"
+- "What is the relationship between David Kumar and Sophia Lee?"
+- "Who are the customers of Project Beta?"
 
 **How it works:** Uses vector similarity to find relevant entities, then traverses the knowledge graph to gather connected information (relationships, attributes, community context).
 
@@ -50,8 +75,9 @@ print(response)
 **Examples:**
 - "What are the main projects and teams at TechVenture Inc?"
 - "Summarize the organizational structure"
-- "What are the key initiatives across all departments?"
+- "What engineering processes are used across the organization?"
 - "What technologies are being used company-wide?"
+- "What incidents have affected the organization?"
 
 **How it works:** Analyzes community reports (summaries of graph communities) to provide high-level overviews and thematic insights.
 
@@ -60,20 +86,19 @@ print(response)
 ### Local Search Queries
 
 ```powershell
-# Leadership
+# Leadership & Teams
 poetry run python -m core.example "Who leads Project Alpha?"
+poetry run python -m core.example "Who works on the Infrastructure Department?"
+poetry run python -m core.example "What does Jennifer Park do?"
 
 # Technology Stack
 poetry run python -m core.example "What technologies are used in Project Alpha?"
+poetry run python -m core.example "What is the Azure architecture used by TechVenture?"
 
-# Team Members
-poetry run python -m core.example "Who works on the Infrastructure Department?"
-
-# Relationships
-poetry run python -m core.example "What is the relationship between David Kumar and Emily Harrison?"
-
-# Roles
-poetry run python -m core.example "What does Jennifer Park do?"
+# Cross-Document Queries (demonstrates graph power)
+poetry run python -m core.example "Who resolved the GraphRAG index corruption incident and what was the root cause?"
+poetry run python -m core.example "What customers are using Project Beta?"
+poetry run python -m core.example "What is the relationship between David Kumar and Sophia Lee?"
 ```
 
 ### Global Search Queries
@@ -85,11 +110,13 @@ poetry run python -m core.example "What are the main projects and teams at TechV
 # Strategic Initiatives  
 poetry run python -m core.example "What are the key strategic initiatives?" --type global
 
-# Technology Landscape
-poetry run python -m core.example "What technologies are being used across the organization?" --type global
+# Engineering & Incidents
+poetry run python -m core.example "What engineering processes does TechVenture use?" --type global
+poetry run python -m core.example "What major incidents has the organization experienced?" --type global
 
-# Departmental Structure
-poetry run python -m core.example "Describe the organizational structure and key departments" --type global
+# Technology & Architecture
+poetry run python -m core.example "Describe the technology stack and architecture" --type global
+poetry run python -m core.example "What Azure services are used across the organization?" --type global
 ```
 
 ## Advanced Usage

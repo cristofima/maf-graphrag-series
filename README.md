@@ -8,7 +8,7 @@ This repository contains the code for the **MAF + GraphRAG** article series, dem
 
 | Part | Title | Status | Folder/Module |
 |------|-------|--------|---------------|
-| 1 | GraphRAG Fundamentals | ✅ Complete | `core/`, `run_*.ps1` |
+| 1 | GraphRAG Fundamentals | ✅ Complete | `core/` |
 | 2 | GraphRAG MCP Server | ⏳ Planned | `mcp_server/` |
 | 3 | Supervisor Agent Pattern | ⏳ Planned | `agents/`, `orchestration/` |
 | 4 | Workflow Patterns | ⏳ Planned | `workflows/` |
@@ -46,7 +46,6 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
   - GPT-4o deployment (for entity extraction and queries)
   - text-embedding-3-small deployment (for embeddings)
 - Azure subscription
-- PowerShell (Windows) or Bash (Linux/Mac)
 
 ### Quick Start
 
@@ -72,10 +71,10 @@ poetry install
 cp .env.example .env
 # Edit .env with your Azure OpenAI credentials
 
-# Build the knowledge graph (one-time setup)
-.\run_index.ps1
+# Build the knowledge graph
+poetry run python -m core.index
 
-# Query the knowledge graph using Python
+# Query the knowledge graph
 poetry run python -m core.example "Who leads Project Alpha?"
 poetry run python -m core.example "What are the main projects?" --type global
 ```
@@ -87,6 +86,28 @@ poetry run python -m core.example "What are the main projects?" --type global
 ### Using the Python API
 
 The `core/` module provides a modern Python API for GraphRAG 1.2.0:
+
+#### Building the Knowledge Graph
+
+```python
+import asyncio
+from core import build_index
+
+# Build knowledge graph from documents in input/documents/
+results = asyncio.run(build_index())
+
+for result in results:
+    print(f"{result.workflow}: {result.errors or 'success'}")
+```
+
+Or use the CLI:
+
+```powershell
+poetry run python -m core.index
+poetry run python -m core.index --resume  # Resume interrupted run
+```
+
+#### Querying the Knowledge Graph
 
 ```python
 import asyncio
@@ -114,6 +135,16 @@ poetry run python -m core.example "What are the main themes?" --type global
 
 📖 **API Documentation:** See [core/README.md](core/README.md) for full API reference.
 
+### Knowledge Graph Statistics
+
+After indexing the 10 sample documents, the knowledge graph contains:
+
+| Metric | Count |
+|--------|-------|
+| **Entities** | 176 |
+| **Relationships** | 342 |
+| **Communities** | 33 |
+
 ### Project Structure
 
 ```
@@ -122,18 +153,30 @@ maf-graphrag-series/
 ├── pyproject.toml             # Poetry dependency management
 ├── poetry.lock                # Locked dependency versions
 ├── settings.yaml              # GraphRAG configuration
-├── run_index.ps1              # Build knowledge graph (one-time indexing)
 ├── .env.example
 ├── input/
-│   └── documents/*.md         # Sample interconnected documents
+│   ├── README.md              # Document descriptions
+│   └── documents/             # 10 sample interconnected documents
+│       ├── company_org.md
+│       ├── team_members.md
+│       ├── project_alpha.md
+│       ├── project_beta.md
+│       ├── technical_architecture.md
+│       ├── technology_stack.md
+│       ├── customers_partners.md
+│       ├── engineering_processes.md
+│       ├── incidents_postmortems.md
+│       └── company_events_timeline.md
 ├── output/                    # Generated knowledge graph
 │   ├── create_final_*.parquet
 │   └── lancedb/               # Vector store
 ├── core/                      # Python API for GraphRAG 1.2.0
 │   ├── config.py              # Configuration loading
 │   ├── data_loader.py         # Parquet file loading
+│   ├── indexer.py             # Build knowledge graph
 │   ├── search.py              # Async search functions
-│   ├── example.py             # CLI example
+│   ├── index.py               # CLI for indexing
+│   ├── example.py             # CLI for querying
 │   └── README.md              # Module documentation
 ├── prompts/                   # Custom prompt templates
 ├── docs/
@@ -150,22 +193,26 @@ maf-graphrag-series/
 
 ### Local Search (Entity-Focused)
 
+**Question:** "Who resolved the GraphRAG index corruption incident and what was the root cause?"
+
+**Answer:**
+> The GraphRAG index corruption incident was resolved through the collaborative efforts of Sophia Lee, Priya Patel, Dr. Emily Harrison, and David Kumar. The root cause was identified as an interrupted indexing job during an Azure Container Apps scaling event, which left the graph in an inconsistent state. The resolution involved implementing a full re-index with validation checks and atomic swap procedures.
+
 **Question:** "Who leads Project Alpha and what is their background?"
 
 **Answer:**
-> Dr. Emily Harrison leads Project Alpha at TechVenture Inc. She holds a Ph.D. in Quantum Computing from MIT and has 15 years of experience in advanced computing research. Under her leadership, Project Alpha is developing a next-generation quantum-classical hybrid processor that has achieved 99.7% gate fidelity in initial testing.
+> Dr. Emily Harrison leads Project Alpha at TechVenture Inc. She holds a Ph.D. in Quantum Computing from MIT and has 15 years of experience in advanced computing research. Under her leadership, Project Alpha is developing a next-generation quantum-classical hybrid processor that has achieved 99.7% gate fidelity.
 
 ### Global Search (Thematic)
 
 **Question:** "What are the main initiatives at TechVenture?"
 
 **Answer:**
-> TechVenture Inc. is pursuing three major strategic initiatives:
-> 1. **Project Alpha** - Quantum computing research led by Dr. Emily Harrison
-> 2. **Project Beta** - AI/ML platform development focused on healthcare applications  
-> 3. **Project Gamma** - Sustainable energy solutions integrating smart grid technology
+> TechVenture Inc. is pursuing major strategic initiatives:
+> 1. **Project Alpha** - Quantum computing research led by Dr. Emily Harrison (Phase 4 - GA Preparation)
+> 2. **Project Beta** - AI/ML platform for healthcare applications (Active production with enterprise customers)
 >
-> These projects share resources and talent, with cross-functional teams collaborating across departments.
+> These projects share resources through cross-functional collaboration, with teams spanning Research, Engineering, and Infrastructure departments.
 
 See [docs/qa-examples.md](docs/qa-examples.md) for more examples.
 
@@ -181,8 +228,7 @@ See [docs/qa-examples.md](docs/qa-examples.md) for more examples.
 | File | Description |
 |------|-------------|
 | `settings.yaml` | GraphRAG configuration (LLM, embeddings, storage) |
-| `run_index.ps1` | PowerShell script to build knowledge graph |
-| `core/` | Python API module for querying and data access |
+| `core/` | Python API module for indexing, querying, and data access |
 | `.env` | Azure OpenAI credentials (create from .env.example) |
 
 ## License

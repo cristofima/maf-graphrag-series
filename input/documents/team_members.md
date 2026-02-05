@@ -15,9 +15,10 @@
 - Regular 1-on-1s with Robert Thompson on product direction
 
 **Recent Achievements:**
-- Secured $50 million Series B funding (2025)
-- Grew company from 50 to 150 employees
+- Secured $85 million Series C funding (2025)
+- Grew company from 50 to 100 employees
 - Championed Project Alpha as flagship initiative
+- Led international expansion to London
 
 ---
 

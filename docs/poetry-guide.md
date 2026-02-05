@@ -381,10 +381,10 @@ If you do not want to install the current project use --no-root.
 ```
 
 **Cause:** Poetry assumes you're creating a distributable package (for PyPI) and looks for:
-- A module structure like `src/maf_graphrag_series/`
+- A package structure like `maf_graphrag_series/` at project root
 - Or a single module file `maf_graphrag_series.py`
 
-This project is a **tutorial/script collection**, not a package.
+This project has modules in folders like `core/`, `mcp_server/`, etc., which are not standard package layouts.
 
 **Solution:**
 ```toml

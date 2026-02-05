@@ -4,14 +4,31 @@ This guide shows how to query the TechVenture Inc. knowledge graph built with Gr
 
 ## Quick Start
 
-Use the provided PowerShell script to run queries:
+Use the Python API to run queries:
 
 ```powershell
 # Local Search - Specific entity-focused questions
-.\run_query.ps1 -Method local -Query "Who leads Project Alpha?"
+poetry run python -m core.example "Who leads Project Alpha?"
 
 # Global Search - Broad organizational questions  
-.\run_query.ps1 -Method global -Query "What are the main projects at TechVenture Inc?"
+poetry run python -m core.example "What are the main projects at TechVenture Inc?" --type global
+```
+
+Or use it programmatically:
+
+```python
+import asyncio
+from core import load_all, local_search, global_search
+
+data = load_all()
+
+# Local search
+response, context = asyncio.run(local_search("Who leads Project Alpha?", data))
+print(response)
+
+# Global search
+response, context = asyncio.run(global_search("What are the main projects?", data))
+print(response)
 ```
 
 ## Search Methods Comparison
@@ -44,58 +61,94 @@ Use the provided PowerShell script to run queries:
 
 ```powershell
 # Leadership
-.\run_query.ps1 -Method local -Query "Who leads Project Alpha?"
+poetry run python -m core.example "Who leads Project Alpha?"
 
 # Technology Stack
-.\run_query.ps1 -Method local -Query "What technologies are used in Project Alpha?"
+poetry run python -m core.example "What technologies are used in Project Alpha?"
 
 # Team Members
-.\run_query.ps1 -Method local -Query "Who works on the Infrastructure Department?"
+poetry run python -m core.example "Who works on the Infrastructure Department?"
 
 # Relationships
-.\run_query.ps1 -Method local -Query "What is the relationship between David Kumar and Emily Harrison?"
+poetry run python -m core.example "What is the relationship between David Kumar and Emily Harrison?"
 
 # Roles
-.\run_query.ps1 -Method local -Query "What does Jennifer Park do?"
+poetry run python -m core.example "What does Jennifer Park do?"
 ```
 
 ### Global Search Queries
 
 ```powershell
 # Organizational Overview
-.\run_query.ps1 -Method global -Query "What are the main projects and teams at TechVenture Inc?"
+poetry run python -m core.example "What are the main projects and teams at TechVenture Inc?" --type global
 
 # Strategic Initiatives  
-.\run_query.ps1 -Method global -Query "What are the key strategic initiatives?"
+poetry run python -m core.example "What are the key strategic initiatives?" --type global
 
 # Technology Landscape
-.\run_query.ps1 -Method global -Query "What technologies are being used across the organization?"
+poetry run python -m core.example "What technologies are being used across the organization?" --type global
 
 # Departmental Structure
-.\run_query.ps1 -Method global -Query "Describe the organizational structure and key departments"
+poetry run python -m core.example "Describe the organizational structure and key departments" --type global
 ```
 
-## Advanced Options
+## Advanced Usage
 
-The underlying command supports additional options:
+### Python API
 
-```powershell
-graphrag query `
-    --method [local|global|drift|basic] `
-    --query "Your question" `
-    --root "." `
-    --data "output" `
-    --community-level 2 `
-    --response-type "Multiple Paragraphs"
+For more control, use the Python API directly:
+
+```python
+import asyncio
+from core import load_all, local_search, global_search
+
+# Load data once
+data = load_all()
+
+# Run multiple queries
+async def run_queries():
+    # Local search with custom parameters
+    response, context = await local_search(
+        query="Who leads Project Alpha?",
+        data=data,
+        community_level=2,
+        response_type="Multiple Paragraphs"
+    )
+    print("Local:", response)
+    
+    # Global search with dynamic community selection
+    response, context = await global_search(
+        query="What are the main projects?",
+        data=data,
+        community_level=2,
+        response_type="Multi-Page Report",
+        dynamic_community_selection=True
+    )
+    print("Global:", response)
+
+asyncio.run(run_queries())
 ```
 
 **Parameters:**
-- `--method`: Search algorithm (local, global, drift, basic)
-- `--query`: Your question
-- `--root`: Project root directory
-- `--data`: Output directory with parquet files
-- `--community-level`: Community hierarchy level (0-2, higher = smaller communities)
-- `--response-type`: Format of response (e.g., "Multiple Paragraphs", "Single Paragraph", "List of 3-7 Points")
+- `query`: Your question (string)
+- `data`: GraphData object from `load_all()`
+- `community_level`: Community hierarchy level (0-2, higher = smaller communities)
+- `response_type`: Format of response (e.g., "Multiple Paragraphs", "Single Paragraph", "List of 3-7 Points", "Multi-Page Report")
+- `dynamic_community_selection`: (global only) Enable dynamic community selection
+
+### Available Search Types
+
+```python
+from core.search import local_search, global_search, drift_search, basic_search
+
+# Standard searches
+await local_search(query, data)        # Entity-focused
+await global_search(query, data)       # Thematic/community-based
+
+# Advanced searches
+await drift_search(query, data)        # Hybrid local+global
+await basic_search(query, data)        # Vector similarity only (no graph)
+```
 
 ## Understanding the Output
 

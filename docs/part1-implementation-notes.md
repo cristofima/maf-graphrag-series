@@ -161,15 +161,22 @@ Builds the knowledge graph:
 .\run_index.ps1
 ```
 
-### run_query.ps1
+### Python Query API
 
-Queries the knowledge graph:
-- Supports: `local`, `global`, `drift`, `basic` methods
-- Uses community level 2
+Queries the knowledge graph using the `core/` module:
+- Supports: `local`, `global`, `drift`, `basic` search types
+- Rich CLI output with statistics
+- Programmatic API for integration
 
 ```powershell
-.\run_query.ps1 "Who leads Project Alpha?" -Method local
-.\run_query.ps1 "Summarize the organization" -Method global
+# CLI usage
+poetry run python -m core.example "Who leads Project Alpha?"
+poetry run python -m core.example "Summarize the organization" --type global
+
+# Python API usage
+from core import load_all, local_search
+data = load_all()
+response, context = await local_search("Your question", data)
 ```
 
 ---
@@ -238,14 +245,15 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 
 ---
 
-## Legacy src/ Scripts
+## Python API Module
 
-The Python scripts in `src/` are **reference only**:
-- Use old GraphRAG API patterns
-- Reference old file names (`entities.parquet` instead of `create_final_entities.parquet`)
-- Superseded by `run_index.ps1` and `run_query.ps1`
+The `core/` module provides a modern Python API for GraphRAG 1.2.0:
+- Async search functions (local, global, drift, basic)
+- Parquet data loading with `GraphData` dataclass
+- CLI example with rich formatting
+- Full API compatibility with GraphRAG 1.2.0
 
-See [src/README.md](../src/README.md) for details.
+See [core/README.md](../core/README.md) for complete documentation.
 
 ---
 
@@ -317,17 +325,18 @@ mcp_server/                # New folder for Part 2
 ## Quick Reference Commands
 
 ```powershell
-# Activate virtual environment
-.\.venv\Scripts\Activate
+# Install dependencies (Poetry)
+poetry install
 
-# Build knowledge graph (full reindex)
+# Build knowledge graph (one-time indexing)
 .\run_index.ps1
 
-# Local search (entity-focused)
-.\run_query.ps1 "Your question" -Method local
+# Query using Python CLI
+poetry run python -m core.example "Your question"
+poetry run python -m core.example "Your question" --type global
 
-# Global search (thematic)
-.\run_query.ps1 "Your question" -Method global
+# Query using Python API
+poetry run python -c "import asyncio; from core import load_all, local_search; data = load_all(); print(asyncio.run(local_search('Your question', data))[0])"
 
 # Run notebook
 jupyter notebook notebooks/01_explore_graph.ipynb
@@ -339,21 +348,25 @@ jupyter notebook notebooks/01_explore_graph.ipynb
 
 ```
 maf-graphrag-series/
-├── .venv/                     # Python virtual environment
+├── .venv/                     # Python virtual environment (Poetry-managed)
 ├── .env                       # Azure credentials (gitignored)
 ├── .env.example               # Template for credentials
+├── pyproject.toml             # Poetry dependencies
 ├── settings.yaml              # GraphRAG configuration
 ├── run_index.ps1              # Build knowledge graph
-├── run_query.ps1              # Query knowledge graph
 ├── requirements.txt           # Python dependencies
 ├── input/documents/           # Source documents
 ├── output/                    # Generated artifacts (gitignored)
 │   ├── create_final_*.parquet
 │   └── lancedb/
 ├── prompts/                   # Custom prompt templates (fixed for v1.2.0)
+├── core/                      # Python API module
+│   ├── config.py
+│   ├── data_loader.py
+│   ├── search.py
+│   └── example.py
 ├── docs/                      # Documentation
 ├── notebooks/                 # Jupyter notebooks
-├── src/                       # Legacy scripts (reference only)
 └── infra/                     # Terraform infrastructure
 ```
 

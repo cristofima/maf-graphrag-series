@@ -8,7 +8,7 @@ This repository contains the code for the **MAF + GraphRAG** article series, dem
 
 | Part | Title | Status | Folder/Module |
 |------|-------|--------|---------------|
-| 1 | GraphRAG Fundamentals | ✅ Complete | Root (`settings.yaml`, `run_*.ps1`) |
+| 1 | GraphRAG Fundamentals | ✅ Complete | `core/`, `run_*.ps1` |
 | 2 | GraphRAG MCP Server | ⏳ Planned | `mcp_server/` |
 | 3 | Supervisor Agent Pattern | ⏳ Planned | `agents/`, `orchestration/` |
 | 4 | Workflow Patterns | ⏳ Planned | `workflows/` |
@@ -72,17 +72,47 @@ poetry install
 cp .env.example .env
 # Edit .env with your Azure OpenAI credentials
 
-# Build the knowledge graph
+# Build the knowledge graph (one-time setup)
 .\run_index.ps1
 
-# Query the knowledge graph
-.\run_query.ps1 "Who leads Project Alpha?" -Method local
-.\run_query.ps1 "Summarize the organization" -Method global
+# Query the knowledge graph using Python
+poetry run python -m core.example "Who leads Project Alpha?"
+poetry run python -m core.example "What are the main projects?" --type global
 ```
 
 💡 **Note:** Poetry manages virtual environments automatically. You don't need to manually create `.venv` like with pip.
 
 📖 **Poetry Guide:** See [docs/poetry-guide.md](docs/poetry-guide.md) for detailed usage instructions.
+
+### Using the Python API
+
+The `core/` module provides a modern Python API for GraphRAG 1.2.0:
+
+```python
+import asyncio
+from core import load_all, local_search, global_search
+
+# Load the knowledge graph
+data = load_all()
+print(f"Loaded: {data.entities.shape[0]} entities, {data.relationships.shape[0]} relationships")
+
+# Entity-focused search
+response, context = asyncio.run(local_search("Who leads Project Alpha?", data))
+print(response)
+
+# Thematic search
+response, context = asyncio.run(global_search("What are the main projects?", data))
+print(response)
+```
+
+Or use the CLI:
+
+```powershell
+poetry run python -m core.example "Who leads Project Alpha?"
+poetry run python -m core.example "What are the main themes?" --type global
+```
+
+📖 **API Documentation:** See [core/README.md](core/README.md) for full API reference.
 
 ### Project Structure
 
@@ -92,14 +122,19 @@ maf-graphrag-series/
 ├── pyproject.toml             # Poetry dependency management
 ├── poetry.lock                # Locked dependency versions
 ├── settings.yaml              # GraphRAG configuration
-├── run_index.ps1              # Build knowledge graph (CLI wrapper)
-├── run_query.ps1              # Query knowledge graph (CLI wrapper)
+├── run_index.ps1              # Build knowledge graph (one-time indexing)
 ├── .env.example
 ├── input/
 │   └── documents/*.md         # Sample interconnected documents
 ├── output/                    # Generated knowledge graph
 │   ├── create_final_*.parquet
 │   └── lancedb/               # Vector store
+├── core/                      # Python API for GraphRAG 1.2.0
+│   ├── config.py              # Configuration loading
+│   ├── data_loader.py         # Parquet file loading
+│   ├── search.py              # Async search functions
+│   ├── example.py             # CLI example
+│   └── README.md              # Module documentation
 ├── prompts/                   # Custom prompt templates
 ├── docs/
 │   ├── poetry-guide.md              # Poetry usage guide
@@ -107,7 +142,6 @@ maf-graphrag-series/
 │   ├── query-guide.md               # Query reference
 │   ├── qa-examples.md               # Q&A examples with responses
 │   └── lessons-learned.md           # Deployment insights
-├── src/                       # Legacy Python scripts (reference only)
 └── notebooks/
     └── 01_explore_graph.ipynb # Graph visualization
 ```
@@ -148,7 +182,7 @@ See [docs/qa-examples.md](docs/qa-examples.md) for more examples.
 |------|-------------|
 | `settings.yaml` | GraphRAG configuration (LLM, embeddings, storage) |
 | `run_index.ps1` | PowerShell script to build knowledge graph |
-| `run_query.ps1` | PowerShell script for local/global queries |
+| `core/` | Python API module for querying and data access |
 | `.env` | Azure OpenAI credentials (create from .env.example) |
 
 ## License
@@ -157,4 +191,4 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ## Author
 
-Cristopher Coronado - Microsoft MVP AI
+Cristopher Coronado

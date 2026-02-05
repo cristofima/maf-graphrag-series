@@ -38,7 +38,7 @@ async def run_search(query: str, search_type: str = "local") -> None:
             data = load_all()
         except FileNotFoundError as e:
             console.print(f"[red]❌ Error:[/red] {e}")
-            console.print("\n[yellow]Run indexing first:[/yellow] .\\run_index.ps1")
+            console.print("\n[yellow]Run indexing first:[/yellow] poetry run python -m core.index")
             sys.exit(1)
     
     # Show graph stats

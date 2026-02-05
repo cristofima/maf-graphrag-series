@@ -4,6 +4,31 @@ Python API for GraphRAG 1.2.0 knowledge graph operations.
 
 ## Quick Start
 
+### Building the Knowledge Graph
+
+```powershell
+# CLI (recommended)
+poetry run python -m core.index
+
+# With options
+poetry run python -m core.index --resume          # Resume interrupted run
+poetry run python -m core.index --memory-profile  # Enable profiling
+```
+
+Or programmatically:
+
+```python
+import asyncio
+from core import build_index
+
+# Build the knowledge graph
+results = asyncio.run(build_index())
+for result in results:
+    print(f"{result.workflow}: {result.errors or 'success'}")
+```
+
+### Querying the Knowledge Graph
+
 ```python
 import asyncio
 from core import load_all, local_search, global_search
@@ -21,12 +46,15 @@ response, context = asyncio.run(global_search("What are the main projects?", dat
 print(response)
 ```
 
-## CLI Example
+## CLI Commands
 
 ```powershell
-# Run from project root
+# Build knowledge graph (run from project root)
+poetry run python -m core.index
+
+# Query the knowledge graph
 poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "What are the main projects?" --method global
+poetry run python -m core.example "What are the main projects?" --type global
 ```
 
 ## Module Structure
@@ -36,8 +64,10 @@ poetry run python -m core.example "What are the main projects?" --method global
 | `__init__.py` | Module exports |
 | `config.py` | Load GraphRagConfig, validate output files |
 | `data_loader.py` | Load Parquet files into GraphData dataclass |
+| `indexer.py` | Build knowledge graph from documents |
 | `search.py` | Async search functions (local, global, drift, basic) |
-| `example.py` | CLI example with rich formatting |
+| `index.py` | CLI for indexing |
+| `example.py` | CLI for querying |
 
 ## API Reference
 

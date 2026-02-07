@@ -1,8 +1,10 @@
-# Lessons Learned: MAF + GraphRAG Infrastructure Deployment
+# Lessons Learned: MAF + GraphRAG Infrastructure & Migration
 
 ## Overview
 
-This document captures key insights, challenges, and solutions encountered during the Azure infrastructure setup for the MAF + GraphRAG series Part 1 implementation.
+This document captures key insights, challenges, and solutions encountered during:
+1. **Azure infrastructure setup** for the MAF + GraphRAG series (Challenges 1-5)
+2. **GraphRAG 1.2.0 → 3.0.1 migration** (Challenges 6-10)
 
 ---
 
@@ -341,6 +343,218 @@ Based on lessons learned, use this checklist for future deployments:
 ### Microsoft GraphRAG
 - [GitHub Repository](https://github.com/microsoft/graphrag)
 - [Research Paper](https://www.microsoft.com/en-us/research/project/graphrag/)
+- [GraphRAG v3 Migration Guide](https://microsoft.github.io/graphrag/posts/v3-migration/)
+- [GraphRAG v3 Config Reference](https://microsoft.github.io/graphrag/config/yaml/)
+
+---
+
+## Challenge 6: GraphRAG 1.2.0 → 3.0.1 API Breaking Changes
+
+### Problem
+The migration from GraphRAG 1.2.0 to 3.0.1 introduced several breaking API changes. The primary motivation was numpy compatibility—GraphRAG 1.2.0 pinned `numpy <2.0.0`, while Microsoft Agent Framework (`agent-framework`) required `numpy >=2.2.6`. This made it impossible to install both in the same environment.
+
+### Breaking Changes Encountered
+
+#### 1. `nodes` Parameter Removed from Search APIs
+
+**OLD (1.2.0)**:
+```python
+await api.local_search(
+    config=config,
+    nodes=data.nodes,        # ← REMOVED in 3.x
+    entities=data.entities,
+    community_reports=data.community_reports,
+    ...
+)
+```
+
+**NEW (3.0.1)**:
+```python
+await api.local_search(
+    config=config,
+    entities=data.entities,
+    communities=data.communities,  # ← NEW parameter
+    community_reports=data.community_reports,
+    ...
+)
+```
+
+#### 2. `build_index` API Signature Changed
+
+```diff
+- run_id: str               # Removed
+- is_resume_run: bool       # Renamed
+- memory_profile: bool      # Removed
+- progress_logger            # Removed
++ method: IndexingMethod     # New (Standard, Fast, etc.)
++ is_update_run: bool        # Renamed from is_resume_run
++ verbose: bool              # New
++ input_documents: DataFrame # New
+```
+
+### Solution
+
+Updated three core modules:
+
+1. **`core/data_loader.py`**: Added `communities` field to `GraphData` dataclass, removed `nodes`
+2. **`core/search.py`**: Updated `local_search()` and `global_search()` to use `communities` instead of `nodes`
+3. **`core/indexer.py`**: Updated `build_index()` to use new parameter names (`method`, `is_update_run`, `verbose`)
+
+### Key Insight
+Pin to a tilde version (`~3.0.1`) in `pyproject.toml` to allow patch updates while preventing future major breaking changes. Always check the [GraphRAG changelog](https://github.com/microsoft/graphrag/releases) before upgrading.
+
+---
+
+## Challenge 7: Output File Naming Convention Change
+
+### Problem
+GraphRAG 3.x changed the output Parquet file naming convention. All references to old file names throughout the codebase caused `FileNotFoundError` exceptions.
+
+**OLD (1.2.0)**:
+```
+output/create_final_entities.parquet
+output/create_final_relationships.parquet
+output/create_final_communities.parquet
+output/create_final_community_reports.parquet
+output/create_final_text_units.parquet
+```
+
+**NEW (3.0.1)**:
+```
+output/entities.parquet
+output/relationships.parquet
+output/communities.parquet
+output/community_reports.parquet
+output/text_units.parquet
+```
+
+### Impact
+This change affected **every layer** of the codebase:
+- Python code (`data_loader.py`, `config.py`, `index.py`)
+- Notebooks (`01_explore_graph.ipynb`)
+- Documentation (README, docs/, articles/)
+- Even prompt-related output references
+
+### Solution
+Systematic codebase-wide search and replace using `grep` to find all `create_final_` references, then updating each file in context. The `core/config.py` validation function was updated to check for the new file names.
+
+### Key Insight
+When a framework changes naming conventions, **grep the entire codebase** before considering the migration complete. Hidden references in documentation, comments, and print statements are easy to miss.
+
+---
+
+## Challenge 8: settings.yaml Configuration Format Overhaul
+
+### Problem
+GraphRAG 3.x completely restructured the `settings.yaml` format. The v1.2.0 configuration was incompatible and could not be incrementally updated.
+
+**OLD (1.2.0)**:
+```yaml
+llm:
+  api_key: ${GRAPHRAG_API_KEY}
+  model: gpt-4o
+  type: azure_openai_chat
+  api_base: ${GRAPHRAG_API_BASE}
+
+embeddings:
+  llm:
+    api_key: ${GRAPHRAG_API_KEY}
+    model: text-embedding-3-small
+    type: azure_openai_embedding
+```
+
+**NEW (3.0.1)**:
+```yaml
+completion_models:
+  default_completion_model:
+    model_provider: azure
+    model: gpt-4o
+    azure_deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
+    api_base: ${AZURE_OPENAI_ENDPOINT}
+    auth_method: api_key
+    api_key: ${AZURE_OPENAI_API_KEY}
+
+embedding_models:
+  default_embedding_model:
+    model_provider: azure
+    model: text-embedding-3-small
+    azure_deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+    ...
+```
+
+### Additional Config Changes
+- Environment variable names changed (e.g., `GRAPHRAG_API_KEY` → `AZURE_OPENAI_API_KEY`)
+- `vector_store` section now requires explicit `index_schema` with `vector_size`
+- Storage sections renamed (`storage` → `output_storage`, `input_storage` added)
+- New sections: `cache.storage`, `reporting`, workflow-level model assignments
+
+### Solution
+
+1. Ran `poetry run graphrag init --force` to generate a fresh v3.x `settings.yaml`
+2. Manually merged Azure OpenAI credentials and custom settings
+3. Updated `.env` variable names to match new config expectations
+4. Added explicit `vector_store.index_schema` with `vector_size: 1536` for text-embedding-3-small
+
+### Key Insight
+Don't try to incrementally patch a major config format change. Generate a fresh config and merge your customizations into it. Keep a backup of the old config for reference.
+
+---
+
+## Challenge 9: Prompt Template Incompatibilities
+
+### Problem
+Custom prompt templates that worked with GraphRAG 1.2.0 contained placeholders that were no longer injected by the v3.x runtime, causing `KeyError` exceptions during indexing.
+
+### Error
+```
+KeyError: 'max_length'
+```
+
+### Affected Prompts
+
+| File | Removed Placeholder |
+|------|---------------------|
+| `prompts/summarize_descriptions.txt` | `{max_length}` |
+| `prompts/global_search_map_system_prompt.txt` | `{max_length}` |
+| `prompts/global_search_reduce_system_prompt.txt` | `{max_length}` |
+| `prompts/community_report_text.txt` | `{max_report_length}` |
+| `prompts/community_report_graph.txt` | `{max_report_length}` |
+
+### Solution
+Removed the unsupported placeholders from all prompt files. In v3.x, these parameters are controlled via `settings.yaml` under the workflow sections (e.g., `summarize_descriptions.max_length: 500`, `community_reports.max_length: 2000`).
+
+### Key Insight
+Custom prompts are a **hidden migration risk**. If you've customized any prompts from the defaults, test each one individually after upgrading. The safest approach is to regenerate prompts with `graphrag init --force` and re-apply only your custom wording changes.
+
+---
+
+## Challenge 10: Knowledge Graph Statistics Shift After Re-indexing
+
+### Problem
+After completing the migration and re-indexing with GraphRAG 3.0.1, the knowledge graph statistics changed significantly:
+
+| Metric | v1.2.0 | v3.0.1 | Change |
+|--------|--------|--------|--------|
+| Entities | 176 | 147 | -16.5% |
+| Relationships | 342 | 263 | -23.1% |
+| Communities | 33 | 32 | -3.0% |
+
+### Root Cause
+This was **NOT data loss**. GraphRAG 3.x includes improved entity deduplication and graph summarization algorithms:
+
+1. **Better entity resolution**: v3.x more aggressively merges near-duplicate entities (e.g., "Azure OpenAI Service" and "Azure OpenAI" now correctly resolve to a single entity)
+2. **Improved relationship deduplication**: Redundant relationships between the same entity pairs are consolidated
+3. **Refined community detection**: The Leiden algorithm parameters were tuned, producing slightly fewer but more meaningful communities
+
+### Verification
+Confirmed via notebook exploration:
+- Core entities (people, projects, technologies) are all preserved
+- Relationship types and weights remain accurate
+- Community reports still capture all organizational themes
+- Search quality (local and global) is equal or better
+
+### Key Insight
+After any GraphRAG version upgrade, **compare statistics and verify search quality** rather than only checking that code runs. A decrease in entity/relationship counts usually indicates better deduplication, not data loss. Document the before/after numbers for transparency.
 
 ---
 
@@ -353,6 +567,11 @@ Based on lessons learned, use this checklist for future deployments:
 3. ✅ **Multi-region architecture when beneficial**
 4. ✅ **Remote state management with proper bootstrap**
 5. ✅ **Validation and testing at each deployment step**
+6. ✅ **Full backup before major version migration**
+7. ✅ **Codebase-wide search for outdated references after migration**
+8. ✅ **Generate fresh config files instead of incremental patching**
+9. ✅ **Test custom prompts individually after framework upgrade**
+10. ✅ **Compare knowledge graph statistics before and after re-indexing**
 
 ### Final Architecture
 
@@ -361,6 +580,7 @@ Based on lessons learned, use this checklist for future deployments:
 | Azure OpenAI | westus | GPT-4o + text-embedding-3-small | Model availability, lower demand |
 | Storage Account | southcentralus | Standard LRS | Quota availability |
 | App Services | southcentralus | TBD | Quota availability, proximity to storage |
+| GraphRAG | — | v3.0.1 (migrated from v1.2.0) | numpy 2.x compat, agent-framework support |
 
 **Estimated Monthly Cost** (based on 30K TPM, moderate usage):
 - Azure OpenAI: ~$150-300
@@ -373,15 +593,15 @@ Based on lessons learned, use this checklist for future deployments:
 
 ## Next Steps
 
-1. Test Terraform deployment with updated configuration
-2. Generate `.env` file from outputs
-3. Commit infrastructure code to git
-4. Implement MCP Server (Part 2)
+1. ~~Test Terraform deployment with updated configuration~~ ✅
+2. ~~Generate `.env` file from outputs~~ ✅
+3. ~~Commit infrastructure code to git~~ ✅
+4. ~~Implement MCP Server (Part 2)~~ ✅
 5. Document integration patterns (Part 3+)
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: January 31, 2026  
-**Author**: Cristopher Coronado (Microsoft MVP AI)  
-**Series**: MAF + GraphRAG - Part 1
+**Document Version**: 2.0  
+**Last Updated**: February 7, 2026  
+**Author**: Cristopher Coronado
+**Series**: MAF + GraphRAG - Parts 1 & 2

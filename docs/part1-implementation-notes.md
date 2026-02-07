@@ -276,33 +276,46 @@ See [core/README.md](../core/README.md) for complete documentation.
 
 ## Issues Encountered & Solutions
 
-### Issue 1: GraphRAG Version Conflicts
+### Issue 1: GraphRAG Version Migration (1.2.0 → 3.0.1)
 
-**Problem**: Multiple versions tried (v3.0.1, v2.7.1) had breaking changes.
+**Problem**: GraphRAG 1.2.0 pinned `numpy <2.0.0`, creating a dependency conflict with `agent-framework` (requires `numpy >=2.2.6`). Multiple versions were tested (v2.7.1, v3.0.1) before achieving a stable migration.
 
-**Solution**: Settled on v1.2.0 with prompt fixes.
+**Solution**: Migrated to GraphRAG 3.0.1 with full API adaptation:
+- Updated `search.py`: `nodes` param removed, `communities` added
+- Updated `indexer.py`: `is_resume_run` → `is_update_run`, new `method` param
+- Updated `data_loader.py`: `GraphData` dataclass restructured
+- Updated `settings.yaml`: Complete config format overhaul
+- Updated all file references: `create_final_*.parquet` → `*.parquet`
 
-### Issue 2: KeyError 'max_length'
+See [docs/lessons-learned.md](lessons-learned.md) (Challenges 6-10) for full details.
 
-**Problem**: Custom prompts included `{max_length}` placeholder not passed by v1.2.0.
+### Issue 2: KeyError 'max_length' in Prompt Templates
 
-**Solution**: Removed `{max_length}` and `{max_report_length}` from all prompt files.
+**Problem**: Custom prompts included `{max_length}` and `{max_report_length}` placeholders not injected by the GraphRAG runtime.
+
+**Solution**: Removed unsupported placeholders from 5 prompt files. These parameters are now controlled via `settings.yaml` (e.g., `summarize_descriptions.max_length: 500`).
 
 ### Issue 3: Windows UTF-8 Encoding
 
-**Problem**: PowerShell encoding issues caused crashes.
+**Problem**: PowerShell encoding issues caused crashes during indexing.
 
-**Solution**: Added to scripts:
-```powershell
-$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
-$env:PYTHONUTF8 = 1
+**Solution**: Configured UTF-8 encoding in the Python environment:
+```python
+# Set in environment
+PYTHONUTF8=1
 ```
 
 ### Issue 4: Regional Model Availability
 
 **Problem**: `text-embedding-3-small` not available in `southcentralus`.
 
-**Solution**: Deploy Azure OpenAI to `westus` region.
+**Solution**: Deploy Azure OpenAI to `westus` region. See [docs/lessons-learned.md](lessons-learned.md) (Challenge 2) for regional availability matrix.
+
+### Issue 5: Knowledge Graph Statistics Shift
+
+**Problem**: After re-indexing with v3.0.1, entity count dropped from 176 → 147 and relationships from 342 → 263.
+
+**Solution**: Verified this was due to improved deduplication in v3.x, not data loss. All core entities, relationships, and community themes preserved. Search quality equal or better.
 
 ---
 

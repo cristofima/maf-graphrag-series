@@ -1,5 +1,5 @@
 """
-Search functions using GraphRAG 1.2.0 API.
+Search functions using GraphRAG 3.0.x API.
 
 Provides async wrappers around graphrag.api search functions.
 """
@@ -57,10 +57,11 @@ async def local_search(
     if config is None:
         config = get_config()
     
+    # GraphRAG 3.x: removed 'nodes', added 'communities'
     response, context = await api.local_search(
         config=config,
-        nodes=data.nodes,
         entities=data.entities,
+        communities=data.communities,
         community_reports=data.community_reports,
         text_units=data.text_units,
         relationships=data.relationships,
@@ -77,7 +78,7 @@ async def global_search(
     query: str,
     data: GraphData,
     config: GraphRagConfig | None = None,
-    community_level: int = 2,
+    community_level: int | None = 2,
     response_type: str = "Multiple Paragraphs",
     dynamic_community_selection: bool = False,
 ) -> SearchResult:
@@ -98,7 +99,7 @@ async def global_search(
         query: The question to ask
         data: GraphData object containing loaded Parquet files
         config: Optional GraphRagConfig. Uses default if not specified.
-        community_level: Leiden hierarchy level (higher = smaller communities)
+        community_level: Leiden hierarchy level (higher = smaller communities). None for auto.
         response_type: Format of response (e.g., "Multiple Paragraphs", "Multi-Page Report")
         dynamic_community_selection: Use dynamic community selection algorithm
         
@@ -115,9 +116,9 @@ async def global_search(
     if config is None:
         config = get_config()
     
+    # GraphRAG 3.x: removed 'nodes', community_level accepts None
     response, context = await api.global_search(
         config=config,
-        nodes=data.nodes,
         entities=data.entities,
         communities=data.communities,
         community_reports=data.community_reports,
@@ -156,10 +157,11 @@ async def drift_search(
     if config is None:
         config = get_config()
     
+    # GraphRAG 3.x: removed 'nodes', added 'communities'
     response, context = await api.drift_search(
         config=config,
-        nodes=data.nodes,
         entities=data.entities,
+        communities=data.communities,
         community_reports=data.community_reports,
         text_units=data.text_units,
         relationships=data.relationships,
@@ -175,6 +177,7 @@ async def basic_search(
     query: str,
     data: GraphData,
     config: GraphRagConfig | None = None,
+    response_type: str = "Multiple Paragraphs",
 ) -> SearchResult:
     """
     Perform a basic RAG search (vector similarity only).
@@ -186,6 +189,7 @@ async def basic_search(
         query: The question to ask
         data: GraphData object containing loaded Parquet files
         config: Optional GraphRagConfig. Uses default if not specified.
+        response_type: Format of response
         
     Returns:
         Tuple of (response_text, context_data)
@@ -193,9 +197,11 @@ async def basic_search(
     if config is None:
         config = get_config()
     
+    # GraphRAG 3.x: added response_type parameter
     response, context = await api.basic_search(
         config=config,
         text_units=data.text_units,
+        response_type=response_type,
         query=query,
     )
     

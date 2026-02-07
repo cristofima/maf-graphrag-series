@@ -5,24 +5,27 @@ Provides async wrapper around graphrag.api.build_index for creating knowledge gr
 """
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
+
+import pandas as pd
 
 import graphrag.api as api
 from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
+from graphrag.config.enums import IndexingMethod
 from graphrag.config.models.graph_rag_config import GraphRagConfig
-from graphrag.index.typing import PipelineRunResult
-from graphrag.logger.base import ProgressLogger
+from graphrag.index.typing.pipeline_run_result import PipelineRunResult
 
 from core.config import get_config
 
 
 async def build_index(
     config: Optional[GraphRagConfig] = None,
-    run_id: str = "",
-    is_resume_run: bool = False,
-    memory_profile: bool = False,
+    method: IndexingMethod | str = IndexingMethod.Standard,
+    is_update_run: bool = False,
     callbacks: Optional[list[WorkflowCallbacks]] = None,
-    progress_logger: Optional[ProgressLogger] = None,
+    additional_context: Optional[dict[str, Any]] = None,
+    verbose: bool = False,
+    input_documents: Optional[pd.DataFrame] = None,
 ) -> list[PipelineRunResult]:
     """
     Build the knowledge graph from input documents.
@@ -37,11 +40,12 @@ async def build_index(
     
     Args:
         config: Optional GraphRagConfig. Uses settings.yaml if not specified.
-        run_id: Optional run identifier for tracking
-        is_resume_run: Resume from previous interrupted run
-        memory_profile: Enable memory profiling
+        method: Indexing method - Standard, Fast, StandardUpdate, FastUpdate
+        is_update_run: Whether to update an existing index
         callbacks: Custom workflow callbacks
-        progress_logger: Custom progress logger
+        additional_context: Extra context passed to workflows
+        verbose: Enable verbose logging
+        input_documents: Optional pre-loaded documents DataFrame
         
     Returns:
         List of pipeline run results with statistics
@@ -62,15 +66,15 @@ async def build_index(
     if config is None:
         config = get_config()
     
-    # Run the indexing pipeline
-    # Note: api.build_index is async in GraphRAG 1.2.0
+    # Run the indexing pipeline (GraphRAG 3.x API)
     results = await api.build_index(
         config=config,
-        run_id=run_id,
-        is_resume_run=is_resume_run,
-        memory_profile=memory_profile,
+        method=method,
+        is_update_run=is_update_run,
         callbacks=callbacks,
-        progress_logger=progress_logger,
+        additional_context=additional_context,
+        verbose=verbose,
+        input_documents=input_documents,
     )
     
     return results
@@ -78,11 +82,12 @@ async def build_index(
 
 def build_index_sync(
     config: Optional[GraphRagConfig] = None,
-    run_id: str = "",
-    is_resume_run: bool = False,
-    memory_profile: bool = False,
+    method: IndexingMethod | str = IndexingMethod.Standard,
+    is_update_run: bool = False,
     callbacks: Optional[list[WorkflowCallbacks]] = None,
-    progress_logger: Optional[ProgressLogger] = None,
+    additional_context: Optional[dict[str, Any]] = None,
+    verbose: bool = False,
+    input_documents: Optional[pd.DataFrame] = None,
 ) -> list[PipelineRunResult]:
     """
     Synchronous version of build_index.
@@ -101,9 +106,10 @@ def build_index_sync(
     """
     return asyncio.run(build_index(
         config=config,
-        run_id=run_id,
-        is_resume_run=is_resume_run,
-        memory_profile=memory_profile,
+        method=method,
+        is_update_run=is_update_run,
         callbacks=callbacks,
-        progress_logger=progress_logger,
+        additional_context=additional_context,
+        verbose=verbose,
+        input_documents=input_documents,
     ))

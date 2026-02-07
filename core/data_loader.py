@@ -21,15 +21,17 @@ class GraphData:
     Attributes:
         entities: DataFrame with extracted entities
         relationships: DataFrame with entity relationships
-        nodes: DataFrame with graph nodes (for local search)
         communities: DataFrame with community assignments
         community_reports: DataFrame with community summaries
         text_units: DataFrame with source text chunks
         covariates: Optional DataFrame with additional entity attributes
+    
+    Note:
+        GraphRAG 3.x removed the 'nodes' parameter from search APIs.
+        Communities are now passed directly instead.
     """
     entities: pd.DataFrame
     relationships: pd.DataFrame
-    nodes: pd.DataFrame
     communities: pd.DataFrame
     community_reports: pd.DataFrame
     text_units: pd.DataFrame
@@ -40,7 +42,6 @@ class GraphData:
             f"GraphData(\n"
             f"  entities={len(self.entities)} rows,\n"
             f"  relationships={len(self.relationships)} rows,\n"
-            f"  nodes={len(self.nodes)} rows,\n"
             f"  communities={len(self.communities)} rows,\n"
             f"  community_reports={len(self.community_reports)} rows,\n"
             f"  text_units={len(self.text_units)} rows,\n"
@@ -98,24 +99,22 @@ def load_all(output_dir: Path | None = None, validate: bool = True) -> GraphData
     if validate:
         validate_output_files()
     
-    # Load required files (GraphRAG 1.2.0 uses create_final_ prefix)
-    entities = load_parquet("create_final_entities.parquet", output_dir)
-    relationships = load_parquet("create_final_relationships.parquet", output_dir)
-    nodes = load_parquet("create_final_nodes.parquet", output_dir)
-    communities = load_parquet("create_final_communities.parquet", output_dir)
-    community_reports = load_parquet("create_final_community_reports.parquet", output_dir)
-    text_units = load_parquet("create_final_text_units.parquet", output_dir)
+    # Load required files (GraphRAG 3.x uses simple names without prefix)
+    entities = load_parquet("entities.parquet", output_dir)
+    relationships = load_parquet("relationships.parquet", output_dir)
+    communities = load_parquet("communities.parquet", output_dir)
+    community_reports = load_parquet("community_reports.parquet", output_dir)
+    text_units = load_parquet("text_units.parquet", output_dir)
     
     # Load optional files
     covariates = None
-    covariates_path = output_dir / "create_final_covariates.parquet"
+    covariates_path = output_dir / "covariates.parquet"
     if covariates_path.exists():
-        covariates = load_parquet("create_final_covariates.parquet", output_dir)
+        covariates = load_parquet("covariates.parquet", output_dir)
     
     return GraphData(
         entities=entities,
         relationships=relationships,
-        nodes=nodes,
         communities=communities,
         community_reports=community_reports,
         text_units=text_units,

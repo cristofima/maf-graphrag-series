@@ -1,130 +1,145 @@
 ### This config file contains required core defaults that must be set, along with a handful of common optional settings.
 ### For a full list of available settings, see https://microsoft.github.io/graphrag/config/yaml/
+### GraphRAG 3.0.1 - Migrated from v1.2.0
 
 ### LLM settings ###
 ## There are a number of settings to tune the threading and token limits for LLM calls - check the docs.
 
-encoding_model: o200k_base # for gpt-4o model!
-
-llm:
-  api_key: ${AZURE_OPENAI_API_KEY}
-  type: azure_openai_chat
-  model: gpt-4o
-  model_supports_json: true
-  api_base: ${AZURE_OPENAI_ENDPOINT}
-  api_version: 2024-08-01-preview
-  deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
-
-parallelization:
-  stagger: 0.3
-  # num_threads: 50
-
-async_mode: threaded # or asyncio
-
-embeddings:
-  async_mode: threaded # or asyncio
-  vector_store: 
-    type: lancedb # one of [lancedb, azure_ai_search, cosmosdb]
-    db_uri: 'output/lancedb'
-    collection_name: default
-    overwrite: true
-  llm:
-    api_key: ${AZURE_OPENAI_API_KEY}
-    type: azure_openai_embedding
-    model: text-embedding-3-small
+completion_models:
+  default_completion_model:
+    model_provider: azure
+    model: gpt-4o
+    azure_deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
     api_base: ${AZURE_OPENAI_ENDPOINT}
     api_version: 2024-08-01-preview
-    deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+    auth_method: api_key
+    api_key: ${AZURE_OPENAI_API_KEY}
+    retry:
+      type: exponential_backoff
 
-### Input settings ###
+embedding_models:
+  default_embedding_model:
+    model_provider: azure
+    model: text-embedding-3-small
+    azure_deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+    api_base: ${AZURE_OPENAI_ENDPOINT}
+    api_version: 2024-08-01-preview
+    auth_method: api_key
+    api_key: ${AZURE_OPENAI_API_KEY}
+    retry:
+      type: exponential_backoff
+
+### Document processing settings ###
 
 input:
-  type: file # or blob
-  file_type: text # or csv
-  base_dir: "input/documents"
-  file_encoding: utf-8
-  file_pattern: ".*\\.md$"
+  type: text # [csv, text, json, jsonl]
+  file_pattern: ".*\\.md$$"
 
-chunks:
+chunking:
+  type: tokens
   size: 1200
   overlap: 100
-  group_by_columns: [id]
+  encoding_model: o200k_base
 
 ### Storage settings ###
 ## If blob storage is specified in the following four sections,
 ## connection_string and container_name must be provided
 
-cache:
-  type: file # one of [blob, cosmosdb, file]
-  base_dir: "cache"
+input_storage:
+  type: file # [file, blob, cosmosdb]
+  base_dir: "input/documents"
 
-reporting:
-  type: file # or console, blob
-  base_dir: "logs"
-
-storage:
-  type: file # one of [blob, cosmosdb, file]
+output_storage:
+  type: file # [file, blob, cosmosdb]
   base_dir: "output"
 
-## only turn this on if running `graphrag index` with custom settings
-## we normally use `graphrag update` with the defaults
-update_index_storage:
-  # type: file # or blob
-  # base_dir: "update_output"
+reporting:
+  type: file # [file, blob]
+  base_dir: "logs"
+
+cache:
+  type: json # [json, memory, none]
+  storage:
+    type: file # [file, blob, cosmosdb]
+    base_dir: "cache"
+
+vector_store:
+  type: lancedb
+  db_uri: output/lancedb
+  index_schema:
+    entity_description:
+      index_name: entity_description
+      vector_size: 1536
+    community_full_content:
+      index_name: community_full_content
+      vector_size: 1536
+    text_unit_text:
+      index_name: text_unit_text
+      vector_size: 1536
 
 ### Workflow settings ###
 
-skip_workflows: []
+embed_text:
+  embedding_model_id: default_embedding_model
 
-entity_extraction:
-  prompt: "prompts/entity_extraction.txt"
+extract_graph:
+  completion_model_id: default_completion_model
+  prompt: "prompts/extract_graph.txt"
   entity_types: [organization,person,geo,event]
   max_gleanings: 1
 
 summarize_descriptions:
+  completion_model_id: default_completion_model
   prompt: "prompts/summarize_descriptions.txt"
   max_length: 500
 
-claim_extraction:
-  enabled: false
-  prompt: "prompts/claim_extraction.txt"
-  description: "Any claims or facts that could be relevant to information discovery."
-  max_gleanings: 1
-
-community_reports:
-  prompt: "prompts/community_report.txt"
-  max_length: 2000
-  max_input_length: 8000
+extract_graph_nlp:
+  text_analyzer:
+    extractor_type: regex_english # [regex_english, syntactic_parser, cfg]
 
 cluster_graph:
   max_cluster_size: 10
 
-embed_graph:
-  enabled: false # if true, will generate node2vec embeddings for nodes
+extract_claims:
+  enabled: false
+  completion_model_id: default_completion_model
+  prompt: "prompts/extract_claims.txt"
+  description: "Any claims or facts that could be relevant to information discovery."
+  max_gleanings: 1
 
-umap:
-  enabled: false # if true, will generate UMAP embeddings for nodes (embed_graph must also be enabled)
+community_reports:
+  completion_model_id: default_completion_model
+  graph_prompt: "prompts/community_report_graph.txt"
+  text_prompt: "prompts/community_report_text.txt"
+  max_length: 2000
+  max_input_length: 8000
 
 snapshots:
   graphml: false
   embeddings: false
-  transient: false
 
 ### Query settings ###
 ## The prompt locations are required here, but each search method has a number of optional knobs that can be tuned.
 ## See the config docs: https://microsoft.github.io/graphrag/config/yaml/#query
 
 local_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
   prompt: "prompts/local_search_system_prompt.txt"
 
 global_search:
+  completion_model_id: default_completion_model
   map_prompt: "prompts/global_search_map_system_prompt.txt"
   reduce_prompt: "prompts/global_search_reduce_system_prompt.txt"
   knowledge_prompt: "prompts/global_search_knowledge_system_prompt.txt"
 
 drift_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
   prompt: "prompts/drift_search_system_prompt.txt"
-  reduce_prompt: "prompts/drift_search_reduce_prompt.txt"
+  reduce_prompt: "prompts/drift_reduce_prompt.txt"
 
 basic_search:
+  completion_model_id: default_completion_model
+  embedding_model_id: default_embedding_model
   prompt: "prompts/basic_search_system_prompt.txt"

@@ -95,7 +95,7 @@ async def run_indexing(resume: bool = False, memory_profile: bool = False):
     
     # Show output location
     console.print("[bold]Output files:[/bold]")
-    console.print("  📁 output/create_final_*.parquet")
+    console.print("  📁 output/*.parquet")
     console.print("  📁 output/lancedb/")
     console.print()
     console.print("[dim]You can now run queries:[/dim]")

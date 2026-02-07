@@ -39,28 +39,25 @@ Located in `infra/` folder using Terraform:
 
 ---
 
-## GraphRAG Version: 1.2.0
+## GraphRAG Version: 3.0.1
 
-### Critical Compatibility Notes
+### Migration Notes (from v1.2.0)
 
-**GraphRAG v1.2.0 has specific requirements:**
+**GraphRAG v3.0.x key changes:**
 
-1. **Output File Names**: Uses `create_final_*.parquet` prefix
-   - `create_final_entities.parquet` (not `entities.parquet`)
-   - `create_final_relationships.parquet`
-   - `create_final_communities.parquet`
-   - `create_final_community_reports.parquet`
-   - `create_final_text_units.parquet`
-   - `create_final_documents.parquet`
-   - `create_final_nodes.parquet`
+1. **Output File Names**: Simplified names (no `create_final_` prefix)
+   - `entities.parquet`
+   - `relationships.parquet`
+   - `communities.parquet`
+   - `community_reports.parquet`
+   - `text_units.parquet`
+   - `covariates.parquet` (optional)
 
-2. **Column Names**: Entity column is `title` (not `name`)
+2. **Column Names**: Entity column is `title`
 
-3. **Prompt Template Bug Fix**: Custom prompts must NOT include:
-   - `{max_length}` placeholder
-   - `{max_report_length}` placeholder
-   
-   The v1.2.0 code does not pass these parameters, causing `KeyError: 'max_length'`.
+3. **Config Format**: New YAML structure with `completion_models` and `embedding_models` sections
+
+4. **API Changes**: `nodes` parameter removed from search APIs; `communities` passed directly
 
 ### Fixed Prompt Files
 
@@ -94,13 +91,11 @@ vector_store:
 - **Good for**: Development, testing, small-scale deployments
 - **Limitation**: Not distributed, all data on single machine
 
-### Important: No Incremental Indexing
+### Important: Incremental Indexing
 
-GraphRAG v1.2.0 does **NOT** support incremental indexing:
-- Adding new documents requires **full reindexing**
-- All parquet files are regenerated
-- All embeddings are recreated
-- Cost scales with **total** document count, not just new documents
+GraphRAG v3.0.x supports update indexing via `IndexingMethod`:
+- Standard: Full rebuild
+- Update: Incremental update of existing index
 
 ---
 
@@ -110,9 +105,9 @@ GraphRAG v1.2.0 does **NOT** support incremental indexing:
 
 | Metric | Value |
 |--------|-------|
-| Entities | 176 |
-| Relationships | 342 |
-| Communities | 33 |
+| Entities | 147 |
+| Relationships | 263 |
+| Communities | 32 |
 | Documents | 10 |
 | Hierarchy Levels | 2 |
 
@@ -258,11 +253,11 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 
 ## Python API Module
 
-The `core/` module provides a modern Python API for GraphRAG 1.2.0:
+The `core/` module provides a modern Python API for GraphRAG 3.0.x:
 - Async search functions (local, global, drift, basic)
 - Parquet data loading with `GraphData` dataclass
 - CLI example with rich formatting
-- Full API compatibility with GraphRAG 1.2.0
+- Full API compatibility with GraphRAG 3.0.x
 
 See [core/README.md](../core/README.md) for complete documentation.
 
@@ -373,9 +368,9 @@ maf-graphrag-series/
 │   ├── README.md              # Document descriptions
 │   └── documents/             # 10 source documents
 ├── output/                    # Generated artifacts (gitignored)
-│   ├── create_final_*.parquet
+│   ├── *.parquet
 │   └── lancedb/
-├── prompts/                   # Custom prompt templates (fixed for v1.2.0)
+├── prompts/                   # Custom prompt templates
 ├── core/                      # Python API module
 │   ├── __init__.py
 │   ├── config.py              # Configuration loading
@@ -397,4 +392,4 @@ Cristopher Coronado - Microsoft MVP AI
 
 ---
 
-*Last updated: February 5, 2026*
+*Last updated: February 7, 2026*

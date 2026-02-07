@@ -2,9 +2,9 @@
 MAF + GraphRAG Series - Core Module
 ====================================
 
-Part 1: GraphRAG Fundamentals
+Part 1: GraphRAG Fundamentals (GraphRAG 3.0.x)
 
-This module provides a clean Python API wrapper around GraphRAG 1.2.0,
+This module provides a clean Python API wrapper around GraphRAG 3.0.x,
 using the official graphrag.api functions.
 
 Modules:
@@ -42,4 +42,4 @@ __all__ = [
     "build_index_sync",
 ]
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"

@@ -61,10 +61,10 @@ cp .env.example .env
 
 ```bash
 # Build knowledge graph
-.\run_index.ps1
+poetry run python -m core.index
 
 # Query the knowledge graph
-.\run_query.ps1 -Method local -Query "Who leads Project Alpha?"
+poetry run python -m core.example "Who leads Project Alpha?"
 ```
 
 ---
@@ -149,17 +149,17 @@ poetry env remove python
 
 ---
 
-## Project Scripts
+## Project Commands
 
-The PowerShell scripts (`run_index.ps1`, `run_query.ps1`) automatically detect Poetry and use it:
+All commands use `poetry run` to ensure the correct environment:
 
 ```powershell
-# These scripts will:
-# 1. Check if Poetry is installed
-# 2. Use 'poetry run' if available
-# 3. Fall back to .venv if Poetry not found
-.\run_index.ps1
-.\run_query.ps1 -Method local -Query "Your question"
+# Build knowledge graph
+poetry run python -m core.index
+
+# Query the knowledge graph
+poetry run python -m core.example "Who leads Project Alpha?"
+poetry run python -m core.example "What are the main projects?" --type global
 ```
 
 ---
@@ -262,23 +262,25 @@ CMD ["python", "-m", "graphrag", "index"]
 
 ## Dependency Structure
 
-### Current (Part 1)
+### Current (Parts 1 & 2)
 
 ```toml
 [tool.poetry.dependencies]
-python = "^3.10"
-graphrag = "~1.2.0"
-openai = "^1.40.0"
-pandas = "^2.0.0"
-pyarrow = "^15.0.0"
-python-dotenv = "^1.0.0"
-aiohttp = "^3.9.0"
+python = ">=3.11,<3.13"
+graphrag = "~3.0.1"
+pandas = "^2.3.0"
+pyarrow = "^22.0.0"
+rich = "^13.0.0"
+python-dotenv = "^1.2.1"
+fastmcp = "0.2.0"
+uvicorn = {extras = ["standard"], version = "^0.40.0"}
+agent-framework = "^1.0.0b260130"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-asyncio = "^0.23.0"
-httpx = "^0.26.0"
 jupyter = "^1.0.0"
+ipykernel = "^6.28.0"
 networkx = "^3.0"
 matplotlib = "^3.7.0"
 ```
@@ -287,7 +289,7 @@ matplotlib = "^3.7.0"
 
 Dependencies will be added incrementally as each part is implemented:
 
-- **Part 2**: MCP Server dependencies (`fastmcp`, `uvicorn`, etc.)
+- **Part 2**: MCP Server dependencies (✅ Complete: `fastmcp`, `uvicorn`, `agent-framework`)
 - **Part 3-5**: Azure AI services (`azure-search-documents`, etc.)
 - **Part 6-8**: Production dependencies (`gunicorn`, `prometheus-client`, etc.)
 
@@ -350,12 +352,12 @@ python = ">=3.10,<3.13"  # Explicit range instead of ^3.10
 
 **Problem:**
 ```
-Because graphrag (1.2.0) depends on httpx (>=0.28.1,<0.29.0)
+Because graphrag (3.0.1) depends on httpx (>=0.28.1,<0.29.0)
 and maf-graphrag-series depends on httpx (^0.26.0),
 version solving failed.
 ```
 
-**Cause:** GraphRAG 1.2.0 requires httpx >= 0.28.1, but project specified httpx ^0.26.0.
+**Cause:** GraphRAG 3.0.1 requires httpx >= 0.28.1, but project specified httpx ^0.26.0.
 
 **Solution:**
 ```toml
@@ -454,4 +456,4 @@ poetry install
 ---
 
 **Author:** Cristopher Coronado
-**Last Updated:** February 3, 2026
+**Last Updated:** February 7, 2026

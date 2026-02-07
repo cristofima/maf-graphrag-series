@@ -75,8 +75,8 @@ def get_output_dir() -> Path:
     config = get_config()
     root = get_root_dir()
     
-    # Default to "output" if not specified in config
-    output_base = getattr(config.storage, "base_dir", "output")
+    # GraphRAG 3.x uses output_storage instead of storage
+    output_base = getattr(config.output_storage, "base_dir", "output")
     return root / output_base
 
 
@@ -95,14 +95,13 @@ def validate_output_files(required: list[str] | None = None) -> bool:
         FileNotFoundError: If any required file is missing.
     """
     if required is None:
-        # GraphRAG 1.2.0 uses create_final_ prefix for output files
+        # GraphRAG 3.x output file names (no create_final_ prefix)
         required = [
-            "create_final_entities.parquet",
-            "create_final_relationships.parquet",
-            "create_final_nodes.parquet",
-            "create_final_communities.parquet",
-            "create_final_community_reports.parquet",
-            "create_final_text_units.parquet",
+            "entities.parquet",
+            "relationships.parquet",
+            "communities.parquet",
+            "community_reports.parquet",
+            "text_units.parquet",
         ]
     
     output_dir = get_output_dir()
@@ -111,7 +110,7 @@ def validate_output_files(required: list[str] | None = None) -> bool:
     if missing:
         raise FileNotFoundError(
             f"Missing required output files: {', '.join(missing)}\n"
-            f"Please run indexing first: .\\run_index.ps1"
+            f"Please run indexing first: poetry run python -m core.index"
         )
     
     return True

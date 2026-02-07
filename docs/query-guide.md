@@ -13,9 +13,9 @@ The knowledge graph is built from **10 interconnected documents** covering:
 - Company events and timeline
 
 **Graph Statistics:**
-- 176 entities
-- 342 relationships  
-- 33 communities
+- 147 entities
+- 263 relationships
+- 32 communities
 
 ## Prerequisites
 

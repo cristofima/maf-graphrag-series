@@ -1,6 +1,6 @@
 # Core Module
 
-Python API for GraphRAG 1.2.0 knowledge graph operations.
+Python API for GraphRAG 3.0.x knowledge graph operations.
 
 ## Quick Start
 
@@ -143,40 +143,43 @@ response, context = await basic_search(query, data)
 The module uses `settings.yaml` in the project root. Key settings:
 
 ```yaml
-output:
-  type: file
-  base_dir: output
+completion_models:
+  default_completion_model:
+    model_provider: azure
+    model: gpt-4o
+    azure_deployment_name: ${AZURE_OPENAI_CHAT_DEPLOYMENT}
 
-llm:
-  type: azure_openai_chat
-  model: gpt-4o
-  
-embeddings:
-  llm:
-    type: azure_openai_embedding
+embedding_models:
+  default_embedding_model:
+    model_provider: azure
     model: text-embedding-3-small
+    azure_deployment_name: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT}
+
+output_storage:
+  type: file
+  base_dir: "output"
 ```
 
 ## File Locations
 
-GraphRAG 1.2.0 outputs files with `create_final_` prefix:
+GraphRAG 3.0.x outputs files without prefix:
 
 ```
 output/
-├── create_final_entities.parquet
-├── create_final_relationships.parquet
-├── create_final_nodes.parquet
-├── create_final_communities.parquet
-├── create_final_community_reports.parquet
-├── create_final_text_units.parquet
-├── create_final_covariates.parquet  (optional)
+├── entities.parquet
+├── relationships.parquet
+├── communities.parquet
+├── community_reports.parquet
+├── text_units.parquet
+├── covariates.parquet  (optional)
 └── lancedb/
     └── default.lance/
 ```
 
 ## Requirements
 
-- Python >=3.10,<3.13
-- GraphRAG 1.2.0
-- pandas, pyarrow
+- Python >=3.11,<3.13
+- GraphRAG ~3.0.1
+- pandas ^2.3.0, pyarrow ^22.0.0
+- rich ^13.0.0
 - Azure OpenAI credentials in `.env`

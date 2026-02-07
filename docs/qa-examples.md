@@ -24,7 +24,7 @@ Who leads Project Alpha and what is their role?
 
 **Command:**
 ```powershell
-.\run_query.ps1 "Who leads Project Alpha and what is their role?" -Method local
+poetry run python -m core.example "Who leads Project Alpha and what is their role?"
 ```
 
 **Response:**
@@ -50,7 +50,7 @@ What technologies are used in Project Alpha?
 
 **Command:**
 ```powershell
-.\run_query.ps1 "What technologies are used in Project Alpha?" -Method local
+poetry run python -m core.example "What technologies are used in Project Alpha?"
 ```
 
 **Response:**
@@ -96,7 +96,7 @@ What are the main themes and strategic initiatives at TechVenture Inc?
 
 **Command:**
 ```powershell
-.\run_query.ps1 "What are the main themes and strategic initiatives at TechVenture Inc?" -Method global
+poetry run python -m core.example "What are the main themes and strategic initiatives at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -130,7 +130,7 @@ How are departments connected at TechVenture Inc?
 
 **Command:**
 ```powershell
-.\run_query.ps1 "How are departments connected at TechVenture Inc?" -Method global
+poetry run python -m core.example "How are departments connected at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -188,14 +188,11 @@ How are departments connected at TechVenture Inc?
 ## Running Your Own Queries
 
 ```powershell
-# Activate the virtual environment
-.\.venv\Scripts\Activate
-
 # Local search (entity-focused)
-.\run_query.ps1 "Your specific question about an entity" -Method local
+poetry run python -m core.example "Your specific question about an entity"
 
 # Global search (thematic)
-.\run_query.ps1 "Your broad question about themes or patterns" -Method global
+poetry run python -m core.example "Your broad question about themes or patterns" --type global
 ```
 
 See [query-guide.md](query-guide.md) for more query options and configurations.

@@ -5,7 +5,7 @@ Provides async wrapper around graphrag.api.build_index for creating knowledge gr
 """
 
 import asyncio
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -19,13 +19,13 @@ from core.config import get_config
 
 
 async def build_index(
-    config: Optional[GraphRagConfig] = None,
+    config: GraphRagConfig | None = None,
     method: IndexingMethod | str = IndexingMethod.Standard,
     is_update_run: bool = False,
-    callbacks: Optional[list[WorkflowCallbacks]] = None,
-    additional_context: Optional[dict[str, Any]] = None,
+    callbacks: list[WorkflowCallbacks] | None = None,
+    additional_context: dict[str, Any] | None = None,
     verbose: bool = False,
-    input_documents: Optional[pd.DataFrame] = None,
+    input_documents: pd.DataFrame | None = None,
 ) -> list[PipelineRunResult]:
     """
     Build the knowledge graph from input documents.
@@ -81,13 +81,13 @@ async def build_index(
 
 
 def build_index_sync(
-    config: Optional[GraphRagConfig] = None,
+    config: GraphRagConfig | None = None,
     method: IndexingMethod | str = IndexingMethod.Standard,
     is_update_run: bool = False,
-    callbacks: Optional[list[WorkflowCallbacks]] = None,
-    additional_context: Optional[dict[str, Any]] = None,
+    callbacks: list[WorkflowCallbacks] | None = None,
+    additional_context: dict[str, Any] | None = None,
     verbose: bool = False,
-    input_documents: Optional[pd.DataFrame] = None,
+    input_documents: pd.DataFrame | None = None,
 ) -> list[PipelineRunResult]:
     """
     Synchronous version of build_index.

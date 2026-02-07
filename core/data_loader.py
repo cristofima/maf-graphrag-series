@@ -6,7 +6,6 @@ Loads Parquet files into pandas DataFrames for use with graphrag.api.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -35,7 +34,7 @@ class GraphData:
     communities: pd.DataFrame
     community_reports: pd.DataFrame
     text_units: pd.DataFrame
-    covariates: Optional[pd.DataFrame] = None
+    covariates: pd.DataFrame | None = None
     
     def __repr__(self) -> str:
         return (

@@ -9,7 +9,7 @@ This directory contains detailed documentation, lessons learned, and reference m
 | Part | Notes | Description |
 |------|-------|-------------|
 | 1 | [part1-implementation-notes.md](./part1-implementation-notes.md) | GraphRAG setup, Azure config, version fixes |
-| 2 | *Coming soon* | MCP Server integration |
+| 2 | [part2-implementation-notes.md](./part2-implementation-notes.md) | MCP Server integration with FastMCP |
 | 3+ | *Coming soon* | Agent patterns, workflows, etc. |
 
 ### Reference Documents
@@ -20,6 +20,7 @@ This directory contains detailed documentation, lessons learned, and reference m
 | [qa-examples.md](./qa-examples.md) | Real Q&A responses from GraphRAG |
 | [query-guide.md](./query-guide.md) | Query syntax and search types |
 | [multi-region-architecture.md](./multi-region-architecture.md) | Cross-region strategy |
+| [poetry-guide.md](./poetry-guide.md) | Poetry setup and usage guide |
 
 ## Documentation Purpose
 
@@ -45,6 +46,6 @@ As this series progresses through Part 2-8, additional documentation will be add
 
 ---
 
-**Series**: MAF + GraphRAG (8-Part Series)  
-**Part**: 1 - GraphRAG Fundamentals  
-**Author**: Cristopher Coronado (Microsoft MVP AI)
+**Series**: GraphRAG + Azure OpenAI (8-Part Series)  
+**Parts**: 1 (GraphRAG Fundamentals) & 2 (MCP Server)  
+**Author**: Cristopher Coronado

@@ -4,12 +4,12 @@ Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 
 ## Series Overview
 
-This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft Agent Framework.
+This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft GraphRAG and Azure OpenAI.
 
 | Part | Title | Status | Folder/Module |
 |------|-------|--------|---------------|
 | 1 | GraphRAG Fundamentals | ✅ Complete | `core/` |
-| 2 | GraphRAG MCP Server | ⏳ Planned | `mcp_server/` |
+| 2 | GraphRAG MCP Server | ✅ Complete | `mcp_server/` |
 | 3 | Supervisor Agent Pattern | ⏳ Planned | `agents/`, `orchestration/` |
 | 4 | Workflow Patterns | ⏳ Planned | `workflows/` |
 | 5 | Agent Evaluation | ⏳ Planned | `evaluation/` |
@@ -85,7 +85,7 @@ poetry run python -m core.example "What are the main projects?" --type global
 
 ### Using the Python API
 
-The `core/` module provides a modern Python API for GraphRAG 1.2.0:
+The `core/` module provides a modern Python API for GraphRAG 3.0.x:
 
 #### Building the Knowledge Graph
 
@@ -135,15 +135,86 @@ poetry run python -m core.example "What are the main themes?" --type global
 
 📖 **API Documentation:** See [core/README.md](core/README.md) for full API reference.
 
+## Part 2: GraphRAG MCP Server
+
+Expose GraphRAG as an MCP (Model Context Protocol) server for AI agent integration.
+
+### What You'll Learn
+
+- Model Context Protocol (MCP) fundamentals
+- FastMCP server implementation
+- MCP tool design patterns
+- Testing with MCP Inspector
+- Agent-to-knowledge-graph communication
+
+### Why MCP?
+
+MCP enables agents to access external tools and data sources dynamically:
+
+| Pattern | Description | Use Case |
+|---------|-------------|----------|
+| **Direct API calls** | Agent calls functions directly | Simple, single-agent scenarios |
+| **MCP Tools** | Agent discovers and uses tools via protocol | Multi-agent, extensible systems |
+| **Tool composition** | Multiple MCP servers, single agent | Enterprise knowledge access |
+
+### Quick Start
+
+```bash
+# Install Part 2 dependencies
+poetry install
+
+# Option 1: Test in notebook (recommended, no server needed)
+jupyter notebook notebooks/02_test_mcp_server.ipynb
+
+# Option 2: Start MCP Server + use MCP Inspector
+poetry run python run_mcp_server.py
+npx @modelcontextprotocol/inspector   # Opens browser UI at http://localhost:6274
+```
+
+### Architecture
+
+```
+MCP Inspector / Client → HTTP/SSE → MCP Server (FastMCP) → GraphRAG (core/)
+```
+
+### MCP Tools Exposed
+
+| Tool | Purpose | Example Query |
+|------|---------|---------------|
+| `search_knowledge_graph` | Main entry point | Any question with search_type parameter |
+| `local_search` | Entity-focused search | "Who leads Project Alpha?" |
+| `global_search` | Thematic search | "What are the main projects?" |
+| `list_entities` | Browse entities | "List all projects" |
+| `get_entity` | Entity details | "Details about Dr. Emily Harrison" |
+
+### Testing with MCP Inspector
+
+The [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) is the recommended way to interact with the server during development:
+
+```bash
+# Terminal 1: Start MCP Server
+poetry run python run_mcp_server.py
+
+# Terminal 2: Launch MCP Inspector
+npx @modelcontextprotocol/inspector
+```
+
+In the Inspector UI:
+1. Set transport to **SSE** and URL to `http://localhost:8011/sse`
+2. Click **Connect** → Tools tab shows all 5 tools
+3. Select a tool, fill in parameters, click **Run**
+
+📖 **MCP Documentation:** See [mcp_server/README.md](mcp_server/README.md) for complete documentation.
+
 ### Knowledge Graph Statistics
 
 After indexing the 10 sample documents, the knowledge graph contains:
 
 | Metric | Count |
 |--------|-------|
-| **Entities** | 176 |
-| **Relationships** | 342 |
-| **Communities** | 33 |
+| **Entities** | 147 |
+| **Relationships** | 263 |
+| **Communities** | 32 |
 
 ### Project Structure
 
@@ -168,9 +239,9 @@ maf-graphrag-series/
 │       ├── incidents_postmortems.md
 │       └── company_events_timeline.md
 ├── output/                    # Generated knowledge graph
-│   ├── create_final_*.parquet
+│   ├── *.parquet
 │   └── lancedb/               # Vector store
-├── core/                      # Python API for GraphRAG 1.2.0
+├── core/                      # Part 1: Python API for GraphRAG 3.0.x
 │   ├── config.py              # Configuration loading
 │   ├── data_loader.py         # Parquet file loading
 │   ├── indexer.py             # Build knowledge graph
@@ -178,15 +249,25 @@ maf-graphrag-series/
 │   ├── index.py               # CLI for indexing
 │   ├── example.py             # CLI for querying
 │   └── README.md              # Module documentation
+├── mcp_server/                # Part 2: MCP Server
+│   ├── server.py              # FastMCP server
+│   ├── config.py              # MCP configuration
+│   ├── tools/                 # MCP tools
+│   │   ├── local_search.py    # Entity-focused search
+│   │   ├── global_search.py   # Thematic search
+│   │   └── entity_query.py    # Entity lookup
+│   └── README.md              # MCP documentation
+├── run_mcp_server.py          # Start MCP server
 ├── prompts/                   # Custom prompt templates
 ├── docs/
-│   ├── poetry-guide.md              # Poetry usage guide
-│   ├── dependency-management-analysis.md  # Why Poetry?
-│   ├── query-guide.md               # Query reference
-│   ├── qa-examples.md               # Q&A examples with responses
-│   └── lessons-learned.md           # Deployment insights
+│   ├── poetry-guide.md                    # Poetry usage guide
+│   ├── query-guide.md                     # Query reference
+│   ├── qa-examples.md                     # Q&A examples with responses
+│   ├── lessons-learned.md                 # Deployment insights
+│   └── part...-notes.md                   # Implementation notes per part
 └── notebooks/
-    └── 01_explore_graph.ipynb # Graph visualization
+    ├── 01_explore_graph.ipynb      # Part 1: Graph visualization
+    └── 02_test_mcp_server.ipynb    # Part 2: MCP server testing
 ```
 
 ## Sample Q&A Results

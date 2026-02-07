@@ -3,6 +3,10 @@ Global Search MCP Tool
 
 Community-focused search for broad, thematic questions.
 Best for: "What are the main projects?", "Summarize the organization"
+
+Note: Global search uses map-reduce over community reports, not individual
+text units. It never receives text_units, so source-level document traceability
+is not available (by design in GraphRAG).
 """
 
 from core import load_all, global_search
@@ -27,7 +31,9 @@ async def global_search_tool(
         dynamic_community_selection: Enable dynamic community selection
     
     Returns:
-        dict: Contains 'answer', 'context', and 'sources'
+        dict: Contains 'answer', 'context', and 'search_type'.
+              Unlike local search, global search does not return document-level
+              sources because it synthesizes from community reports (aggregated summaries).
     
     Examples:
         - "What are the main projects and teams?"
@@ -48,12 +54,16 @@ async def global_search_tool(
             dynamic_community_selection=dynamic_community_selection
         )
         
+        # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
+        # Global search only returns 'reports' (community reports used)
+        ctx = context if isinstance(context, dict) else {}
+        reports_df = ctx.get("reports")
+
         return {
             "answer": response,
             "context": {
-                "communities_analyzed": len(context.reports) if hasattr(context, 'reports') else 0,
+                "communities_analyzed": len(reports_df) if reports_df is not None else 0,
             },
-            "sources": context.sources if hasattr(context, 'sources') else [],
             "search_type": "global"
         }
     

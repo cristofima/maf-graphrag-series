@@ -23,6 +23,7 @@ class GraphData:
         communities: DataFrame with community assignments
         community_reports: DataFrame with community summaries
         text_units: DataFrame with source text chunks
+        documents: DataFrame with source document metadata (title, text)
         covariates: Optional DataFrame with additional entity attributes
     
     Note:
@@ -34,6 +35,7 @@ class GraphData:
     communities: pd.DataFrame
     community_reports: pd.DataFrame
     text_units: pd.DataFrame
+    documents: pd.DataFrame | None = None
     covariates: pd.DataFrame | None = None
     
     def __repr__(self) -> str:
@@ -44,6 +46,7 @@ class GraphData:
             f"  communities={len(self.communities)} rows,\n"
             f"  community_reports={len(self.community_reports)} rows,\n"
             f"  text_units={len(self.text_units)} rows,\n"
+            f"  documents={len(self.documents) if self.documents is not None else 0} rows,\n"
             f"  covariates={len(self.covariates) if self.covariates is not None else 0} rows\n"
             f")"
         )
@@ -111,12 +114,18 @@ def load_all(output_dir: Path | None = None, validate: bool = True) -> GraphData
     if covariates_path.exists():
         covariates = load_parquet("covariates.parquet", output_dir)
     
+    documents = None
+    documents_path = output_dir / "documents.parquet"
+    if documents_path.exists():
+        documents = load_parquet("documents.parquet", output_dir)
+    
     return GraphData(
         entities=entities,
         relationships=relationships,
         communities=communities,
         community_reports=community_reports,
         text_units=text_units,
+        documents=documents,
         covariates=covariates,
     )
 

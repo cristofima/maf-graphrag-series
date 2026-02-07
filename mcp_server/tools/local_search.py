@@ -6,6 +6,7 @@ Best for: "Who leads Project Alpha?", "What technologies does X use?"
 """
 
 from core import load_all, local_search
+from mcp_server.tools.source_resolver import get_unique_documents, resolve_sources
 
 
 async def local_search_tool(
@@ -45,14 +46,25 @@ async def local_search_tool(
             response_type=response_type or "Multiple Paragraphs"
         )
         
+        # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
+        ctx = context if isinstance(context, dict) else {}
+        entities_df = ctx.get("entities")
+        relationships_df = ctx.get("relationships")
+        reports_df = ctx.get("reports")
+        sources_df = ctx.get("sources")
+
+        # Resolve sources to document titles and text previews
+        resolved_sources = resolve_sources(sources_df, data)
+
         return {
             "answer": response,
             "context": {
-                "entities_used": len(context.entities) if hasattr(context, 'entities') else 0,
-                "relationships_used": len(context.relationships) if hasattr(context, 'relationships') else 0,
-                "reports_used": len(context.reports) if hasattr(context, 'reports') else 0,
+                "entities_used": len(entities_df) if entities_df is not None else 0,
+                "relationships_used": len(relationships_df) if relationships_df is not None else 0,
+                "reports_used": len(reports_df) if reports_df is not None else 0,
+                "documents": get_unique_documents(resolved_sources),
             },
-            "sources": context.sources if hasattr(context, 'sources') else [],
+            "sources": resolved_sources,
             "search_type": "local"
         }
     

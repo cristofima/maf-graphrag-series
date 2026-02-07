@@ -47,6 +47,7 @@ Part 2 extends Part 1 by exposing GraphRAG as a **Model Context Protocol (MCP) s
 │           GraphRAG Knowledge Graph (core/)                       │
 │  ┌──────────────────────────────────────────────────────────┐    │
 │  │ - 147 entities, 263 relationships, 32 communities        │    │
+│  │ - 10 documents, 20 text units                             │    │
 │  │ - Parquet files + LanceDB vector store                   │    │
 │  │ - Azure OpenAI (GPT-4o + text-embedding-3-small)         │    │
 │  └──────────────────────────────────────────────────────────┘    │
@@ -65,11 +66,13 @@ mcp_server/
 ├── README.md             # MCP Server documentation
 └── tools/
     ├── __init__.py
-    ├── search.py          # search_knowledge_graph (local/global dispatch)
-    ├── local_search.py    # local_search (entity-focused queries)
-    ├── global_search.py   # global_search (thematic queries)
-    └── entity_query.py    # list_entities + get_entity
+    ├── local_search.py    # local_search (entity-focused queries, with source traceability)
+    ├── global_search.py   # global_search (thematic queries, community reports only)
+    ├── entity_query.py    # list_entities + get_entity
+    └── source_resolver.py # Resolves text unit IDs → document titles + text previews
 ```
+
+> **Source traceability**: Local search resolves context sources through the chain `text_unit → document_id → document title`, providing document names and text previews. Global search does not return sources because it synthesizes from community reports (pre-aggregated summaries).
 
 ---
 
@@ -82,7 +85,7 @@ uvicorn = ">=0.27.0"    # ASGI server
 graphrag = "~3.0.1"     # Microsoft GraphRAG
 ```
 
-> **FastMCP 0.2.0** is pinned due to compatibility constraints. See `docs/graphrag-fastmcp-compatibility.md`.
+> **FastMCP 0.2.0** is pinned due to compatibility constraints with GraphRAG 3.0.x dependencies.
 
 ---
 

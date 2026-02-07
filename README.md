@@ -215,6 +215,8 @@ After indexing the 10 sample documents, the knowledge graph contains:
 | **Entities** | 147 |
 | **Relationships** | 263 |
 | **Communities** | 32 |
+| **Documents** | 10 |
+| **Text Units** | 20 |
 
 ### Project Structure
 
@@ -253,9 +255,10 @@ maf-graphrag-series/
 │   ├── server.py              # FastMCP server
 │   ├── config.py              # MCP configuration
 │   ├── tools/                 # MCP tools
-│   │   ├── local_search.py    # Entity-focused search
-│   │   ├── global_search.py   # Thematic search
-│   │   └── entity_query.py    # Entity lookup
+│   │   ├── local_search.py    # Entity-focused search (with source traceability)
+│   │   ├── global_search.py   # Thematic search (community reports only)
+│   │   ├── entity_query.py    # Entity lookup
+│   │   └── source_resolver.py # Resolves text unit IDs → document titles
 │   └── README.md              # MCP documentation
 ├── run_mcp_server.py          # Start MCP server
 ├── prompts/                   # Custom prompt templates

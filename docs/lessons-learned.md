@@ -343,7 +343,6 @@ Based on lessons learned, use this checklist for future deployments:
 ### Microsoft GraphRAG
 - [GitHub Repository](https://github.com/microsoft/graphrag)
 - [Research Paper](https://www.microsoft.com/en-us/research/project/graphrag/)
-- [GraphRAG v3 Migration Guide](https://microsoft.github.io/graphrag/posts/v3-migration/)
 - [GraphRAG v3 Config Reference](https://microsoft.github.io/graphrag/config/yaml/)
 
 ---

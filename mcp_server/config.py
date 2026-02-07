@@ -20,7 +20,7 @@ class MCPConfig:
     server_version: str = "1.0.0"
     
     # GraphRAG settings
-    graphrag_root: Path | None
+    graphrag_root: Path | None = None
     output_dir: Path | None = None
     
     # Search defaults

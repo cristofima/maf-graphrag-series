@@ -90,16 +90,38 @@ Entity-focused search for specific questions.
 - "Who resolved the incident?"
 
 ```python
+# Input
 {
     "query": "Who leads Project Alpha?",
     "community_level": 2,
     "response_type": "Multiple Paragraphs"
 }
+
+# Response
+{
+    "answer": "Dr. Emily Harrison leads Project Alpha...",
+    "context": {
+        "entities_used": 19,
+        "relationships_used": 47,
+        "reports_used": 2,
+        "documents": ["project_alpha.md", "team_members.md"]
+    },
+    "sources": [
+        {
+            "text_unit_id": "0",
+            "document": "project_alpha.md",
+            "text_preview": "# Project Alpha - Next-Generation AI Assistant..."
+        }
+    ],
+    "search_type": "local"
+}
 ```
+
+> **Source traceability**: Local search provides full document-level traceability by resolving text unit IDs through the chain: `text_unit → document_id → document title`.
 
 ### global_search
 
-Thematic search across the organization.
+Thematic search across the organization via map-reduce over community reports.
 
 **Best for:**
 - "What are the main projects?"
@@ -107,12 +129,24 @@ Thematic search across the organization.
 - "What Azure services are used?"
 
 ```python
+# Input
 {
     "query": "What are the main projects?",
     "community_level": 2,
     "response_type": "Multiple Paragraphs"
 }
+
+# Response
+{
+    "answer": "The main projects at TechVenture are...",
+    "context": {
+        "communities_analyzed": 32
+    },
+    "search_type": "global"
+}
 ```
+
+> **No source traceability**: Global search synthesizes answers from community reports (pre-aggregated summaries), not individual text chunks. Document-level provenance is not available by design in GraphRAG's global search.
 
 ### list_entities
 
@@ -183,9 +217,10 @@ mcp_server/
 ├── server.py             # FastMCP server implementation
 └── tools/
     ├── __init__.py       # Tool exports
-    ├── local_search.py   # Entity-focused search
-    ├── global_search.py  # Thematic search
-    └── entity_query.py   # Direct entity lookup
+    ├── local_search.py   # Entity-focused search (with source traceability)
+    ├── global_search.py  # Thematic search (community reports only)
+    ├── entity_query.py   # Direct entity lookup
+    └── source_resolver.py # Resolves text unit IDs → document titles
 ```
 
 ## Development

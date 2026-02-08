@@ -11,11 +11,23 @@ Usage:
     poetry run uvicorn mcp_server.server:app --host 0.0.0.0 --port 8011
 """
 
+import logging
 import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# ---------------------------------------------------------------------------
+# Suppress noisy INFO logs from LiteLLM and GraphRAG internals.
+# LiteLLM logs every Azure OpenAI API call at INFO level; global search
+# triggers 20+ parallel LLM calls producing massive terminal spam.
+# WARNING level preserves actionable messages (e.g. token-limit warnings).
+# uvicorn's own access/error logs remain at their configured level.
+# ---------------------------------------------------------------------------
+logging.basicConfig(level=logging.WARNING)
+for _logger_name in ("litellm", "graphrag", "httpx", "httpcore", "openai"):
+    logging.getLogger(_logger_name).setLevel(logging.WARNING)
 
 from mcp.server.fastmcp import FastMCP
 from mcp_server.config import MCPConfig

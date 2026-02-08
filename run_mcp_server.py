@@ -27,6 +27,6 @@ if __name__ == "__main__":
     print(f"   Server: {config.server_name} v{config.server_version}")
     print(f"   URL: {config.server_url}")
     print(f"   GraphRAG Root: {config.graphrag_root}")
-    print(f"\n✨ Press Ctrl+C to stop\\n")
+    print(f"\n✨ Press Ctrl+C to stop")
     
     uvicorn.run(app, host=config.host, port=config.port, log_level="info")

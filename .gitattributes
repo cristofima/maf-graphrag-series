@@ -1,0 +1,13 @@
+# Prevent notebook outputs from skewing GitHub language statistics
+notebooks/*.ipynb linguist-detectable=false
+
+# Ensure consistent line endings
+*.py text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.tf text eol=lf
+*.hcl text eol=lf
+*.json text eol=lf

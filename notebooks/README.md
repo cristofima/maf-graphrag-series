@@ -21,4 +21,4 @@ Notebook 02 includes a logging configuration cell that suppresses noisy `litellm
 
 ## Output Management
 
-`nbstripout` is installed as a git filter — notebook outputs are automatically stripped on commit to keep diffs clean and prevent `.ipynb` file bloat.
+Notebook outputs are preserved in git to provide documentation value. Readers on GitHub can see executed results (graphs, search responses) without running locally.

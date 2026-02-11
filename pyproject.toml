@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maf-graphrag-series"
-version = "1.0.0"
+version = "2.0.0"
 description = "MAF + GraphRAG: Enterprise Knowledge Agents - A tutorial series on building knowledge graph-powered AI agents with Microsoft Agent Framework"
 authors = ["Cristopher Coronado <cgcoronadom@gmail.com>"]
 readme = "README.md"

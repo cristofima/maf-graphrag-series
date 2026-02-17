@@ -2,7 +2,9 @@
 
 ## Overview
 
-Part 2 extends Part 1 by exposing GraphRAG as a **Model Context Protocol (MCP) server** using FastMCP, enabling any MCP-compatible client (Inspector, agents, notebooks) to query the knowledge graph through standardized tool calls over HTTP/SSE.
+Part 2 extends Part 1 by exposing GraphRAG as a **Model Context Protocol (MCP) server** using FastMCP, enabling any MCP-compatible client (Inspector, agents, notebooks) to query the knowledge graph through standardized tool calls.
+
+> **⚠️ Transport Update (Part 3):** The MCP server transport was changed from SSE (`/sse`) to **Streamable HTTP** (`/mcp`) in Part 3 to support `MCPStreamableHTTPTool` from Microsoft Agent Framework. MCP Inspector supports both transports. See [lessons-learned.md](lessons-learned.md#challenge-11-mcp-transport-protocol-sse-vs-streamable-http) for details.
 
 ---
 
@@ -151,9 +153,3 @@ Part 3 will add Microsoft Agent Framework integration:
 - `ChatAgent` with `MCPStreamableHTTPTool` pointing to this MCP server
 - Supervisor agent pattern orchestrating multiple tools
 - The MCP server from Part 2 serves as the foundation
-
----
-
-**Status:** ✅ Complete  
-**Author:** Cristopher Coronado — Microsoft MVP AI  
-**Date:** February 2025

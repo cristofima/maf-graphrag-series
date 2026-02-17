@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maf-graphrag-series"
-version = "2.0.0"
+version = "3.0.0"
 description = "MAF + GraphRAG: Enterprise Knowledge Agents - A tutorial series on building knowledge graph-powered AI agents with Microsoft Agent Framework"
 authors = ["Cristopher Coronado <cgcoronadom@gmail.com>"]
 readme = "README.md"
@@ -40,6 +40,17 @@ python-dotenv = "^1.2.1"
 # MCP server framework
 fastmcp = "0.2.0"
 uvicorn = {extras = ["standard"], version = "^0.40.0"}
+
+# ===== PART 3: Supervisor Agent Pattern =====
+# Microsoft Agent Framework - Core agent abstractions and orchestration
+agent-framework-core = "^1.0.0b260212"
+agent-framework-orchestrations = "^1.0.0b260212"
+
+# Azure Identity for authentication
+azure-identity = "^1.25.2"
+
+# HTTP client for MCP integration
+httpx = "^0.28.1"
 
 [tool.poetry.group.dev.dependencies]
 # Testing framework

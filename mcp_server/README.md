@@ -13,7 +13,7 @@ Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for Microso
 │  │ - Receives structured responses                          │  │
 │  └──────────────────┬───────────────────────────────────────┘  │
 └─────────────────────┼──────────────────────────────────────────┘
-                      │ HTTP/SSE
+                      │ Streamable HTTP (/mcp)
                       ▼
 ┌────────────────────────────────────────────────────────────────┐
 │              GraphRAG MCP Server (FastMCP)                     │
@@ -62,7 +62,7 @@ jupyter notebook notebooks/02_test_mcp_server.ipynb
 # Option B: Use MCP Inspector (interactive testing via server)
 poetry run python run_mcp_server.py  # Start server first
 npx @modelcontextprotocol/inspector
-# In the UI: Transport = SSE, URL = http://localhost:8011/sse
+# In the UI: Transport = Streamable HTTP, URL = http://localhost:8011/mcp
 ```
 
 ## MCP Tools
@@ -186,7 +186,7 @@ npx @modelcontextprotocol/inspector
 ### Usage
 
 1. Open the Inspector at `http://localhost:6274`
-2. Set **Transport** to `SSE` and **URL** to `http://localhost:8011/sse`
+2. Set **Transport** to `Streamable HTTP` and **URL** to `http://localhost:8011/mcp`
 3. Click **Connect**
 4. Navigate to the **Tools** tab to see all 5 tools with schemas
 5. Select a tool, fill parameters, and click **Run**

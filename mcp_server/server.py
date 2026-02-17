@@ -168,11 +168,15 @@ def create_mcp_server() -> FastMCP:
     return mcp
 
 
-# Starlette app for deployment (SSE transport)
-# sse_app() is a method that returns a Starlette app with /sse and /messages/ routes
-app = mcp.sse_app()
+# Starlette app for deployment
+# streamable_http_app() is for Microsoft Agent Framework (MCPStreamableHTTPTool)
+# sse_app() is for MCP Inspector and legacy SSE clients
+# We use streamable_http_app() as the primary for Part 3
 
-# Add CORS middleware so MCP Inspector (browser) can connect cross-origin
+# Primary app: Streamable HTTP (for MCPStreamableHTTPTool)
+app = mcp.streamable_http_app()
+
+# Add CORS middleware so browser-based clients can connect cross-origin
 from starlette.middleware.cors import CORSMiddleware
 
 app.add_middleware(
@@ -195,10 +199,10 @@ if __name__ == "__main__":
     print(f"   - global_search(query)")
     print(f"   - list_entities(entity_type, limit)")
     print(f"   - get_entity(entity_name)")
-    print(f"\n✨ Server ready for MCP Inspector or agent connections")
-    print(f"\n🔗 Connect with MCP Inspector:")
-    print(f"   Transport: SSE")
-    print(f'   URL: {config.server_url}/sse')
+    print(f"\n✨ Server ready for Agent Framework or MCP clients")
+    print(f"\n🔗 Connect:")
+    print(f"   Agent Framework: {config.server_url}/mcp")
+    print(f"   MCP Inspector: Transport=Streamable HTTP, URL={config.server_url}/mcp")
     
     # Run with uvicorn
     import uvicorn

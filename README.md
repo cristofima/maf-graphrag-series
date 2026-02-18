@@ -10,7 +10,7 @@ This repository contains the code for the **MAF + GraphRAG** article series, dem
 |------|-------|--------|---------------|
 | 1 | GraphRAG Fundamentals | ✅ Complete | `core/` |
 | 2 | GraphRAG MCP Server | ✅ Complete | `mcp_server/` |
-| 3 | Supervisor Agent Pattern | ⏳ Planned | `agents/`, `orchestration/` |
+| 3 | Supervisor Agent Pattern | ✅ Complete | `agents/` |
 | 4 | Workflow Patterns | ⏳ Planned | `workflows/` |
 | 5 | Agent Evaluation | ⏳ Planned | `evaluation/` |
 | 6 | Human-in-the-Loop | ⏳ Planned | `middleware/` |
@@ -174,7 +174,7 @@ npx @modelcontextprotocol/inspector   # Opens browser UI at http://localhost:627
 ### Architecture
 
 ```
-MCP Inspector / Client → HTTP/SSE → MCP Server (FastMCP) → GraphRAG (core/)
+MCP Inspector / Client → Streamable HTTP (/mcp) → MCP Server (FastMCP) → GraphRAG (core/)
 ```
 
 ### MCP Tools Exposed
@@ -200,11 +200,100 @@ npx @modelcontextprotocol/inspector
 ```
 
 In the Inspector UI:
-1. Set transport to **SSE** and URL to `http://localhost:8011/sse`
+1. Set transport to **Streamable HTTP** and URL to `http://localhost:8011/mcp`
 2. Click **Connect** → Tools tab shows all 5 tools
 3. Select a tool, fill in parameters, click **Run**
 
 📖 **MCP Documentation:** See [mcp_server/README.md](mcp_server/README.md) for complete documentation.
+
+## Part 3: Supervisor Agent Pattern
+
+Build the Knowledge Captain: a conversational agent that connects to the GraphRAG MCP server and automatically routes questions to the right search tool.
+
+### What You'll Learn
+
+- Microsoft Agent Framework fundamentals (1.0.0b260212)
+- `MCPStreamableHTTPTool` for MCP server integration
+- System prompt-based tool routing (GPT-4o decides, no code router)
+- `AgentSession` for conversation memory across multiple turns
+- MCP transport upgrade: SSE (`/sse`) → Streamable HTTP (`/mcp`)
+- Azure OpenAI client configuration with Azure Identity support
+
+### Architecture
+
+![Part 3 system architecture](docs/images/part3-architecture.png)
+
+```mermaid
+flowchart TD
+    A["run_agent.py<br/>CLI entry point · Rich"]
+    B["agents/<br/>KnowledgeCaptainRunner · GPT-4o<br/>MCPStreamableHTTPTool · AgentSession"]
+    C["mcp_server/<br/>FastMCP 0.2.0 · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
+    D["core/<br/>GraphRAG 3.0.1<br/>147 entities<br/>263 relationships<br/>32 communities"]
+
+    A --> B
+    B -->|"Streamable HTTP /mcp"| C
+    C -->|"Python API"| D
+```
+
+### Request Flow
+
+![Knowledge Captain request flow — two GPT-4o round trips per query](docs/images/agent-mcp-flow.png)
+
+*Two round trips to Azure OpenAI per query: call 1 selects the tool, call 2 composes the answer.*
+
+### Quick Start
+
+```bash
+# Install dependencies
+poetry install
+
+# Start MCP server (Terminal 1)
+poetry run python run_mcp_server.py
+
+# Interactive agent (Terminal 2)
+poetry run python run_agent.py
+```
+
+### Key Pattern: System Prompt Routing
+
+The agent uses its system prompt to decide which MCP tool to call—no separate routing logic needed:
+
+| Question Type | Tool Selected | Example |
+|---------------|---------------|---------|
+| Entity-focused | `local_search` | "Who leads Project Alpha?" |
+| Thematic | `global_search` | "What are the main projects?" |
+| Entity details | `get_entity` | "Details about Dr. Emily Harrison" |
+
+### Usage Example
+
+```python
+from agents import KnowledgeCaptainRunner
+
+async with KnowledgeCaptainRunner() as runner:
+    # First question
+    response = await runner.ask("Who leads Project Alpha?")
+    print(response.text)
+    
+    # Follow-up (has context from previous question)
+    response = await runner.ask("What is their background?")
+    print(response.text)
+    
+    # Reset conversation
+    runner.clear_history()
+```
+
+### Microsoft Agent Framework 1.0.0b260212
+
+Key patterns used:
+
+| Pattern | Description |
+|---------|-------------|
+| `Agent` class | Core agent abstraction |
+| `MCPStreamableHTTPTool` | Connect to MCP servers via Streamable HTTP |
+| `AzureOpenAIChatClient` | Azure OpenAI wrapper (from `agent_framework.azure`) |
+| `AgentSession` | Conversation memory across multiple turns |
+
+📖 **Agents Documentation:** See [agents/README.md](agents/README.md) for complete API reference.
 
 ### Knowledge Graph Statistics
 
@@ -260,6 +349,13 @@ maf-graphrag-series/
 │   │   ├── entity_query.py    # Entity lookup
 │   │   └── source_resolver.py # Resolves text unit IDs → document titles
 │   └── README.md              # MCP documentation
+├── agents/                    # Part 3: Conversational Agent
+│   ├── __init__.py            # Public API re-exports
+│   ├── config.py              # Agent configuration (Azure OpenAI + MCP URL)
+│   ├── prompts.py             # Knowledge Captain system prompt
+│   ├── supervisor.py          # KnowledgeCaptainRunner + MCPStreamableHTTPTool
+│   └── README.md              # Agents documentation
+├── run_agent.py               # Interactive agent CLI
 ├── run_mcp_server.py          # Start MCP server
 ├── prompts/                   # Custom prompt templates
 ├── docs/
@@ -302,10 +398,11 @@ See [docs/qa-examples.md](docs/qa-examples.md) for more examples.
 
 ## Azure AI Services Used
 
-| Service | Purpose | Model |
-|---------|---------|-------|
+| Service | Purpose | Model/Version |
+|---------|---------|---------------|
 | **Azure OpenAI** | Entity extraction, queries | GPT-4o |
 | **Azure OpenAI** | Document embeddings | text-embedding-3-small |
+| **Agent Framework** | Multi-agent orchestration | 1.0.0b260212 |
 
 ## Key Files
 

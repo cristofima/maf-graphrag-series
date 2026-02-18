@@ -1,10 +1,11 @@
-# Lessons Learned: MAF + GraphRAG Infrastructure & Migration
+# Lessons Learned: MAF + GraphRAG Series
 
 ## Overview
 
 This document captures key insights, challenges, and solutions encountered during:
 1. **Azure infrastructure setup** for the MAF + GraphRAG series (Challenges 1-5)
 2. **GraphRAG 1.2.0 → 3.0.1 migration** (Challenges 6-10)
+3. **Agent Framework integration** with MCP Server (Challenges 11-13)
 
 ---
 
@@ -557,6 +558,164 @@ After any GraphRAG version upgrade, **compare statistics and verify search quali
 
 ---
 
+## Challenge 11: MCP Transport Protocol (SSE vs Streamable HTTP)
+
+### Problem
+The MCP Server originally used `sse_app()` transport for Server-Sent Events, but the Microsoft Agent Framework's `MCPStreamableHTTPTool` requires the Streamable HTTP transport.
+
+```
+Error: Session terminated (MCP client expected Streamable HTTP, server exposed SSE)
+```
+
+### Root Cause
+MCP (Model Context Protocol) supports two HTTP transports:
+
+| Transport | Use Case | Endpoint |
+|-----------|----------|----------|
+| **SSE (Server-Sent Events)** | Browser clients, MCP Inspector UI | `/sse` |
+| **Streamable HTTP** | Agent Framework, programmatic clients | `/mcp` |
+
+The `MCPStreamableHTTPTool` from Agent Framework uses Streamable HTTP protocol, not SSE.
+
+### Solution
+Changed `mcp_server/server.py` from:
+
+```python
+# Before: SSE transport
+app = mcp.sse_app()
+```
+
+To:
+
+```python
+# After: Streamable HTTP transport
+app = mcp.streamable_http_app()
+```
+
+Also updated the endpoint from `/sse` to `/mcp` for clarity.
+
+### Key Insight
+When integrating MCP servers with different clients:
+- **MCP Inspector / Browsers**: Use `sse_app()` on `/sse`
+- **Agent Framework / Code clients**: Use `streamable_http_app()` on `/mcp`
+- Production servers may need to expose both transports on different endpoints
+
+---
+
+## Challenge 12: Microsoft Agent Framework API Changes
+
+### Problem
+Initial agent implementation used incorrect class names and parameters based on outdated assumptions.
+
+```python
+# Error 1: Class doesn't exist
+from agent_framework import ChatAgent  # ❌ ImportError
+
+# Error 2: Wrong client type
+client = AsyncAzureOpenAI(...)  # ❌ Type mismatch
+
+# Error 3: Wrong parameters
+Agent(chat_client=client, model="gpt-4o")  # ❌ Unknown parameters
+```
+
+### Root Cause
+The Microsoft Agent Framework (`agent-framework-core ^1.0.0b260212`) has its own patterns:
+
+1. **Class name**: `Agent` not `ChatAgent`
+2. **Client wrapper**: `AzureOpenAIChatClient` not raw `AsyncAzureOpenAI`
+3. **Parameters**: `client` and `instructions` not `chat_client` and `model`
+
+### Solution
+
+```python
+# Correct imports
+from agent_framework import Agent, MCPStreamableHTTPTool
+from agent_framework.azure import AzureOpenAIChatClient
+
+# Correct client
+client = AzureOpenAIChatClient(
+    endpoint=config.azure_endpoint,
+    deployment_name=config.deployment_name,
+    api_key=config.api_key,
+    api_version=config.api_version,
+)
+
+# Correct agent creation
+agent = Agent(
+    client=client,
+    name="knowledge_captain",
+    instructions=SYSTEM_PROMPT,
+    tools=[mcp_tool],
+)
+```
+
+### Key Insight
+The Microsoft Agent Framework is still in beta (note the `b` in version). Always verify:
+1. Import paths via `from agent_framework import *`
+2. Client wrappers from `agent_framework.azure`
+3. Constructor parameters from the actual class signatures
+
+---
+
+## Challenge 13: Conversation Memory with AgentSession
+
+### Problem
+Follow-up questions lost context from previous exchanges because each `agent.run()` call was stateless.
+
+```
+User: Who leads Project Alpha?
+Agent: Dr. Sarah Chen leads Project Alpha...
+
+User: What about their background?  
+Agent: I don't know who you're referring to...  ← Lost context
+```
+
+### Root Cause
+The `Agent.run()` method is stateless by default. Each call starts fresh without memory of previous exchanges.
+
+### Solution
+Use `AgentSession` to maintain conversation history:
+
+```python
+from agent_framework import AgentSession
+
+# Create session once per conversation
+session = AgentSession()
+
+# Pass session to each run call
+result = await agent.run("Who leads Project Alpha?", session=session)
+
+# Follow-up questions now have context
+result = await agent.run("What about their background?", session=session)
+```
+
+### Implementation Pattern
+
+```python
+class KnowledgeCaptainRunner:
+    async def __aenter__(self):
+        self._session = AgentSession()  # Create on connect
+        return self
+    
+    async def ask(self, question: str):
+        return await self.agent.run(question, session=self._session)
+    
+    def clear_history(self):
+        self._session = AgentSession()  # Reset conversation
+```
+
+### Key Insight
+Agent Framework separates:
+- **Agent**: Stateless processor with tools and instructions
+- **Session**: Stateful container for conversation history
+
+This design allows:
+- Multiple users sharing one Agent instance
+- Explicit control over when to clear history
+- Easy serialization of conversation state (future feature)
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -571,6 +730,9 @@ After any GraphRAG version upgrade, **compare statistics and verify search quali
 8. ✅ **Generate fresh config files instead of incremental patching**
 9. ✅ **Test custom prompts individually after framework upgrade**
 10. ✅ **Compare knowledge graph statistics before and after re-indexing**
+11. ✅ **Match MCP transport to client type (SSE vs Streamable HTTP)**
+12. ✅ **Verify Agent Framework APIs from actual imports, not documentation**
+13. ✅ **Use AgentSession for multi-turn conversation memory**
 
 ### Final Architecture
 
@@ -596,11 +758,12 @@ After any GraphRAG version upgrade, **compare statistics and verify search quali
 2. ~~Generate `.env` file from outputs~~ ✅
 3. ~~Commit infrastructure code to git~~ ✅
 4. ~~Implement MCP Server (Part 2)~~ ✅
-5. Document integration patterns (Part 3+)
+5. ~~Implement Supervisor Agent Pattern (Part 3)~~ ✅
+6. Implement Agent Evaluation (Part 4)
 
 ---
 
-**Document Version**: 2.0  
-**Last Updated**: February 7, 2026  
-**Author**: Cristopher Coronado
-**Series**: MAF + GraphRAG - Parts 1 & 2
+**Document Version**: 3.0  
+**Last Updated**: February 16, 2026  
+**Author**: Cristopher Coronado  
+**Series**: MAF + GraphRAG - Parts 1, 2 & 3

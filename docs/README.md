@@ -10,7 +10,8 @@ This directory contains detailed documentation, lessons learned, and reference m
 |------|-------|-------------|
 | 1 | [part1-implementation-notes.md](./part1-implementation-notes.md) | GraphRAG setup, Azure config, version fixes |
 | 2 | [part2-implementation-notes.md](./part2-implementation-notes.md) | MCP Server integration with FastMCP |
-| 3+ | *Coming soon* | Agent patterns, workflows, etc. |
+| 3 | [part3-implementation-notes.md](./part3-implementation-notes.md) | Supervisor Agent Pattern |
+| 4+ | *Coming soon* | Workflows, Agents Evaluation, etc. |
 
 ### Reference Documents
 

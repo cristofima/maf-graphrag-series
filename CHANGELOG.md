@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-02-18
+
+### ⚠️ BREAKING CHANGES
+
+- **MCP Server transport split** ([1ca5879](https://github.com/cristofima/maf-graphrag-series/commit/1ca5879)) — `streamable_http_app()` and `sse_app()` now serve different endpoints
+  - `/mcp` (Streamable HTTP) — for `MCPStreamableHTTPTool` in Microsoft Agent Framework
+  - `/sse` (SSE) — for MCP Inspector and browser-based clients
+  - Clients connecting via `/sse` for MAF integration must update URL to `/mcp`
+
+### Added - Part 3: Knowledge Captain Agent
+
+- **`agents/` module** - Microsoft Agent Framework integration ([d71708c](https://github.com/cristofima/maf-graphrag-series/commit/d71708c))
+  - `agents/config.py` - `AgentConfig` dataclass; loads Azure OpenAI config from env; supports `api_key` and `azure_cli` auth
+  - `agents/prompts.py` - `KNOWLEDGE_CAPTAIN_PROMPT` system prompt driving tool selection
+  - `agents/supervisor.py` - `KnowledgeCaptainRunner` context manager; `create_knowledge_captain()`; `AgentResponse` dataclass
+  - `agents/__init__.py` - Public re-exports (`KnowledgeCaptainRunner`, `AgentConfig`)
+
+- **Knowledge Captain agent pattern**
+  - Single `Agent` (GPT-4o) with `MCPStreamableHTTPTool` — no separate routing layer
+  - System prompt routes questions to the right MCP tool (`local_search`, `global_search`, `list_entities`, `get_entity`)
+  - `AgentSession` maintains conversation memory across multiple turns
+  - `KnowledgeCaptainRunner` async context manager for safe setup/teardown
+  - URL validation in `create_mcp_tool()` auto-corrects `/sse` → `/mcp`
+
+- **`run_agent.py`** - CLI entry point with Rich formatting; interactive mode and single-query mode
+
+- **Dependencies added**
+  - `microsoft-agent-framework 1.0.0b260212` - `Agent`, `MCPStreamableHTTPTool`, `AzureOpenAIChatClient`, `AgentSession`
+  - `azure-identity ^1.19.0` - Azure CLI credential support via `DefaultAzureCredential`
+  - `httpx ^0.28.0` - Async HTTP client for MCP server communication
+
+### Changed
+
+- **`mcp_server/server.py`** ([1ca5879](https://github.com/cristofima/maf-graphrag-series/commit/1ca5879)) — Added `streamable_http_app()` route at `/mcp` alongside existing `sse_app()` at `/sse`; both transports served simultaneously on port 8011
+- **Version bump** — 2.0.0 → 3.0.0
+- **README** ([340b7b0](https://github.com/cristofima/maf-graphrag-series/commit/340b7b0), [030b71b](https://github.com/cristofima/maf-graphrag-series/commit/030b71b)) — Added Part 3 section with architecture diagrams, Mermaid flow, quick start, and usage examples
+- **`docs/lessons-learned.md`** ([030b71b](https://github.com/cristofima/maf-graphrag-series/commit/030b71b)) — Added transport protocol notes and MAF integration lessons
+- **`docs/part2-implementation-notes.md`** ([adfcea0](https://github.com/cristofima/maf-graphrag-series/commit/adfcea0)) — Clarified Streamable HTTP vs SSE transport roles
+
+---
+
 ## [2.0.0] - 2026-02-11
 
 ### ⚠️ BREAKING CHANGES
@@ -126,7 +167,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Updated copyright holder in LICENSE file ([d3ab331](https://github.com/cristofima/maf-graphrag-series/commit/d3ab331))
-
----
-
-[2.0.0]: https://github.com/cristofima/maf-graphrag-series/releases/tag/v2.0.0

@@ -27,9 +27,9 @@ Usage:
 """
 
 from core.config import get_config, get_root_dir
-from core.data_loader import load_all, GraphData
-from core.search import local_search, global_search
+from core.data_loader import GraphData, load_all
 from core.indexer import build_index, build_index_sync
+from core.search import global_search, local_search
 
 __all__ = [
     "get_config",

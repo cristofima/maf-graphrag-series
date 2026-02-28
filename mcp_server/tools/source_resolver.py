@@ -92,7 +92,7 @@ def resolve_sources(
                     entry["document"] = "unknown"
             except (ValueError, TypeError):
                 entry["document"] = "unknown"
-        
+
         if preview:
             entry["text_preview"] = preview
 

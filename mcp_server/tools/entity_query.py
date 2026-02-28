@@ -37,7 +37,7 @@ async def entity_query_tool(
         # Load knowledge graph
         data = load_all()
         entities_df = data.entities
-        
+
         # Filter by name if provided
         if entity_name:
             mask = entities_df['title'].str.contains(entity_name, case=False, na=False)
@@ -48,10 +48,10 @@ async def entity_query_tool(
             filtered = entities_df[mask]
         else:
             filtered = entities_df
-        
+
         # Limit results
         result_entities = filtered.head(limit)
-        
+
         # Build response
         entities_list = []
         for _, row in result_entities.iterrows():
@@ -61,7 +61,7 @@ async def entity_query_tool(
                 "description": row.get('description', 'No description available'),
                 "community_ids": row.get('community_ids', []),
             })
-        
+
         return {
             "entities": entities_list,
             "total_found": len(filtered),
@@ -69,10 +69,10 @@ async def entity_query_tool(
             "available_types": list(list_entity_types(data)),
             "query_type": "entity_lookup"
         }
-    
+
     except FileNotFoundError as e:
         return {
-            "error": f"Knowledge graph not found. Run indexing first: poetry run python -m core.index",
+            "error": "Knowledge graph not found. Run indexing first: poetry run python -m core.index",
             "details": str(e)
         }
     except Exception as e:

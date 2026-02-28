@@ -36,14 +36,14 @@ class AgentConfig:
         mcp_server_url: GraphRAG MCP server URL
         auth_method: Authentication method ('api_key' or 'azure_cli')
     """
-    
+
     azure_endpoint: str = field(default_factory=lambda: os.getenv("AZURE_OPENAI_ENDPOINT", ""))
     deployment_name: str = field(default_factory=lambda: os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"))
     api_key: str = field(default_factory=lambda: os.getenv("AZURE_OPENAI_API_KEY", ""))
     api_version: str = field(default_factory=lambda: os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"))
     mcp_server_url: str = field(default_factory=lambda: os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8011/mcp"))
     auth_method: Literal["api_key", "azure_cli"] = field(default="api_key")
-    
+
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not self.azure_endpoint:
@@ -51,11 +51,11 @@ class AgentConfig:
                 "AZURE_OPENAI_ENDPOINT environment variable is required. "
                 "Set it to your Azure OpenAI endpoint URL."
             )
-        
+
         # Determine auth method based on API key availability
         if not self.api_key:
             self.auth_method = "azure_cli"
-    
+
     @classmethod
     def from_env(cls) -> "AgentConfig":
         """Create configuration from environment variables.
@@ -67,12 +67,12 @@ class AgentConfig:
             ValueError: If required environment variables are missing
         """
         return cls()
-    
+
     @property
     def uses_azure_cli(self) -> bool:
         """Check if using Azure CLI credential for authentication."""
         return self.auth_method == "azure_cli"
-    
+
     def validate_mcp_server(self) -> bool:
         """Check if MCP server URL is configured.
         

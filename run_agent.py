@@ -30,8 +30,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 console = Console()
 
@@ -39,7 +39,7 @@ console = Console()
 async def run_interactive():
     """Run interactive chat mode with conversation memory."""
     from agents.supervisor import KnowledgeCaptainRunner
-    
+
     console.print(Panel.fit(
         "[bold blue]Knowledge Captain[/bold blue] - GraphRAG Agent\n\n"
         "Ask questions about TechVenture Inc's knowledge graph.\n"
@@ -50,36 +50,36 @@ async def run_interactive():
         "  [bold]quit[/bold]  - Exit the chat\n",
         title="🤖 Part 3: Supervisor Agent Pattern"
     ))
-    
+
     try:
         async with KnowledgeCaptainRunner() as runner:
             console.print("\n[green]✓[/green] Connected to MCP Server\n")
-            
+
             while True:
                 try:
                     # Get user input
                     user_input = console.input("[bold cyan]You:[/bold cyan] ").strip()
-                    
+
                     if not user_input:
                         continue
-                    
+
                     if user_input.lower() in ('quit', 'exit', 'q'):
                         console.print("\n[yellow]Goodbye![/yellow]\n")
                         break
-                    
+
                     if user_input.lower() == 'clear':
                         runner.clear_history()
                         console.print("[green]✓[/green] Conversation history cleared.\n")
                         continue
-                    
+
                     # Process query with timing
                     console.print("[dim]Thinking...[/dim]")
                     start_time = time.time()
-                    
+
                     response = await runner.ask(user_input)
-                    
+
                     elapsed = time.time() - start_time
-                    
+
                     # Display response
                     console.print(Panel(
                         Markdown(response.text),
@@ -88,11 +88,11 @@ async def run_interactive():
                         border_style="green"
                     ))
                     console.print()
-                    
+
                 except KeyboardInterrupt:
                     console.print("\n\n[yellow]Interrupted. Goodbye![/yellow]\n")
                     break
-                    
+
     except ConnectionError as e:
         console.print(f"\n[red]Connection Error:[/red] {e}")
         console.print("[yellow]Hint:[/yellow] Is the MCP server running?")
@@ -106,22 +106,22 @@ async def run_interactive():
 async def run_single_query(query: str):
     """Run a single query and exit."""
     from agents.supervisor import KnowledgeCaptainRunner
-    
+
     console.print(f"[bold]Query:[/bold] {query}\n")
-    
+
     try:
         async with KnowledgeCaptainRunner() as runner:
             start_time = time.time()
             response = await runner.ask(query)
             elapsed = time.time() - start_time
-            
+
             console.print(Panel(
                 Markdown(response.text),
                 title="[bold green]Answer[/bold green]",
                 subtitle=f"[dim]{elapsed:.1f}s[/dim]",
                 border_style="green"
             ))
-            
+
     except ConnectionError as e:
         console.print(f"[red]Connection Error:[/red] {e}")
         console.print("[yellow]Hint:[/yellow] Is the MCP server running?\n")

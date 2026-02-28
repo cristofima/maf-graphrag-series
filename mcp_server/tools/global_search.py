@@ -9,7 +9,7 @@ text units. It never receives text_units, so source-level document traceability
 is not available (by design in GraphRAG).
 """
 
-from core import load_all, global_search
+from core import global_search, load_all
 
 
 async def global_search_tool(
@@ -44,7 +44,7 @@ async def global_search_tool(
     try:
         # Load knowledge graph
         data = load_all()
-        
+
         # Perform global search
         response, context = await global_search(
             query=query,
@@ -53,7 +53,7 @@ async def global_search_tool(
             response_type=response_type or "Multiple Paragraphs",
             dynamic_community_selection=dynamic_community_selection
         )
-        
+
         # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
         # Global search only returns 'reports' (community reports used)
         ctx = context if isinstance(context, dict) else {}
@@ -66,10 +66,10 @@ async def global_search_tool(
             },
             "search_type": "global"
         }
-    
+
     except FileNotFoundError as e:
         return {
-            "error": f"Knowledge graph not found. Run indexing first: poetry run python -m core.index",
+            "error": "Knowledge graph not found. Run indexing first: poetry run python -m core.index",
             "details": str(e)
         }
     except Exception as e:

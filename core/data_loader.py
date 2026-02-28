@@ -37,7 +37,7 @@ class GraphData:
     text_units: pd.DataFrame
     documents: pd.DataFrame | None = None
     covariates: pd.DataFrame | None = None
-    
+
     def __repr__(self) -> str:
         return (
             f"GraphData(\n"
@@ -68,12 +68,12 @@ def load_parquet(filename: str, output_dir: Path | None = None) -> pd.DataFrame:
     """
     if output_dir is None:
         output_dir = get_output_dir()
-    
+
     filepath = output_dir / filename
-    
+
     if not filepath.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
-    
+
     return pd.read_parquet(filepath)
 
 
@@ -97,28 +97,28 @@ def load_all(output_dir: Path | None = None, validate: bool = True) -> GraphData
     """
     if output_dir is None:
         output_dir = get_output_dir()
-    
+
     if validate:
         validate_output_files()
-    
+
     # Load required files (GraphRAG 3.x uses simple names without prefix)
     entities = load_parquet("entities.parquet", output_dir)
     relationships = load_parquet("relationships.parquet", output_dir)
     communities = load_parquet("communities.parquet", output_dir)
     community_reports = load_parquet("community_reports.parquet", output_dir)
     text_units = load_parquet("text_units.parquet", output_dir)
-    
+
     # Load optional files
     covariates = None
     covariates_path = output_dir / "covariates.parquet"
     if covariates_path.exists():
         covariates = load_parquet("covariates.parquet", output_dir)
-    
+
     documents = None
     documents_path = output_dir / "documents.parquet"
     if documents_path.exists():
         documents = load_parquet("documents.parquet", output_dir)
-    
+
     return GraphData(
         entities=entities,
         relationships=relationships,

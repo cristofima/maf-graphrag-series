@@ -38,13 +38,13 @@ load_dotenv()
 @dataclass
 class AgentResponse:
     """Response from the Knowledge Captain agent."""
-    
+
     text: str
     """The agent's response text."""
-    
+
     tools_used: list[str] | None = None
     """List of MCP tools that were called (if available)."""
-    
+
     token_count: int | None = None
     """Total tokens used (if available)."""
 
@@ -59,16 +59,16 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
         MCPStreamableHTTPTool: Configured MCP tool
     """
     from agent_framework import MCPStreamableHTTPTool
-    
+
     config = get_agent_config()
     url = mcp_url or config.mcp_server_url
-    
+
     # Ensure URL ends with /mcp (not /sse)
     if url.endswith("/sse"):
         url = url.replace("/sse", "/mcp")
     elif not url.endswith("/mcp"):
         url = url.rstrip("/") + "/mcp"
-    
+
     return MCPStreamableHTTPTool(
         name="graphrag",
         url=url,
@@ -83,9 +83,9 @@ def create_azure_client():
         AzureOpenAIChatClient: Configured chat client that implements SupportsChatGetResponse
     """
     from agent_framework.azure import AzureOpenAIChatClient
-    
+
     config = get_agent_config()
-    
+
     return AzureOpenAIChatClient(
         endpoint=config.azure_endpoint,
         deployment_name=config.deployment_name,
@@ -118,17 +118,17 @@ def create_knowledge_captain(
             print(result.text)
     """
     from agent_framework import Agent
-    
+
     client = create_azure_client()
     mcp_tool = create_mcp_tool(mcp_url)
-    
+
     agent = Agent(
         client=client,
         name="knowledge_captain",
         instructions=system_prompt or KNOWLEDGE_CAPTAIN_PROMPT,
         tools=[mcp_tool],
     )
-    
+
     return mcp_tool, agent
 
 
@@ -147,7 +147,7 @@ class KnowledgeCaptainRunner:
             ### Follow-up questions remember context
             response2 = await runner.ask("What about Project Beta?")
     """
-    
+
     def __init__(
         self,
         mcp_url: str | None = None,
@@ -165,22 +165,22 @@ class KnowledgeCaptainRunner:
         )
         self._connected = False
         self._session = None
-    
+
     async def __aenter__(self) -> "KnowledgeCaptainRunner":
         """Connect to MCP server and initialize session."""
         from agent_framework import AgentSession
-        
+
         await self.mcp_tool.__aenter__()
         self._connected = True
         self._session = AgentSession()  # Create session for conversation history
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Disconnect from MCP server."""
         await self.mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
         self._connected = False
         self._session = None
-    
+
     async def ask(self, question: str) -> AgentResponse:
         """Ask the Knowledge Captain a question.
         
@@ -200,14 +200,14 @@ class KnowledgeCaptainRunner:
             raise RuntimeError(
                 "Not connected to MCP server. Use 'async with KnowledgeCaptainRunner()'"
             )
-        
+
         result = await self.agent.run(question, session=self._session)
-        
+
         return AgentResponse(
             text=result.text,
             # Note: tools_used and token_count depend on agent framework version
         )
-    
+
     def clear_history(self):
         """Clear conversation history, starting fresh.
         

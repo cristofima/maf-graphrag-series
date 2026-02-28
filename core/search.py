@@ -6,17 +6,14 @@ Provides async wrappers around graphrag.api search functions.
 
 from typing import Any
 
-import pandas as pd
-
 import graphrag.api as api
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 
 from core.config import get_config
 from core.data_loader import GraphData
 
-
-# Type alias for search results
-SearchResult = tuple[str, dict[str, Any]]
+# Type alias for search results — graphrag 3.x returns broad union types
+SearchResult = tuple[Any, Any]
 
 
 async def local_search(
@@ -56,7 +53,7 @@ async def local_search(
     """
     if config is None:
         config = get_config()
-    
+
     # GraphRAG 3.x: removed 'nodes', added 'communities'
     response, context = await api.local_search(
         config=config,
@@ -70,7 +67,7 @@ async def local_search(
         response_type=response_type,
         query=query,
     )
-    
+
     return response, context
 
 
@@ -115,7 +112,7 @@ async def global_search(
     """
     if config is None:
         config = get_config()
-    
+
     # GraphRAG 3.x: removed 'nodes', community_level accepts None
     response, context = await api.global_search(
         config=config,
@@ -127,7 +124,7 @@ async def global_search(
         response_type=response_type,
         query=query,
     )
-    
+
     return response, context
 
 
@@ -156,7 +153,7 @@ async def drift_search(
     """
     if config is None:
         config = get_config()
-    
+
     # GraphRAG 3.x: removed 'nodes', added 'communities'
     response, context = await api.drift_search(
         config=config,
@@ -169,7 +166,7 @@ async def drift_search(
         response_type=response_type,
         query=query,
     )
-    
+
     return response, context
 
 
@@ -196,7 +193,7 @@ async def basic_search(
     """
     if config is None:
         config = get_config()
-    
+
     # GraphRAG 3.x: added response_type parameter
     response, context = await api.basic_search(
         config=config,
@@ -204,5 +201,5 @@ async def basic_search(
         response_type=response_type,
         query=query,
     )
-    
+
     return response, context

@@ -37,7 +37,7 @@ async def local_search_tool(
     try:
         # Load knowledge graph
         data = load_all()
-        
+
         # Perform local search
         response, context = await local_search(
             query=query,
@@ -45,7 +45,7 @@ async def local_search_tool(
             community_level=community_level or 2,
             response_type=response_type or "Multiple Paragraphs"
         )
-        
+
         # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
         ctx = context if isinstance(context, dict) else {}
         entities_df = ctx.get("entities")
@@ -67,10 +67,10 @@ async def local_search_tool(
             "sources": resolved_sources,
             "search_type": "local"
         }
-    
+
     except FileNotFoundError as e:
         return {
-            "error": f"Knowledge graph not found. Run indexing first: poetry run python -m core.index",
+            "error": "Knowledge graph not found. Run indexing first: poetry run python -m core.index",
             "details": str(e)
         }
     except Exception as e:

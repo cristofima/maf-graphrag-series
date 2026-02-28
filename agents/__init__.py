@@ -30,10 +30,10 @@ Usage:
 from agents.config import AgentConfig, get_agent_config
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT, SIMPLE_ASSISTANT_PROMPT
 from agents.supervisor import (
+    AgentResponse,
     KnowledgeCaptainRunner,
     create_knowledge_captain,
     create_mcp_tool,
-    AgentResponse,
 )
 
 __all__ = [

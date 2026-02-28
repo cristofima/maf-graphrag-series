@@ -7,9 +7,8 @@ Provides async wrapper around graphrag.api.build_index for creating knowledge gr
 import asyncio
 from typing import Any
 
-import pandas as pd
-
 import graphrag.api as api
+import pandas as pd
 from graphrag.callbacks.workflow_callbacks import WorkflowCallbacks
 from graphrag.config.enums import IndexingMethod
 from graphrag.config.models.graph_rag_config import GraphRagConfig
@@ -65,7 +64,7 @@ async def build_index(
     """
     if config is None:
         config = get_config()
-    
+
     # Run the indexing pipeline (GraphRAG 3.x API)
     results = await api.build_index(
         config=config,
@@ -76,7 +75,7 @@ async def build_index(
         verbose=verbose,
         input_documents=input_documents,
     )
-    
+
     return results
 
 

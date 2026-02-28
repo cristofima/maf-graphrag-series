@@ -30,9 +30,9 @@ for _logger_name in ("litellm", "graphrag", "httpx", "httpcore", "openai"):
     logging.getLogger(_logger_name).setLevel(logging.WARNING)
 
 from mcp.server.fastmcp import FastMCP
-from mcp_server.config import MCPConfig
-from mcp_server.tools import local_search_tool, global_search_tool, entity_query_tool
 
+from mcp_server.config import MCPConfig
+from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
 
 # Initialize configuration
 config = MCPConfig.from_env()
@@ -189,21 +189,21 @@ app.add_middleware(
 
 if __name__ == "__main__":
     # Development server
-    print(f"🚀 Starting GraphRAG MCP Server")
+    print("🚀 Starting GraphRAG MCP Server")
     print(f"   Server: {config.server_name} v{config.server_version}")
     print(f"   URL: {config.server_url}")
     print(f"   GraphRAG Root: {config.graphrag_root}")
-    print(f"\n📋 Available Tools:")
-    print(f"   - search_knowledge_graph(query, search_type='local|global')")
-    print(f"   - local_search(query)")
-    print(f"   - global_search(query)")
-    print(f"   - list_entities(entity_type, limit)")
-    print(f"   - get_entity(entity_name)")
-    print(f"\n✨ Server ready for Agent Framework or MCP clients")
-    print(f"\n🔗 Connect:")
+    print("\n📋 Available Tools:")
+    print("   - search_knowledge_graph(query, search_type='local|global')")
+    print("   - local_search(query)")
+    print("   - global_search(query)")
+    print("   - list_entities(entity_type, limit)")
+    print("   - get_entity(entity_name)")
+    print("\n✨ Server ready for Agent Framework or MCP clients")
+    print("\n🔗 Connect:")
     print(f"   Agent Framework: {config.server_url}/mcp")
     print(f"   MCP Inspector: Transport=Streamable HTTP, URL={config.server_url}/mcp")
-    
+
     # Run with uvicorn
     import uvicorn
     uvicorn.run(app, host=config.host, port=config.port)

@@ -37,7 +37,7 @@ python = ">=3.11,<3.13"
 
 # ===== PART 1: GraphRAG Fundamentals =====
 # Microsoft GraphRAG - Knowledge graph construction
-graphrag = "~3.0.1"
+graphrag = "~3.0.2"
 
 # Data processing for parquet files and dataframes
 pandas = "^2.3.0"

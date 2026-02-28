@@ -200,7 +200,7 @@ class ParallelSearchWorkflow:
         )
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Disconnect both MCP tool instances."""
         if self._entity_mcp_tool:
             await self._entity_mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
@@ -223,6 +223,9 @@ class ParallelSearchWorkflow:
             raise RuntimeError(
                 "Workflow not connected. Use 'async with ParallelSearchWorkflow()'"
             )
+        assert self._entity_searcher is not None
+        assert self._themes_searcher is not None
+        assert self._answer_synthesizer is not None
 
         steps: list[WorkflowStep] = []
         workflow_start = time.time()

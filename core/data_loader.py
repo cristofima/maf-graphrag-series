@@ -6,6 +6,7 @@ Loads Parquet files into pandas DataFrames for use with graphrag.api.
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 
@@ -157,9 +158,9 @@ def list_entities(data: GraphData, limit: int = 20) -> list[str]:
         List of entity names
     """
     if "name" in data.entities.columns:
-        return data.entities["name"].head(limit).tolist()
+        return cast(list[str], data.entities["name"].head(limit).tolist())
     elif "title" in data.entities.columns:
-        return data.entities["title"].head(limit).tolist()
+        return cast(list[str], data.entities["title"].head(limit).tolist())
     else:
         return []
 
@@ -175,5 +176,5 @@ def list_entity_types(data: GraphData) -> list[str]:
         List of unique entity types
     """
     if "type" in data.entities.columns:
-        return data.entities["type"].unique().tolist()
+        return cast(list[str], data.entities["type"].unique().tolist())
     return []

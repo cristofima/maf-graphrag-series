@@ -21,7 +21,7 @@ Usage:
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from dotenv import load_dotenv
 
@@ -29,7 +29,7 @@ from agents.config import get_agent_config
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT
 
 if TYPE_CHECKING:
-    from agent_framework import Agent, MCPStreamableHTTPTool
+    from agent_framework import Agent, AgentSession, MCPStreamableHTTPTool
 
 # Load environment variables
 load_dotenv()
@@ -76,7 +76,7 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
     )
 
 
-def create_azure_client():
+def create_azure_client() -> Any:
     """Create Azure OpenAI chat client for Agent Framework.
     
     Returns:
@@ -164,7 +164,7 @@ class KnowledgeCaptainRunner:
             system_prompt=system_prompt,
         )
         self._connected = False
-        self._session = None
+        self._session: "AgentSession | None" = None
 
     async def __aenter__(self) -> "KnowledgeCaptainRunner":
         """Connect to MCP server and initialize session."""
@@ -175,7 +175,7 @@ class KnowledgeCaptainRunner:
         self._session = AgentSession()  # Create session for conversation history
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Disconnect from MCP server."""
         await self.mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
         self._connected = False
@@ -208,7 +208,7 @@ class KnowledgeCaptainRunner:
             # Note: tools_used and token_count depend on agent framework version
         )
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """Clear conversation history, starting fresh.
         
         Use this to reset context without disconnecting from MCP server.

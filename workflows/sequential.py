@@ -207,7 +207,7 @@ class ResearchPipelineWorkflow:
         )
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
         """Disconnect from MCP server."""
         if self._mcp_tool:
             await self._mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
@@ -228,6 +228,9 @@ class ResearchPipelineWorkflow:
             raise RuntimeError(
                 "Workflow not connected. Use 'async with ResearchPipelineWorkflow()'"
             )
+        assert self._query_analyzer is not None
+        assert self._knowledge_searcher is not None
+        assert self._report_writer is not None
 
         steps: list[WorkflowStep] = []
         workflow_start = time.time()

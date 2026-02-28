@@ -101,7 +101,7 @@ async def run_indexing(resume: bool = False) -> None:
     console.print()
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Build GraphRAG knowledge graph from documents",

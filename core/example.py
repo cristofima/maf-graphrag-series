@@ -123,7 +123,7 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
     console.print(f"\n[dim]⏱️  Completed in {elapsed_time:.1f} seconds[/dim]")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Search the GraphRAG knowledge graph",
         formatter_class=argparse.RawDescriptionHelpFormatter,

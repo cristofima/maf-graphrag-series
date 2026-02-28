@@ -133,7 +133,7 @@ async def global_search(
 
 @mcp.tool()
 async def list_entities(
-    entity_type: str = None,
+    entity_type: str | None = None,
     limit: int = 10
 ) -> dict:
     """

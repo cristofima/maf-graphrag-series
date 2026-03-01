@@ -15,8 +15,8 @@ Environment Variables:
 import sys
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add src/ to path for package imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 if __name__ == "__main__":
     # Import here to avoid loading before path is set

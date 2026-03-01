@@ -35,8 +35,8 @@ import sys
 import time
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add src/ to path for package imports
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from rich.console import Console
 from rich.markdown import Markdown

@@ -62,7 +62,7 @@ jobs:
 
       - name: Type check with mypy
         run: |
-          poetry run python -m mypy core/ agents/ mcp_server/ workflows/ \
+          poetry run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ \
             --ignore-missing-imports \
             --no-error-summary
 

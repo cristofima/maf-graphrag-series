@@ -93,10 +93,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q --strict-markers --cov=core --cov=agents --cov=mcp_server --cov=workflows --cov-report=term-missing"
+addopts = "-ra -q --strict-markers --cov=src/core --cov=src/agents --cov=src/mcp_server --cov=src/workflows --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-pythonpath = ["."]
+pythonpath = ["src"]
 
 [tool.black]
 line-length = 120
@@ -151,7 +151,7 @@ ignore_missing_imports = true
 exclude = ["output", "cache", ".venv"]
 
 [tool.coverage.run]
-source = ["core", "agents", "mcp_server", "workflows"]
+source = ["src/core", "src/agents", "src/mcp_server", "src/workflows"]
 omit = ["*/tests/*", "*/__init__.py"]
 
 [tool.coverage.report]

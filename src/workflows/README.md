@@ -26,6 +26,8 @@ Multi-agent workflow patterns that extend the single-agent Knowledge Captain fro
 
 ### 1. Sequential Workflow (`sequential.py`) — Research Pipeline
 
+![Sequential Pipeline Workflow](../../docs/images/part4-sequential.png)
+
 **When to use**: Complex, multi-part questions that need structured decomposition before searching.
 
 ```
@@ -46,6 +48,8 @@ QueryAnalyzer → KnowledgeSearcher → ReportWriter
 - Complex research questions that span multiple domains
 
 ### 2. Concurrent Workflow (`concurrent.py`) — Parallel Search
+
+![Concurrent Search Workflow](../../docs/images/part4-concurrent.png)
 
 **When to use**: Questions that benefit from both entity details AND organizational themes simultaneously.
 
@@ -70,6 +74,8 @@ QueryAnalyzer → KnowledgeSearcher → ReportWriter
 - Questions where entity-level and organizational-level perspectives complement each other
 
 ### 3. Handoff Workflow (`handoff.py`) — Expert Routing
+
+![Expert Handoff Workflow](../../docs/images/part4-handoff.png)
 
 **When to use**: When you want explicit, auditable routing to specialist agents.
 

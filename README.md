@@ -283,7 +283,7 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.0.0b260212
+### Microsoft Agent Framework 1.0.0rc2
 
 Key patterns used:
 

@@ -3,15 +3,18 @@
 ## Overview
 
 This document captures key insights, challenges, and solutions encountered during:
+
 1. **Azure infrastructure setup** for the MAF + GraphRAG series (Challenges 1-5)
 2. **GraphRAG 1.2.0 → 3.0.1 migration** (Challenges 6-10)
 3. **Agent Framework integration** with MCP Server (Challenges 11-13)
+4. **Multi-agent workflow patterns** — performance and concurrency (Challenges 14-16)
 
 ---
 
 ## Challenge 1: Azure Storage Account SKU Validation
 
 ### Problem
+
 Initial Terraform deployment failed with a validation error related to the storage account SKU configuration.
 
 ```
@@ -20,9 +23,11 @@ The specified value "Standard_LRS" is incompatible with the expected type
 ```
 
 ### Root Cause
+
 The `azurerm_storage_account` resource's `account_replication_type` parameter expects a short-form SKU value like `LRS`, `GRS`, `RAGRS`, etc., **not** the full SKU name like `Standard_LRS`.
 
 ### Solution
+
 Updated `infra/variables.tf`:
 
 ```hcl
@@ -30,7 +35,7 @@ variable "storage_sku" {
   description = "Storage account SKU"
   type        = string
   default     = "LRS"  # Changed from "Standard_LRS"
-  
+
   validation {
     condition     = contains(["LRS", "GRS", "RAGRS", "ZRS", "GZRS", "RAGZRS"], var.storage_sku)
     error_message = "Storage SKU must be one of: LRS, GRS, RAGRS, ZRS, GZRS, RAGZRS."
@@ -39,6 +44,7 @@ variable "storage_sku" {
 ```
 
 ### Key Insight
+
 Always verify Azure provider parameter formats in the [official Terraform AzureRM documentation](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs). The Azure Portal UI uses full SKU names, but Terraform resources may use abbreviated values.
 
 ---
@@ -46,28 +52,31 @@ Always verify Azure provider parameter formats in the [official Terraform AzureR
 ## Challenge 2: Azure OpenAI Embedding Model Regional Availability
 
 ### Problem
+
 Deployment to `southcentralus` failed with the following error:
 
 ```
-Error creating Cognitive Services Deployment: (InvalidResourceProperties) 
-The specified SKU 'Standard' for model 'text-embedding-3-large 1' is not 
+Error creating Cognitive Services Deployment: (InvalidResourceProperties)
+The specified SKU 'Standard' for model 'text-embedding-3-large 1' is not
 supported in this region 'southcentralus'.
 ```
 
 ### Root Cause
+
 Azure OpenAI model availability varies significantly by region. The `text-embedding-3-large` model is **not available** in `southcentralus`, despite GPT-4o being available there.
 
 **Regional Availability Matrix (as of January 2026):**
 
-| Region | GPT-4o | text-embedding-3-small | text-embedding-3-large | text-embedding-ada-002 |
-|--------|--------|------------------------|------------------------|------------------------|
-| southcentralus | ✅ | ❌ | ❌ | ✅ (v1, v2) |
-| eastus | ✅ | ✅ | ✅ | ✅ |
-| eastus2 | ✅ | ✅ | ✅ | ✅ |
-| westus | ✅ | ✅ | ❌ | ✅ |
-| westus3 | ✅ | ❌ | ✅ | ✅ |
+| Region         | GPT-4o | text-embedding-3-small | text-embedding-3-large | text-embedding-ada-002 |
+| -------------- | ------ | ---------------------- | ---------------------- | ---------------------- |
+| southcentralus | ✅     | ❌                     | ❌                     | ✅ (v1, v2)            |
+| eastus         | ✅     | ✅                     | ✅                     | ✅                     |
+| eastus2        | ✅     | ✅                     | ✅                     | ✅                     |
+| westus         | ✅     | ✅                     | ❌                     | ✅                     |
+| westus3        | ✅     | ❌                     | ✅                     | ✅                     |
 
 ### Initial Workaround
+
 Switched to `text-embedding-ada-002 (version 2)` which is available in `southcentralus`:
 
 ```hcl
@@ -89,7 +98,9 @@ resource "azurerm_cognitive_deployment" "embedding" {
 ```
 
 ### Final Solution
+
 After cost-benefit analysis, adopted a **multi-region strategy**:
+
 - **Azure Storage & App Services**: `southcentralus` (better quota availability)
 - **Azure OpenAI**: `westus` (lower demand, text-embedding-3-small support)
 
@@ -115,44 +126,49 @@ We evaluated three embedding models based on cost, performance, and regional ava
 
 #### Performance Benchmarks
 
-| Model | MIRACL Score | MTEB Score | Dimensions | Context Tokens |
-|-------|--------------|------------|------------|----------------|
-| text-embedding-3-large | 54.9 (+75% vs ada-002) | 64.6 | 3,072 | 8,192 |
-| text-embedding-3-small | 44.0 (+40% vs ada-002) | 62.3 | 1,536 | 8,192 |
-| text-embedding-ada-002 | 31.4 (baseline) | 61.0 | 1,536 | 8,192 (v2) |
+| Model                  | MIRACL Score           | MTEB Score | Dimensions | Context Tokens |
+| ---------------------- | ---------------------- | ---------- | ---------- | -------------- |
+| text-embedding-3-large | 54.9 (+75% vs ada-002) | 64.6       | 3,072      | 8,192          |
+| text-embedding-3-small | 44.0 (+40% vs ada-002) | 62.3       | 1,536      | 8,192          |
+| text-embedding-ada-002 | 31.4 (baseline)        | 61.0       | 1,536      | 8,192 (v2)     |
 
 **MIRACL**: Multi-language retrieval benchmark  
 **MTEB**: Massive Text Embedding Benchmark (English)
 
 #### Cost Comparison (Approximate)
 
-| Model | Cost per 1M Tokens | Relative Cost |
-|-------|-------------------|---------------|
-| text-embedding-3-small | $0.02 | **5x cheaper** |
-| text-embedding-ada-002 | $0.10 | 1x (baseline) |
-| text-embedding-3-large | $0.13 | 1.3x more expensive |
+| Model                  | Cost per 1M Tokens | Relative Cost       |
+| ---------------------- | ------------------ | ------------------- |
+| text-embedding-3-small | $0.02              | **5x cheaper**      |
+| text-embedding-ada-002 | $0.10              | 1x (baseline)       |
+| text-embedding-3-large | $0.13              | 1.3x more expensive |
 
 #### Decision Matrix
 
 For **GraphRAG workloads**, embeddings are generated for:
+
 - Source documents (input corpus)
 - Extracted entities (30-1000+ per document)
 - Community summaries (hierarchical levels)
 - Relationship descriptions
 
 **Estimated Token Usage** (1,000 documents):
+
 - Documents: ~1.5M tokens
 - Entities: ~500K tokens
 - Communities: ~200K tokens
 - **Total**: ~2.2M tokens
 
 **Cost Impact**:
+
 - With `text-embedding-ada-002`: ~$220
 - With `text-embedding-3-small`: ~$44 (**$176 savings**)
 - With `text-embedding-3-large`: ~$286
 
 ### Final Decision
+
 Selected **text-embedding-3-small** for:
+
 - ✅ **5x cost reduction** compared to ada-002
 - ✅ **40% better performance** (MIRACL: 44.0 vs 31.4)
 - ✅ Available in `westus` (lower demand region)
@@ -169,7 +185,7 @@ Selected **text-embedding-3-small** for:
    - Entity resolution accuracy
    - Community detection precision
    - Semantic search relevance
-   
+
    The 40% performance improvement justifies the selection even without cost savings.
 
 ---
@@ -177,6 +193,7 @@ Selected **text-embedding-3-small** for:
 ## Challenge 4: Multi-Region Architecture Design
 
 ### Scenario
+
 Azure quota limitations in `eastus` and model availability gaps in `southcentralus` necessitated a cross-region deployment strategy.
 
 ### Architecture Decision
@@ -209,17 +226,20 @@ Azure quota limitations in `eastus` and model availability gaps in `southcentral
 ### Considerations
 
 #### ✅ Advantages
+
 - **Quota flexibility**: Use regions with available capacity
 - **Model access**: Deploy where newer models are supported
 - **Cost optimization**: Select cost-effective models without regional constraints
 - **Reduced contention**: Avoid high-demand regions like `eastus`
 
 #### ⚠️ Trade-offs
+
 - **Cross-region latency**: ~20-30ms (acceptable for batch GraphRAG indexing)
 - **Data egress costs**: Minimal for API calls (primarily metadata)
 - **Increased complexity**: Two resource groups, cross-region network routing
 
 #### ❌ When to Avoid
+
 - **Data residency requirements**: If data must stay in specific geopolitical boundaries
 - **Real-time applications**: If latency < 10ms is critical (use same-region deployment)
 - **Compliance restrictions**: If regulations mandate single-region architecture
@@ -232,6 +252,7 @@ Multi-region architectures are explicitly supported for Azure OpenAI:
 > — [Architecture strategies for using availability zones and regions](https://learn.microsoft.com/en-us/azure/well-architected/design-guides/regions-availability-zones)
 
 **Recommended Patterns**:
+
 1. **Active-Active**: Multiple regions handling traffic simultaneously
 2. **Active-Passive**: Primary region with failover to secondary
 3. **Geo-distributed**: Optimize for user proximity
@@ -246,7 +267,7 @@ For our use case (GraphRAG batch indexing), cross-region latency is negligible c
    - High-throughput services (storage, compute) → regions with quota
    - Specialized services (AI models) → regions with model availability
 
-3. **Network latency context matters**: 
+3. **Network latency context matters**:
    - Real-time chat: < 100ms critical
    - GraphRAG indexing: 20-30ms latency is < 1% of total processing time
 
@@ -257,6 +278,7 @@ For our use case (GraphRAG batch indexing), cross-region latency is negligible c
 ## Challenge 5: Terraform Backend State Management
 
 ### Problem
+
 Configuring remote state storage for Terraform required careful bootstrap sequencing and backend configuration file generation.
 
 ### Solution: Two-Phase Deployment
@@ -270,6 +292,7 @@ terraform apply
 ```
 
 Creates:
+
 - Resource Group: `maf-graphrag-dev-tfstate-rg`
 - Storage Account: `mafgrdevtfstate<random>`
 - Container: `tfstate`
@@ -307,6 +330,7 @@ terraform init -reconfigure \
 Based on lessons learned, use this checklist for future deployments:
 
 ### Pre-Deployment
+
 - [ ] Verify Azure OpenAI model availability in target region(s)
 - [ ] Check current quota limits for required services
 - [ ] Review cost estimates for selected models
@@ -314,6 +338,7 @@ Based on lessons learned, use this checklist for future deployments:
 - [ ] Document multi-region architecture decisions
 
 ### Terraform Configuration
+
 - [ ] Use short-form SKU values (LRS, not Standard_LRS)
 - [ ] Set up remote state storage (bootstrap first)
 - [ ] Add validation blocks to variables
@@ -321,6 +346,7 @@ Based on lessons learned, use this checklist for future deployments:
 - [ ] Enable detailed logging during deployment
 
 ### Post-Deployment
+
 - [ ] Verify all resources in Azure Portal
 - [ ] Test connectivity between regions (if multi-region)
 - [ ] Generate `.env` file from Terraform outputs
@@ -332,16 +358,19 @@ Based on lessons learned, use this checklist for future deployments:
 ## Resources
 
 ### Azure OpenAI Documentation
+
 - [Model Summary Table and Region Availability](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/models#model-summary-table-and-region-availability)
 - [Embeddings Models](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/concepts/models#embeddings)
 - [Multi-Backend Gateway Architectures](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/azure-openai-gateway-multi-backend)
 
 ### Terraform
+
 - [AzureRM Provider - Storage Account](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_account)
 - [AzureRM Provider - Cognitive Deployment](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/cognitive_deployment)
 - [Backend Configuration](https://developer.hashicorp.com/terraform/language/settings/backends/azurerm)
 
 ### Microsoft GraphRAG
+
 - [GitHub Repository](https://github.com/microsoft/graphrag)
 - [Research Paper](https://www.microsoft.com/en-us/research/project/graphrag/)
 - [GraphRAG v3 Config Reference](https://microsoft.github.io/graphrag/config/yaml/)
@@ -351,6 +380,7 @@ Based on lessons learned, use this checklist for future deployments:
 ## Challenge 6: GraphRAG 1.2.0 → 3.0.1 API Breaking Changes
 
 ### Problem
+
 The migration from GraphRAG 1.2.0 to 3.0.1 introduced several breaking API changes. The primary motivation was numpy compatibility—GraphRAG 1.2.0 pinned `numpy <2.0.0`, while Microsoft Agent Framework (`agent-framework`) required `numpy >=2.2.6`. This made it impossible to install both in the same environment.
 
 ### Breaking Changes Encountered
@@ -358,6 +388,7 @@ The migration from GraphRAG 1.2.0 to 3.0.1 introduced several breaking API chang
 #### 1. `nodes` Parameter Removed from Search APIs
 
 **OLD (1.2.0)**:
+
 ```python
 await api.local_search(
     config=config,
@@ -369,6 +400,7 @@ await api.local_search(
 ```
 
 **NEW (3.0.1)**:
+
 ```python
 await api.local_search(
     config=config,
@@ -401,6 +433,7 @@ Updated three core modules:
 3. **`core/indexer.py`**: Updated `build_index()` to use new parameter names (`method`, `is_update_run`, `verbose`)
 
 ### Key Insight
+
 Pin to a tilde version (`~3.0.1`) in `pyproject.toml` to allow patch updates while preventing future major breaking changes. Always check the [GraphRAG changelog](https://github.com/microsoft/graphrag/releases) before upgrading.
 
 ---
@@ -408,9 +441,11 @@ Pin to a tilde version (`~3.0.1`) in `pyproject.toml` to allow patch updates whi
 ## Challenge 7: Output File Naming Convention Change
 
 ### Problem
+
 GraphRAG 3.x changed the output Parquet file naming convention. All references to old file names throughout the codebase caused `FileNotFoundError` exceptions.
 
 **OLD (1.2.0)**:
+
 ```
 output/create_final_entities.parquet
 output/create_final_relationships.parquet
@@ -420,6 +455,7 @@ output/create_final_text_units.parquet
 ```
 
 **NEW (3.0.1)**:
+
 ```
 output/entities.parquet
 output/relationships.parquet
@@ -429,16 +465,20 @@ output/text_units.parquet
 ```
 
 ### Impact
+
 This change affected **every layer** of the codebase:
+
 - Python code (`data_loader.py`, `config.py`, `index.py`)
 - Notebooks (`01_explore_graph.ipynb`)
 - Documentation (README, docs/, articles/)
 - Even prompt-related output references
 
 ### Solution
+
 Systematic codebase-wide search and replace using `grep` to find all `create_final_` references, then updating each file in context. The `core/config.py` validation function was updated to check for the new file names.
 
 ### Key Insight
+
 When a framework changes naming conventions, **grep the entire codebase** before considering the migration complete. Hidden references in documentation, comments, and print statements are easy to miss.
 
 ---
@@ -446,9 +486,11 @@ When a framework changes naming conventions, **grep the entire codebase** before
 ## Challenge 8: settings.yaml Configuration Format Overhaul
 
 ### Problem
+
 GraphRAG 3.x completely restructured the `settings.yaml` format. The v1.2.0 configuration was incompatible and could not be incrementally updated.
 
 **OLD (1.2.0)**:
+
 ```yaml
 llm:
   api_key: ${GRAPHRAG_API_KEY}
@@ -464,6 +506,7 @@ embeddings:
 ```
 
 **NEW (3.0.1)**:
+
 ```yaml
 completion_models:
   default_completion_model:
@@ -483,6 +526,7 @@ embedding_models:
 ```
 
 ### Additional Config Changes
+
 - Environment variable names changed (e.g., `GRAPHRAG_API_KEY` → `AZURE_OPENAI_API_KEY`)
 - `vector_store` section now requires explicit `index_schema` with `vector_size`
 - Storage sections renamed (`storage` → `output_storage`, `input_storage` added)
@@ -496,6 +540,7 @@ embedding_models:
 4. Added explicit `vector_store.index_schema` with `vector_size: 1536` for text-embedding-3-small
 
 ### Key Insight
+
 Don't try to incrementally patch a major config format change. Generate a fresh config and merge your customizations into it. Keep a backup of the old config for reference.
 
 ---
@@ -503,27 +548,31 @@ Don't try to incrementally patch a major config format change. Generate a fresh 
 ## Challenge 9: Prompt Template Incompatibilities
 
 ### Problem
+
 Custom prompt templates that worked with GraphRAG 1.2.0 contained placeholders that were no longer injected by the v3.x runtime, causing `KeyError` exceptions during indexing.
 
 ### Error
+
 ```
 KeyError: 'max_length'
 ```
 
 ### Affected Prompts
 
-| File | Removed Placeholder |
-|------|---------------------|
-| `prompts/summarize_descriptions.txt` | `{max_length}` |
-| `prompts/global_search_map_system_prompt.txt` | `{max_length}` |
-| `prompts/global_search_reduce_system_prompt.txt` | `{max_length}` |
-| `prompts/community_report_text.txt` | `{max_report_length}` |
-| `prompts/community_report_graph.txt` | `{max_report_length}` |
+| File                                             | Removed Placeholder   |
+| ------------------------------------------------ | --------------------- |
+| `prompts/summarize_descriptions.txt`             | `{max_length}`        |
+| `prompts/global_search_map_system_prompt.txt`    | `{max_length}`        |
+| `prompts/global_search_reduce_system_prompt.txt` | `{max_length}`        |
+| `prompts/community_report_text.txt`              | `{max_report_length}` |
+| `prompts/community_report_graph.txt`             | `{max_report_length}` |
 
 ### Solution
+
 Removed the unsupported placeholders from all prompt files. In v3.x, these parameters are controlled via `settings.yaml` under the workflow sections (e.g., `summarize_descriptions.max_length: 500`, `community_reports.max_length: 2000`).
 
 ### Key Insight
+
 Custom prompts are a **hidden migration risk**. If you've customized any prompts from the defaults, test each one individually after upgrading. The safest approach is to regenerate prompts with `graphrag init --force` and re-apply only your custom wording changes.
 
 ---
@@ -531,15 +580,17 @@ Custom prompts are a **hidden migration risk**. If you've customized any prompts
 ## Challenge 10: Knowledge Graph Statistics Shift After Re-indexing
 
 ### Problem
+
 After completing the migration and re-indexing with GraphRAG 3.0.1, the knowledge graph statistics changed significantly:
 
-| Metric | v1.2.0 | v3.0.1 | Change |
-|--------|--------|--------|--------|
-| Entities | 176 | 147 | -16.5% |
-| Relationships | 342 | 263 | -23.1% |
-| Communities | 33 | 32 | -3.0% |
+| Metric        | v1.2.0 | v3.0.1 | Change |
+| ------------- | ------ | ------ | ------ |
+| Entities      | 176    | 147    | -16.5% |
+| Relationships | 342    | 263    | -23.1% |
+| Communities   | 33     | 32     | -3.0%  |
 
 ### Root Cause
+
 This was **NOT data loss**. GraphRAG 3.x includes improved entity deduplication and graph summarization algorithms:
 
 1. **Better entity resolution**: v3.x more aggressively merges near-duplicate entities (e.g., "Azure OpenAI Service" and "Azure OpenAI" now correctly resolve to a single entity)
@@ -547,13 +598,16 @@ This was **NOT data loss**. GraphRAG 3.x includes improved entity deduplication 
 3. **Refined community detection**: The Leiden algorithm parameters were tuned, producing slightly fewer but more meaningful communities
 
 ### Verification
+
 Confirmed via notebook exploration:
+
 - Core entities (people, projects, technologies) are all preserved
 - Relationship types and weights remain accurate
 - Community reports still capture all organizational themes
 - Search quality (local and global) is equal or better
 
 ### Key Insight
+
 After any GraphRAG version upgrade, **compare statistics and verify search quality** rather than only checking that code runs. A decrease in entity/relationship counts usually indicates better deduplication, not data loss. Document the before/after numbers for transparency.
 
 ---
@@ -561,6 +615,7 @@ After any GraphRAG version upgrade, **compare statistics and verify search quali
 ## Challenge 11: MCP Transport Protocol (SSE vs Streamable HTTP)
 
 ### Problem
+
 The MCP Server originally used `sse_app()` transport for Server-Sent Events, but the Microsoft Agent Framework's `MCPStreamableHTTPTool` requires the Streamable HTTP transport.
 
 ```
@@ -568,16 +623,18 @@ Error: Session terminated (MCP client expected Streamable HTTP, server exposed S
 ```
 
 ### Root Cause
+
 MCP (Model Context Protocol) supports two HTTP transports:
 
-| Transport | Use Case | Endpoint |
-|-----------|----------|----------|
-| **SSE (Server-Sent Events)** | Browser clients, MCP Inspector UI | `/sse` |
-| **Streamable HTTP** | Agent Framework, programmatic clients | `/mcp` |
+| Transport                    | Use Case                              | Endpoint |
+| ---------------------------- | ------------------------------------- | -------- |
+| **SSE (Server-Sent Events)** | Browser clients, MCP Inspector UI     | `/sse`   |
+| **Streamable HTTP**          | Agent Framework, programmatic clients | `/mcp`   |
 
 The `MCPStreamableHTTPTool` from Agent Framework uses Streamable HTTP protocol, not SSE.
 
 ### Solution
+
 Changed `mcp_server/server.py` from:
 
 ```python
@@ -595,7 +652,9 @@ app = mcp.streamable_http_app()
 Also updated the endpoint from `/sse` to `/mcp` for clarity.
 
 ### Key Insight
+
 When integrating MCP servers with different clients:
+
 - **MCP Inspector / Browsers**: Use `sse_app()` on `/sse`
 - **Agent Framework / Code clients**: Use `streamable_http_app()` on `/mcp`
 - Production servers may need to expose both transports on different endpoints
@@ -605,6 +664,7 @@ When integrating MCP servers with different clients:
 ## Challenge 12: Microsoft Agent Framework API Changes
 
 ### Problem
+
 Initial agent implementation used incorrect class names and parameters based on outdated assumptions.
 
 ```python
@@ -619,6 +679,7 @@ Agent(chat_client=client, model="gpt-4o")  # ❌ Unknown parameters
 ```
 
 ### Root Cause
+
 The Microsoft Agent Framework (`agent-framework-core ^1.0.0b260212`) has its own patterns:
 
 1. **Class name**: `Agent` not `ChatAgent`
@@ -650,7 +711,9 @@ agent = Agent(
 ```
 
 ### Key Insight
+
 The Microsoft Agent Framework is still in beta (note the `b` in version). Always verify:
+
 1. Import paths via `from agent_framework import *`
 2. Client wrappers from `agent_framework.azure`
 3. Constructor parameters from the actual class signatures
@@ -660,20 +723,23 @@ The Microsoft Agent Framework is still in beta (note the `b` in version). Always
 ## Challenge 13: Conversation Memory with AgentSession
 
 ### Problem
+
 Follow-up questions lost context from previous exchanges because each `agent.run()` call was stateless.
 
 ```
 User: Who leads Project Alpha?
 Agent: Dr. Sarah Chen leads Project Alpha...
 
-User: What about their background?  
+User: What about their background?
 Agent: I don't know who you're referring to...  ← Lost context
 ```
 
 ### Root Cause
+
 The `Agent.run()` method is stateless by default. Each call starts fresh without memory of previous exchanges.
 
 ### Solution
+
 Use `AgentSession` to maintain conversation history:
 
 ```python
@@ -696,23 +762,147 @@ class KnowledgeCaptainRunner:
     async def __aenter__(self):
         self._session = AgentSession()  # Create on connect
         return self
-    
+
     async def ask(self, question: str):
         return await self.agent.run(question, session=self._session)
-    
+
     def clear_history(self):
         self._session = AgentSession()  # Reset conversation
 ```
 
 ### Key Insight
+
 Agent Framework separates:
+
 - **Agent**: Stateless processor with tools and instructions
 - **Session**: Stateful container for conversation history
 
 This design allows:
+
 - Multiple users sharing one Agent instance
 - Explicit control over when to clear history
 - Easy serialization of conversation state (future feature)
+
+---
+
+## Challenge 14: global_search Map-Reduce Cost Is Not Obvious
+
+### Problem
+
+Workflows using `global_search` took 60–140 seconds per call, making them impractical for interactive use. Initial assumption was that global search would be comparable to local search (~5–15s).
+
+### Root Cause
+
+`global_search` in GraphRAG 3.x is not a simple query — it performs **map-reduce across ALL community reports**. With 32 communities in our knowledge graph, each `global_search` call triggers approximately 32 separate LLM calls (one per community for the map phase) plus a reduce phase to consolidate results.
+
+```
+local_search:  1 vector lookup + 1 LLM call  → ~5-15 seconds
+global_search: 32 map LLM calls + 1 reduce   → ~60-140 seconds
+```
+
+This meant the concurrent workflow (which always runs both `local_search` and `global_search`) was inherently the **slowest** pattern despite using `asyncio.gather` for parallelism — the wall-clock time was dominated by `global_search`.
+
+### Solution
+
+Multiple mitigations applied together:
+
+1. **Prompt engineering**: QueryAnalyzer's system prompt says "Prefer local whenever the question mentions specific entities" to avoid triggering `global_search` unnecessarily
+2. **`settings.yaml` tuning**: `map_max_parallel: 5` to limit concurrent LLM calls during map-reduce, `reduce_max_tokens: 2000` for a shorter reduce phase
+3. **Architecture awareness**: Documented that sequential and handoff workflows should be preferred for entity-focused questions, and concurrent should be reserved for questions that genuinely require both perspectives
+
+### Key Insight
+
+GraphRAG's documentation describes `global_search` as "search across all communities" without emphasizing the N×LLM-calls cost. When designing multi-agent workflows, understanding the **computational model** of each tool (not just its API) is critical for realistic performance expectations.
+
+---
+
+## Challenge 15: LLM Agents Calling Tools Multiple Times Without Constraint
+
+### Problem
+
+Without explicit constraints, GPT-4o agents called search tools 2–5 times per workflow step. A single sequential workflow run could trigger 8+ LLM tool calls, multiplying latency from ~80s to 5+ minutes.
+
+### Root Cause
+
+LLM agents are optimized for thoroughness, not efficiency. When given access to `local_search` and `global_search` tools, GPT-4o would:
+
+- Call `local_search` once per sub-question in the research plan (3–5 calls)
+- Sometimes call both `local_search` and `global_search` "just to be safe"
+- Retry with rephrased queries if the first result seemed incomplete
+
+There is no built-in mechanism in the Agent Framework to limit the number of tool calls per agent turn — the agent keeps calling tools until it decides it has enough information.
+
+### Solution
+
+Added explicit "CRITICAL RULES" sections to each search agent's system prompt:
+
+```
+## CRITICAL RULES
+- Call **local_search exactly once** — a single call with one comprehensive query.
+- **Never call local_search more than once.** Combine all aspects into one query.
+```
+
+For the ThemesSearcher/ThemesExpert, also emphasizing cost:
+
+```
+- Call **global_search exactly once** — it is very slow (map-reduce across all communities).
+  One call is the maximum.
+```
+
+Additionally, instructing agents to pass `response_type="Single Paragraph"` reduces the LLM output per call, since these intermediate results feed into a synthesis step — not the user directly.
+
+### Key Insight
+
+Prompt engineering is the **primary performance lever** for LLM agent systems. Unlike traditional APIs where you control call patterns in code, agents decide their own tool-call strategy. Explicit, assertive constraints ("NEVER", "exactly once") work better than suggestions ("try to minimize calls"). This is a fundamentally different optimization surface than conventional software.
+
+---
+
+## Challenge 16: MCPStreamableHTTPTool Cannot Be Shared Across Concurrent Agents
+
+### Problem
+
+The concurrent workflow initially used a single `MCPStreamableHTTPTool` instance shared between two agents running via `asyncio.gather`. This caused intermittent failures — session interleaving, dropped responses, and connection errors.
+
+### Root Cause
+
+`MCPStreamableHTTPTool` maintains an HTTP session with the MCP server. When two coroutines send requests through the same session simultaneously via `asyncio.gather`, their request/response pairs can interleave:
+
+```
+Agent A sends request  →  MCP server
+Agent B sends request  →  MCP server
+Agent A receives B's response  ←  ERROR: wrong context
+```
+
+The tool is safe for sequential use but **not for concurrent coroutines** sharing the same instance, because the underlying `httpx` session is not designed for multiplexed async access.
+
+### Solution
+
+Create **separate `MCPStreamableHTTPTool` instances** for each concurrent agent, connected to the same MCP server URL:
+
+```python
+# Two independent connections — safe for asyncio.gather
+self._entity_mcp_tool = create_mcp_tool(self._mcp_url)
+self._themes_mcp_tool = create_mcp_tool(self._mcp_url)
+
+await self._entity_mcp_tool.__aenter__()
+await self._themes_mcp_tool.__aenter__()
+```
+
+A secondary issue: closing multiple tools in `__aexit__` can cascade failures if the first close raises an `anyio` cancel-scope error. Solution: close each tool independently:
+
+```python
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    for tool in (self._entity_mcp_tool, self._themes_mcp_tool):
+        if tool:
+            try:
+                await tool.__aexit__(None, None, None)
+            except Exception:
+                pass  # Cleanup errors are non-fatal
+```
+
+### Key Insight
+
+MCP tools behave like database connections — each concurrent consumer needs its own instance. This is not documented in the Agent Framework beta, but follows from the underlying HTTP session model. When designing concurrent agent patterns, always verify whether shared resources are coroutine-safe.
 
 ---
 
@@ -733,17 +923,21 @@ This design allows:
 11. ✅ **Match MCP transport to client type (SSE vs Streamable HTTP)**
 12. ✅ **Verify Agent Framework APIs from actual imports, not documentation**
 13. ✅ **Use AgentSession for multi-turn conversation memory**
+14. ✅ **Understand the computational model of each tool before designing workflows**
+15. ✅ **Use explicit prompt constraints to limit agent tool-call frequency**
+16. ✅ **Create separate MCP tool instances for concurrent agent patterns**
 
 ### Final Architecture
 
-| Component | Region | Model/SKU | Rationale |
-|-----------|--------|-----------|-----------|
-| Azure OpenAI | westus | GPT-4o + text-embedding-3-small | Model availability, lower demand |
-| Storage Account | southcentralus | Standard LRS | Quota availability |
-| App Services | southcentralus | TBD | Quota availability, proximity to storage |
-| GraphRAG | — | v3.0.1 (migrated from v1.2.0) | numpy 2.x compat, agent-framework support |
+| Component       | Region         | Model/SKU                       | Rationale                                 |
+| --------------- | -------------- | ------------------------------- | ----------------------------------------- |
+| Azure OpenAI    | westus         | GPT-4o + text-embedding-3-small | Model availability, lower demand          |
+| Storage Account | southcentralus | Standard LRS                    | Quota availability                        |
+| App Services    | southcentralus | TBD                             | Quota availability, proximity to storage  |
+| GraphRAG        | —              | v3.0.1 (migrated from v1.2.0)   | numpy 2.x compat, agent-framework support |
 
 **Estimated Monthly Cost** (based on 30K TPM, moderate usage):
+
 - Azure OpenAI: ~$150-300
 - Storage Account: ~$20-50
 - **Total**: ~$170-350/month
@@ -759,11 +953,12 @@ This design allows:
 3. ~~Commit infrastructure code to git~~ ✅
 4. ~~Implement MCP Server (Part 2)~~ ✅
 5. ~~Implement Supervisor Agent Pattern (Part 3)~~ ✅
-6. Implement Agent Evaluation (Part 4)
+6. ~~Implement Multi-Agent Workflow Patterns (Part 4)~~ ✅
+7. Implement Agent Evaluation (Part 5)
 
 ---
 
-**Document Version**: 3.0  
+**Document Version**: 4.0  
 **Last Updated**: February 16, 2026  
 **Author**: Cristopher Coronado  
-**Series**: MAF + GraphRAG - Parts 1, 2 & 3
+**Series**: MAF + GraphRAG - Parts 1, 2, 3 & 4

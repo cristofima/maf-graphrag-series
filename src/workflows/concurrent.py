@@ -50,18 +50,21 @@ Contrast with Sequential (Part 4):
 """
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING
 
+from agents.supervisor import create_azure_client, create_mcp_tool
 from dotenv import load_dotenv
 
-from agents.supervisor import create_azure_client, create_mcp_tool
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # System Prompts
@@ -71,11 +74,15 @@ _ENTITY_SEARCHER_PROMPT = """You are an Entity Specialist for a knowledge graph 
 Your role is to find specific, detailed information about named entities: people, projects, teams,
 technologies, and their direct relationships.
 
+## CRITICAL RULES
+- Call **local_search exactly once** — a single call with one comprehensive query.
+- **Never call local_search more than once.** Combine all aspects into one query.
+- Pass `response_type="Single Paragraph"` (your output is an intermediate step, not the final answer).
+
 ## Instructions
-- Use local_search to find entity-focused information
+- Craft one broad query that covers ALL entity aspects the user is asking about
 - Focus on names, roles, responsibilities, and direct relationships
 - Return structured facts: "Entity X has role Y in Project Z"
-- Include at least the 3 most relevant entity details for the query
 
 ## Output Format
 Return entity findings as structured bullet points grouped by entity type."""
@@ -86,7 +93,11 @@ Your role is to identify organizational patterns, strategic themes, and cross-cu
 that span multiple entities.
 
 ## Instructions
-- Use global_search to find thematic and organizational patterns
+- Call **global_search exactly once** with:
+  - A well-crafted query that covers the user's question
+  - `response_type="Single Paragraph"` (your output is an intermediate step, not the final answer)
+- Global search is **very slow** (map-reduce across all communities). One call is the maximum.
+- **Never call global_search more than once** — consolidate everything into one query.
 - Focus on strategic goals, team structures, technology trends, and initiatives
 - Identify patterns that connect multiple entities or departments
 - Return thematic insights that a single entity search wouldn't reveal
@@ -201,11 +212,17 @@ class ParallelSearchWorkflow:
         return self
 
     async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect both MCP tool instances."""
-        if self._entity_mcp_tool:
-            await self._entity_mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
-        if self._themes_mcp_tool:
-            await self._themes_mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
+        """Disconnect both MCP tool instances.
+
+        Each tool is closed independently so that a cancel-scope error
+        on one connection does not prevent the other from cleaning up.
+        """
+        for tool in (self._entity_mcp_tool, self._themes_mcp_tool):
+            if tool:
+                try:
+                    await tool.__aexit__(None, None, None)
+                except Exception:
+                    pass  # Cleanup errors are non-fatal; resources are GC'd
 
     async def run(self, query: str) -> WorkflowResult:
         """Run entity and thematic searches in parallel, then synthesize.
@@ -233,6 +250,7 @@ class ParallelSearchWorkflow:
         # ------------------------------------------------------------------
         # Steps 1+2 (parallel): Entity search AND thematic search
         # ------------------------------------------------------------------
+        logger.info("Steps 1+2: EntitySearcher + ThemesSearcher running in parallel...")
         entity_prompt = (
             f"Find specific entity details that answer this question:\n\n{query}\n\n"
             "Focus on people, projects, teams, and their direct relationships."
@@ -251,6 +269,7 @@ class ParallelSearchWorkflow:
 
         entity_findings = entity_result.text
         themes_findings = themes_result.text
+        logger.info("Steps 1+2: Parallel searches completed (%.1fs)", parallel_elapsed)
 
         # Record both parallel steps with the shared elapsed time
         steps.append(WorkflowStep(
@@ -271,6 +290,7 @@ class ParallelSearchWorkflow:
         # ------------------------------------------------------------------
         # Step 3: Synthesize both perspectives into one answer
         # ------------------------------------------------------------------
+        logger.info("Step 3: AnswerSynthesizer — merging perspectives...")
         step3_start = time.time()
         synthesis_prompt = (
             f"Original question: {query}\n\n"
@@ -281,6 +301,7 @@ class ParallelSearchWorkflow:
         synthesis_result = await self._answer_synthesizer.run(synthesis_prompt)
         step3_elapsed = time.time() - step3_start
         final_answer = synthesis_result.text
+        logger.info("Step 3: AnswerSynthesizer completed (%.1fs)", step3_elapsed)
 
         steps.append(WorkflowStep(
             agent_name="AnswerSynthesizer",

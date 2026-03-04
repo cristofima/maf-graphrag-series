@@ -42,18 +42,21 @@ Why This Matters:
     and extensible without growing a monolithic system prompt.
 """
 
+import logging
 import time
 from typing import TYPE_CHECKING, Literal
 
+from agents.supervisor import create_azure_client, create_mcp_tool
 from dotenv import load_dotenv
 
-from agents.supervisor import create_azure_client, create_mcp_tool
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Routing Literals
@@ -90,12 +93,15 @@ and technologies.
 - Identifying team compositions
 - Tracking specific technologies used in specific projects
 
+## CRITICAL RULES
+- Call **local_search exactly once** — a single call with one comprehensive query.
+- **Never call local_search more than once.** Combine all aspects into one query.
+
 ## Instructions
-1. Use local_search to find precise entity information
+1. Craft one comprehensive query that covers all entity aspects of the user's question
 2. Include the entity's name, role, key relationships, and relevant facts
-3. Be thorough — gather all relevant entity details for the question
-4. If multiple related entities are mentioned, cover each one
-5. Organize your answer by entity when multiple entities are involved
+3. If multiple related entities are mentioned, cover each one in your answer
+4. Organize your answer by entity when multiple entities are involved
 
 ## Tone
 Precise, factual, entity-focused. Reference specific names and relationships."""
@@ -111,10 +117,14 @@ Your specialty is revealing organizational patterns, strategic themes, and cross
 - Describing organizational culture and direction
 
 ## Instructions
-1. Use global_search to discover thematic patterns
-2. Identify recurring themes across multiple entities and communities
-3. Connect individual observations to broader organizational trends
-4. Highlight what the patterns mean strategically
+1. Call **global_search exactly once** with:
+   - A well-crafted query covering the user's question
+   - `response_type=\"Single Paragraph\"` (keep output concise)
+2. Global search is **very slow** (map-reduce across all communities) — one call maximum.
+3. **Never call global_search more than once** — consolidate everything into one query.
+4. Identify recurring themes across multiple entities and communities
+5. Connect individual observations to broader organizational trends
+6. Highlight what the patterns mean strategically
 
 ## Tone
 Analytical, strategic, pattern-focused. Connect dots across the organization."""
@@ -259,12 +269,14 @@ class ExpertHandoffWorkflow:
         # ------------------------------------------------------------------
         # Step 1: Router classifies the query
         # ------------------------------------------------------------------
+        logger.info("Step 1: Router — classifying query...")
         step1_start = time.time()
         route_result = await self._router.run(
             f"Classify this query: {query}"
         )
         step1_elapsed = time.time() - step1_start
         route_decision = _parse_route(route_result.text)
+        logger.info("Step 1: Router decided '%s' (%.1fs)", route_decision, step1_elapsed)
 
         steps.append(WorkflowStep(
             agent_name="Router",
@@ -280,10 +292,12 @@ class ExpertHandoffWorkflow:
         final_answer_parts: list[str] = []
 
         if route_decision in ("entity", "both"):
+            logger.info("Step 2: EntityExpert — local search...")
             step2_start = time.time()
             entity_result = await self._entity_expert.run(query)
             step2_elapsed = time.time() - step2_start
             final_answer_parts.append(entity_result.text)
+            logger.info("Step 2: EntityExpert completed (%.1fs)", step2_elapsed)
 
             steps.append(WorkflowStep(
                 agent_name="EntityExpert",
@@ -294,10 +308,12 @@ class ExpertHandoffWorkflow:
             ))
 
         if route_decision in ("themes", "both"):
+            logger.info("Step %d: ThemesExpert — global search...", len(steps) + 1)
             step3_start = time.time()
             themes_result = await self._themes_expert.run(query)
             step3_elapsed = time.time() - step3_start
             final_answer_parts.append(themes_result.text)
+            logger.info("Step %d: ThemesExpert completed (%.1fs)", len(steps) + 1, step3_elapsed)
 
             steps.append(WorkflowStep(
                 agent_name="ThemesExpert",

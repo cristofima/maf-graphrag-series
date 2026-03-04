@@ -31,12 +31,25 @@ Environment Variables:
 """
 
 import asyncio
+import logging
 import sys
-import time
 from pathlib import Path
 
 # Add src/ to path for package imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
+
+# Configure logging so workflow progress messages are visible
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+# Suppress noisy libraries — set to ERROR so harmless WARNINGs are hidden
+for _logger_name in (
+    "litellm", "httpx", "httpcore", "openai", "azure", "mcp",
+    "agent_framework._mcp",  # cancel-scope cleanup + "Failed to set log level" warnings
+    "agent_framework",       # catch-all for any agent_framework sub-loggers
+    "graphrag.query",        # "Reached token limit" + "Error decoding faulty json" warnings
+):
+    logging.getLogger(_logger_name).setLevel(logging.ERROR)
+# Suppress the harmless Windows ProactorEventLoop pipe-close errors
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -80,45 +93,65 @@ WORKFLOW_DESCRIPTIONS = {
 # ---------------------------------------------------------------------------
 
 
+async def _run_workflow(workflow_cls: type, label: str, query: str) -> None:
+    """Run any workflow class with proper error handling and progress feedback."""
+    console.print(f"\n[dim]Running [bold]{label}[/bold]...[/dim]")
+
+    console.print("[dim]  Connecting to MCP server...[/dim]")
+    try:
+        workflow = workflow_cls()
+        await workflow.__aenter__()
+    except Exception as e:
+        _print_connection_error(e)
+        return
+
+    console.print("[dim]  Connected. Executing workflow...[/dim]")
+    try:
+        result = await workflow.run(query)
+    except Exception as e:
+        console.print(f"\n[red]Workflow execution error:[/red] {type(e).__name__}: {e}")
+        return
+    finally:
+        try:
+            await workflow.__aexit__(None, None, None)
+        except Exception:
+            pass
+
+    _display_result(result)
+
+
 async def run_sequential(query: str) -> None:
     """Run the Sequential Research Pipeline workflow."""
     from workflows.sequential import ResearchPipelineWorkflow
 
-    console.print("\n[dim]Running [bold]Sequential[/bold] Research Pipeline...[/dim]")
-
-    async with ResearchPipelineWorkflow() as workflow:
-        result = await workflow.run(query)
-
-    _display_result(result)
+    await _run_workflow(ResearchPipelineWorkflow, "Sequential Research Pipeline", query)
 
 
 async def run_concurrent(query: str) -> None:
     """Run the Concurrent Parallel Search workflow."""
     from workflows.concurrent import ParallelSearchWorkflow
 
-    console.print("\n[dim]Running [bold]Concurrent[/bold] Parallel Search...[/dim]")
-
-    async with ParallelSearchWorkflow() as workflow:
-        result = await workflow.run(query)
-
-    _display_result(result)
+    await _run_workflow(ParallelSearchWorkflow, "Concurrent Parallel Search", query)
 
 
 async def run_handoff(query: str) -> None:
     """Run the Expert Handoff Router workflow."""
     from workflows.handoff import ExpertHandoffWorkflow
 
-    console.print("\n[dim]Running [bold]Handoff[/bold] Expert Router...[/dim]")
-
-    async with ExpertHandoffWorkflow() as workflow:
-        result = await workflow.run(query)
-
-    _display_result(result)
+    await _run_workflow(ExpertHandoffWorkflow, "Handoff Expert Router", query)
 
 
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
+
+
+def _print_connection_error(exc: Exception) -> None:
+    """Print a user-friendly MCP connection error."""
+    console.print(f"\n[red]MCP Connection Error:[/red] {type(exc).__name__}: {exc}")
+    console.print("[yellow]Hint:[/yellow] Make sure the MCP server is running:")
+    console.print("      [bold]poetry run python run_mcp_server.py[/bold]")
+    console.print("      Then verify it's accessible at the configured URL (default: http://127.0.0.1:8011/mcp)\n")
 
 
 def _display_result(result) -> None:
@@ -228,10 +261,11 @@ async def run_interactive() -> None:
                 await run_concurrent(query)
             elif workflow_choice == "handoff":
                 await run_handoff(query)
-        except ConnectionError as e:
-            console.print(f"\n[red]Connection Error:[/red] {e}")
-            console.print("[yellow]Hint:[/yellow] Is the MCP server running?")
-            console.print("      Run: [bold]poetry run python run_mcp_server.py[/bold]\n")
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted.[/yellow]")
+            break
+        except Exception as e:
+            console.print(f"\n[red]Error:[/red] {type(e).__name__}: {e}")
 
         console.print()
 
@@ -257,10 +291,11 @@ async def run_single(workflow_type: str, query: str) -> None:
 
     try:
         await runner(query)
-    except ConnectionError as e:
-        console.print(f"\n[red]Connection Error:[/red] {e}")
-        console.print("[yellow]Hint:[/yellow] Is the MCP server running?")
-        console.print("      Run: [bold]poetry run python run_mcp_server.py[/bold]\n")
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted.[/yellow]")
+        sys.exit(130)
+    except Exception as e:
+        console.print(f"\n[red]Error:[/red] {type(e).__name__}: {e}")
         sys.exit(1)
 
 

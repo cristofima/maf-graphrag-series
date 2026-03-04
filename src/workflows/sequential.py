@@ -33,18 +33,21 @@ Contrast with Single-Agent (Part 3):
     | Best for        | Quick questions          | Complex research queries   |
 """
 
+import logging
 import time
 from typing import TYPE_CHECKING
 
+from agents.supervisor import create_azure_client, create_mcp_tool
 from dotenv import load_dotenv
 
-from agents.supervisor import create_azure_client, create_mcp_tool
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # System Prompts
@@ -63,12 +66,14 @@ Return a concise JSON-like plan with these fields:
 
 ## Rules
 - Be specific about entity names when the question mentions them
-- Recommend "both" when the question spans entity details AND organizational themes
+- Prefer "local" whenever the question mentions specific entities, projects, people, or technologies
+- Only recommend "global" for very broad organizational/strategic overview questions
+- Recommend "both" sparingly — only when the question clearly needs both entity details AND broad themes
 - Keep sub-questions short and search-friendly
 
 ## Example Output
 Primary question: What are the leadership and technology strategy of Project Alpha?
-Search type: both
+Search type: local
 Entities of interest: Project Alpha, Dr. Emily Harrison
 Sub-questions:
   1. Who leads Project Alpha and what is their role?
@@ -79,12 +84,22 @@ Sub-questions:
 _KNOWLEDGE_SEARCHER_PROMPT = """You are a Knowledge Graph Searcher. You receive a research plan and
 execute searches against the GraphRAG knowledge graph about TechVenture Inc.
 
+## Available Tools
+- **local_search**: Fast, entity-focused search. Use for questions about specific people, projects,
+  teams, technologies, and their relationships. Preferred for most queries.
+- **global_search**: Slow (map-reduce across all communities). Use ONLY for broad organizational
+  overview questions that cannot be answered by local_search.
+
 ## Instructions
 1. Read the research plan carefully
-2. Use local_search for questions about specific entities, people, relationships
-3. Use global_search for thematic or organizational pattern questions
-4. Execute all relevant searches and compile the raw findings
-5. Include specific entity names, relationships, and quotes from the knowledge graph
+2. **Strongly prefer local_search** — it handles most questions well, including listing projects
+   and tech stacks, finding relationships, and entity details
+3. Only use global_search if the question explicitly asks for organizational-wide themes,
+   strategic patterns, or cross-cutting insights that local_search cannot answer
+4. **Never call global_search more than once** — it is expensive and slow
+5. Combine sub-questions into a single well-crafted search query when possible,
+   rather than making separate calls for each sub-question
+6. Include specific entity names, relationships, and quotes from the knowledge graph
 
 ## Output Format
 Return all search findings as structured text with clear sections per sub-question.
@@ -238,12 +253,14 @@ class ResearchPipelineWorkflow:
         # ------------------------------------------------------------------
         # Step 1: Analyze the query → structured research plan
         # ------------------------------------------------------------------
+        logger.info("Step 1/3: QueryAnalyzer — decomposing query...")
         step1_start = time.time()
         analysis_result = await self._query_analyzer.run(
             f"Analyze this research question and produce a search plan:\n\n{query}"
         )
         step1_elapsed = time.time() - step1_start
         research_plan = analysis_result.text
+        logger.info("Step 1/3: QueryAnalyzer completed (%.1fs)", step1_elapsed)
 
         steps.append(WorkflowStep(
             agent_name="QueryAnalyzer",
@@ -255,6 +272,7 @@ class ResearchPipelineWorkflow:
         # ------------------------------------------------------------------
         # Step 2: Search the knowledge graph using the plan
         # ------------------------------------------------------------------
+        logger.info("Step 2/3: KnowledgeSearcher — executing MCP searches...")
         step2_start = time.time()
         search_prompt = (
             f"Original question: {query}\n\n"
@@ -264,6 +282,7 @@ class ResearchPipelineWorkflow:
         search_result = await self._knowledge_searcher.run(search_prompt)
         step2_elapsed = time.time() - step2_start
         raw_findings = search_result.text
+        logger.info("Step 2/3: KnowledgeSearcher completed (%.1fs)", step2_elapsed)
 
         steps.append(WorkflowStep(
             agent_name="KnowledgeSearcher",
@@ -275,6 +294,7 @@ class ResearchPipelineWorkflow:
         # ------------------------------------------------------------------
         # Step 3: Synthesize findings into a structured report
         # ------------------------------------------------------------------
+        logger.info("Step 3/3: ReportWriter — synthesizing report...")
         step3_start = time.time()
         synthesis_prompt = (
             f"Original question: {query}\n\n"
@@ -285,6 +305,7 @@ class ResearchPipelineWorkflow:
         report_result = await self._report_writer.run(synthesis_prompt)
         step3_elapsed = time.time() - step3_start
         final_report = report_result.text
+        logger.info("Step 3/3: ReportWriter completed (%.1fs)", step3_elapsed)
 
         steps.append(WorkflowStep(
             agent_name="ReportWriter",

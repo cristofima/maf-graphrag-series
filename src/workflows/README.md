@@ -34,13 +34,14 @@ QueryAnalyzer → KnowledgeSearcher → ReportWriter
  Research plan    Raw findings    Final report
 ```
 
-| Step         | Agent              | Role                                  |
-|--------------|--------------------|---------------------------------------|
-| 1            | QueryAnalyzer      | Decomposes query into a search plan   |
-| 2            | KnowledgeSearcher  | Executes MCP searches from the plan   |
-| 3            | ReportWriter       | Synthesizes into structured report    |
+| Step | Agent             | Role                                |
+| ---- | ----------------- | ----------------------------------- |
+| 1    | QueryAnalyzer     | Decomposes query into a search plan |
+| 2    | KnowledgeSearcher | Executes MCP searches from the plan |
+| 3    | ReportWriter      | Synthesizes into structured report  |
 
 **Best for**:
+
 - "What are the leadership, technology decisions, and strategic goals of Project Alpha?"
 - Complex research questions that span multiple domains
 
@@ -57,13 +58,14 @@ QueryAnalyzer → KnowledgeSearcher → ReportWriter
                AnswerSynthesizer
 ```
 
-| Step    | Agent             | Output                                  |
-|---------|-------------------|-----------------------------------------|
-| 1 (parallel) | EntitySearcher | Entity details via local_search    |
-| 2 (parallel) | ThemesSearcher | Thematic patterns via global_search|
-| 3       | AnswerSynthesizer | Merged comprehensive answer            |
+| Step         | Agent             | Output                              |
+| ------------ | ----------------- | ----------------------------------- |
+| 1 (parallel) | EntitySearcher    | Entity details via local_search     |
+| 2 (parallel) | ThemesSearcher    | Thematic patterns via global_search |
+| 3            | AnswerSynthesizer | Merged comprehensive answer         |
 
 **Best for**:
+
 - "What are the main projects and who leads them?"
 - Questions where entity-level and organizational-level perspectives complement each other
 
@@ -77,25 +79,31 @@ Router (classifies) → EntityExpert  (entity questions)
                     → Both          (mixed questions)
 ```
 
-| Route    | Agent         | Search type   | Example query                        |
-|----------|---------------|---------------|--------------------------------------|
-| entity   | EntityExpert  | local_search  | "Who leads Project Alpha?"           |
-| themes   | ThemesExpert  | global_search | "What are the main initiatives?"     |
-| both     | Both in turn  | both          | "Describe the projects and strategy" |
+| Route  | Agent        | Search type   | Example query                        |
+| ------ | ------------ | ------------- | ------------------------------------ |
+| entity | EntityExpert | local_search  | "Who leads Project Alpha?"           |
+| themes | ThemesExpert | global_search | "What are the main initiatives?"     |
+| both   | Both in turn | both          | "Describe the projects and strategy" |
 
 **Best for**:
+
 - Demonstrating how routing becomes an explicit, logged step
 - Systems with many specialist agents
 - When routing logic must be auditable
 
 ## Choosing the Right Workflow
 
-| Workflow    | Speed       | Traceability | Best Query Type          |
-|-------------|-------------|--------------|--------------------------|
-| Single Agent (Part 3) | Fast | Low   | Simple Q&A               |
-| Sequential  | Slowest     | Highest      | Complex multi-part       |
-| Concurrent  | Fastest     | Medium       | Dual-perspective         |
-| Handoff     | Medium      | High         | Specialist-specific      |
+| Workflow              | Speed       | Traceability | Best Query Type     | Why                                                |
+| --------------------- | ----------- | ------------ | ------------------- | -------------------------------------------------- |
+| Single Agent (Part 3) | Fastest     | Low          | Simple Q&A          | One agent, one search call                         |
+| Sequential            | Medium      | Highest      | Complex multi-part  | Prefers local_search; only uses global when needed |
+| Handoff               | Medium–Slow | High         | Specialist-specific | Router skips global_search for entity-only queries |
+| Concurrent            | Slowest     | Medium       | Dual-perspective    | **Always** runs global_search (slow map-reduce)    |
+
+> **Performance note**: `global_search` uses map-reduce over all community reports (~32 LLM calls).
+> Any workflow that triggers `global_search` will take 60–140s depending on Azure OpenAI rate limits.
+> `local_search` uses vector similarity + graph traversal with a single LLM call (~5–15s).
+> Choose **sequential** or **handoff(entity)** for fastest results on entity-specific questions.
 
 ## Quick Start
 

@@ -85,7 +85,7 @@ embed_text:
 extract_graph:
   completion_model_id: default_completion_model
   prompt: "prompts/extract_graph.txt"
-  entity_types: [organization,person,geo,event]
+  entity_types: [organization, person, geo, event]
   max_gleanings: 1
 
 summarize_descriptions:
@@ -126,12 +126,17 @@ local_search:
   completion_model_id: default_completion_model
   embedding_model_id: default_embedding_model
   prompt: "prompts/local_search_system_prompt.txt"
+  max_data_tokens: 12000
 
 global_search:
   completion_model_id: default_completion_model
   map_prompt: "prompts/global_search_map_system_prompt.txt"
   reduce_prompt: "prompts/global_search_reduce_system_prompt.txt"
   knowledge_prompt: "prompts/global_search_knowledge_system_prompt.txt"
+  max_data_tokens: 8000
+  map_max_parallel: 5
+  reduce_max_tokens: 2000
+  temperature: 0.0
 
 drift_search:
   completion_model_id: default_completion_model

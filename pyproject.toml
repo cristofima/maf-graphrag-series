@@ -56,7 +56,7 @@ uvicorn = { extras = ["standard"], version = "^0.40.0" }
 
 # ===== PART 3: Supervisor Agent Pattern =====
 # Microsoft Agent Framework - Core agent abstractions and orchestration
-agent-framework-core = "^1.0.0rc2"
+agent-framework-core = "1.0.0rc3"
 
 # Azure Identity for authentication
 azure-identity = "^1.25.2"
@@ -65,7 +65,7 @@ azure-identity = "^1.25.2"
 httpx = "^0.28.1"
 
 # ===== PART 4: MCP Server + Agent Integration =====
-agent-framework-orchestrations = "^1.0.0b260225"
+agent-framework-orchestrations = "1.0.0b260304"
 
 [tool.poetry.group.dev.dependencies]
 # Testing framework

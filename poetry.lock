@@ -2,18 +2,18 @@
 
 [[package]]
 name = "agent-framework-core"
-version = "1.0.0rc2"
+version = "1.0.0rc3"
 description = "Microsoft Agent Framework for building AI Agents with Python. This is the core package that has all the core abstractions and implementations."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "agent_framework_core-1.0.0rc2-py3-none-any.whl", hash = "sha256:71293776a29360620924663338816151226bfa06d1793148f39f23e0d74964db"},
-    {file = "agent_framework_core-1.0.0rc2.tar.gz", hash = "sha256:2dd38775c9274e448485aaf2aca064f4bbaa0248650ee65535c9495e1eefd9f0"},
+    {file = "agent_framework_core-1.0.0rc3-py3-none-any.whl", hash = "sha256:e21b1353fdd70291869caa7c089270144a749b50408bd9822f882d9ed7fc00de"},
+    {file = "agent_framework_core-1.0.0rc3.tar.gz", hash = "sha256:0c35638e6add1d5b07c90ec3dafb94cc0763dd3ec1f62de4fb6598ff224cfa71"},
 ]
 
 [package.dependencies]
-azure-ai-projects = "2.0.0b3"
+azure-ai-projects = "2.0.0b4"
 azure-identity = ">=1,<2"
 mcp = {version = ">=1.24.0,<2", extras = ["ws"]}
 openai = ">=1.99.0"
@@ -30,18 +30,18 @@ all = ["agent-framework-a2a", "agent-framework-ag-ui", "agent-framework-anthropi
 
 [[package]]
 name = "agent-framework-orchestrations"
-version = "1.0.0b260225"
+version = "1.0.0b260304"
 description = "Orchestration patterns for Microsoft Agent Framework. Includes SequentialBuilder, ConcurrentBuilder, HandoffBuilder, GroupChatBuilder, and MagenticBuilder."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "agent_framework_orchestrations-1.0.0b260225-py3-none-any.whl", hash = "sha256:9d5ccb4aba77a1499249b260146dd09eb45c13b1c6a8e7906052791fa8edcb8b"},
-    {file = "agent_framework_orchestrations-1.0.0b260225.tar.gz", hash = "sha256:702f50eec2f51b1b0d8c079671c2676bb10b628ff635e851f8dc4177d291c2ed"},
+    {file = "agent_framework_orchestrations-1.0.0b260304-py3-none-any.whl", hash = "sha256:8eb382a56e6bd18696858f5849e909d9b35924c2e15547f9f5cea8e15cbc9109"},
+    {file = "agent_framework_orchestrations-1.0.0b260304.tar.gz", hash = "sha256:a77bcc326c90a66caf2ec3d5210f086ad6a5e3d9e48d4b4c82609a5a308984d1"},
 ]
 
 [package.dependencies]
-agent-framework-core = ">=1.0.0rc2"
+agent-framework-core = ">=1.0.0rc3"
 
 [[package]]
 name = "aiofiles"
@@ -388,22 +388,23 @@ files = [
 
 [[package]]
 name = "azure-ai-projects"
-version = "2.0.0b3"
+version = "2.0.0b4"
 description = "Microsoft Corporation Azure AI Projects Client Library for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "azure_ai_projects-2.0.0b3-py3-none-any.whl", hash = "sha256:3b3048a3ba3904d556ba392b7bd20b6e84c93bb39df6d43a6470cdb0ad08af8c"},
-    {file = "azure_ai_projects-2.0.0b3.tar.gz", hash = "sha256:6d09ad110086e450a47b991ee8a3644f1be97fa3085d5981d543f900d78f4505"},
+    {file = "azure_ai_projects-2.0.0b4-py3-none-any.whl", hash = "sha256:f4cf1615bd815744ddce304b97eea9456b7f6f0bd8725547c4e54e3a67534635"},
+    {file = "azure_ai_projects-2.0.0b4.tar.gz", hash = "sha256:b6082eacf0a11db59ad4c48cb7962f5204b9a0391000bc22421236f229ff783a"},
 ]
 
 [package.dependencies]
-azure-core = ">=1.35.0"
+azure-core = ">=1.37.0"
 azure-identity = ">=1.15.0"
 azure-storage-blob = ">=12.15.0"
 isodate = ">=0.6.1"
 openai = ">=2.8.0"
+typing-extensions = ">=4.11"
 
 [[package]]
 name = "azure-common"
@@ -7611,4 +7612,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "9c17c5e784fcbc860f32583c20424774fb83c879d05d81c6dba06784078f1168"
+content-hash = "db43dadb25b549a8720df55fdabca96b6676698405361c27a05443767951eba9"

@@ -1,6 +1,5 @@
 """Unit tests for core/config.py — get_root_dir and pure utility functions."""
 
-import pytest
 from pathlib import Path
 
 

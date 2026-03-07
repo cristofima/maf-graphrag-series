@@ -1,6 +1,5 @@
 """Unit tests for mcp_server/config.py — MCPConfig dataclass."""
 
-import pytest
 from pathlib import Path
 
 from mcp_server.config import MCPConfig

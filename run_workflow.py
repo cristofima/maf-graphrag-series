@@ -35,6 +35,12 @@ import logging
 import sys
 from pathlib import Path
 
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.prompt import Prompt
+from rich.table import Table
+
 # Add src/ to path for package imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -50,12 +56,6 @@ for _logger_name in (
     logging.getLogger(_logger_name).setLevel(logging.ERROR)
 # Suppress the harmless Windows ProactorEventLoop pipe-close errors
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.table import Table
 
 console = Console()
 

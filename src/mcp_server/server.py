@@ -15,6 +15,14 @@ import logging
 import sys
 from pathlib import Path
 
+from mcp.server.fastmcp import FastMCP
+
+# Add CORS middleware so browser-based clients can connect cross-origin
+from starlette.middleware.cors import CORSMiddleware
+
+from mcp_server.config import MCPConfig
+from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -28,11 +36,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logging.basicConfig(level=logging.WARNING)
 for _logger_name in ("litellm", "graphrag", "httpx", "httpcore", "openai"):
     logging.getLogger(_logger_name).setLevel(logging.WARNING)
-
-from mcp.server.fastmcp import FastMCP
-
-from mcp_server.config import MCPConfig
-from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
 
 # Initialize configuration
 config = MCPConfig.from_env()
@@ -175,9 +178,6 @@ def create_mcp_server() -> FastMCP:
 
 # Primary app: Streamable HTTP (for MCPStreamableHTTPTool)
 app = mcp.streamable_http_app()
-
-# Add CORS middleware so browser-based clients can connect cross-origin
-from starlette.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,

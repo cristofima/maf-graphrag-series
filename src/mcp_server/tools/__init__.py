@@ -3,7 +3,7 @@ GraphRAG MCP Tools
 
 This package contains MCP tool implementations for GraphRAG:
 - local_search: Entity-focused search
-- global_search: Community/thematic search  
+- global_search: Community/thematic search
 - entity_query: Direct entity lookup
 """
 

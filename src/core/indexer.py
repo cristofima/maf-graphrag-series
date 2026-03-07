@@ -28,7 +28,7 @@ async def build_index(
 ) -> list[PipelineRunResult]:
     """
     Build the knowledge graph from input documents.
-    
+
     This function:
     1. Reads documents from input/documents/
     2. Extracts entities and relationships using LLM
@@ -36,7 +36,7 @@ async def build_index(
     4. Generates community reports
     5. Creates embeddings and vector store
     6. Saves results to output/
-    
+
     Args:
         config: Optional GraphRagConfig. Uses settings.yaml if not specified.
         method: Indexing method - Standard, Fast, StandardUpdate, FastUpdate
@@ -45,16 +45,16 @@ async def build_index(
         additional_context: Extra context passed to workflows
         verbose: Enable verbose logging
         input_documents: Optional pre-loaded documents DataFrame
-        
+
     Returns:
         List of pipeline run results with statistics
-        
+
     Example:
         >>> from core import build_index
         >>> results = await build_index()
         >>> for result in results:
         ...     print(f"{result.workflow}: {result.errors or 'success'}")
-        
+
     Note:
         This is a long-running operation that:
         - Makes multiple LLM calls (entity extraction, summarization)
@@ -90,15 +90,15 @@ def build_index_sync(
 ) -> list[PipelineRunResult]:
     """
     Synchronous version of build_index.
-    
+
     Wraps the async API call for use in non-async contexts.
-    
+
     Args:
         Same as build_index()
-        
+
     Returns:
         List of pipeline run results
-        
+
     Example:
         >>> from core.indexer import build_index_sync
         >>> results = build_index_sync()

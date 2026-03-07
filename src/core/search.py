@@ -25,27 +25,27 @@ async def local_search(
 ) -> SearchResult:
     """
     Perform a local search query against the knowledge graph.
-    
+
     Local search is optimized for answering specific questions about entities
     and their direct relationships. It focuses on a subset of the knowledge graph.
-    
+
     Best for:
         - "Who works on Project Alpha?"
         - "What technologies does Sarah Chen use?"
         - "What is the relationship between David Kumar and Emily Harrison?"
-    
+
     Args:
         query: The question to ask
         data: GraphData object containing loaded Parquet files
         config: Optional GraphRagConfig. Uses default if not specified.
         community_level: Leiden hierarchy level (higher = smaller communities)
         response_type: Format of response (e.g., "Multiple Paragraphs", "Single Sentence")
-        
+
     Returns:
         Tuple of (response_text, context_data)
         - response_text: The generated answer
         - context_data: Dictionary with entities, relationships used
-        
+
     Example:
         >>> data = load_all()
         >>> response, context = await local_search("Who leads Project Alpha?", data)
@@ -81,17 +81,17 @@ async def global_search(
 ) -> SearchResult:
     """
     Perform a global search query against the knowledge graph.
-    
+
     Global search is optimized for answering broad, thematic questions that
     require understanding of the entire knowledge graph and its communities.
     Uses a map-reduce approach over community reports.
-    
+
     Best for:
         - "What are the main projects at TechVenture?"
         - "Summarize the organizational structure"
         - "What are the key technologies being used?"
         - "What are the relationships between departments?"
-    
+
     Args:
         query: The question to ask
         data: GraphData object containing loaded Parquet files
@@ -99,12 +99,12 @@ async def global_search(
         community_level: Leiden hierarchy level (higher = smaller communities). None for auto.
         response_type: Format of response (e.g., "Multiple Paragraphs", "Multi-Page Report")
         dynamic_community_selection: Use dynamic community selection algorithm
-        
+
     Returns:
         Tuple of (response_text, context_data)
         - response_text: The generated answer
         - context_data: Dictionary with communities analyzed
-        
+
     Example:
         >>> data = load_all()
         >>> response, context = await global_search("What are the main themes?", data)
@@ -137,17 +137,17 @@ async def drift_search(
 ) -> SearchResult:
     """
     Perform a DRIFT search query against the knowledge graph.
-    
+
     DRIFT (Dynamic Reasoning and Inference with Flexible Traversal) search
     combines local and global search strategies for complex queries.
-    
+
     Args:
         query: The question to ask
         data: GraphData object containing loaded Parquet files
         config: Optional GraphRagConfig. Uses default if not specified.
         community_level: Leiden hierarchy level
         response_type: Format of response
-        
+
     Returns:
         Tuple of (response_text, context_data)
     """
@@ -178,16 +178,16 @@ async def basic_search(
 ) -> SearchResult:
     """
     Perform a basic RAG search (vector similarity only).
-    
+
     This is a simpler search that doesn't use the knowledge graph structure,
     only the text embeddings. Useful for comparison with graph-enhanced search.
-    
+
     Args:
         query: The question to ask
         data: GraphData object containing loaded Parquet files
         config: Optional GraphRagConfig. Uses default if not specified.
         response_type: Format of response
-        
+
     Returns:
         Tuple of (response_text, context_data)
     """

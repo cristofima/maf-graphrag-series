@@ -20,21 +20,21 @@ async def global_search_tool(
 ) -> dict:
     """
     Search the knowledge graph for broad themes and organizational insights.
-    
+
     This tool analyzes community reports (summaries of graph communities) to
     provide high-level overviews and thematic insights across the entire organization.
-    
+
     Args:
         query: The question to answer (e.g., "What are the main projects?")
         community_level: Community hierarchy level (0-2, higher = smaller communities)
         response_type: Format of response ("Multi-Page Report", "Multiple Paragraphs", etc.)
         dynamic_community_selection: Enable dynamic community selection
-    
+
     Returns:
         dict: Contains 'answer', 'context', and 'search_type'.
               Unlike local search, global search does not return document-level
               sources because it synthesizes from community reports (aggregated summaries).
-    
+
     Examples:
         - "What are the main projects and teams?"
         - "Summarize the organizational structure"

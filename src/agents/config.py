@@ -18,16 +18,16 @@ load_dotenv()
 @dataclass
 class AgentConfig:
     """Configuration for Agent Framework agents with Azure OpenAI.
-    
+
     Loads configuration from environment variables with validation.
     Required environment variables:
         - AZURE_OPENAI_ENDPOINT: Azure OpenAI service endpoint
         - AZURE_OPENAI_API_KEY: Azure OpenAI API key (optional if using Azure CLI credential)
         - AZURE_OPENAI_CHAT_DEPLOYMENT: Deployment name for chat model (default: gpt-4o)
-    
+
     Optional environment variables:
         - MCP_SERVER_URL: GraphRAG MCP server URL (default: http://127.0.0.1:8011/mcp)
-    
+
     Attributes:
         azure_endpoint: Azure OpenAI endpoint URL
         deployment_name: Chat model deployment name
@@ -59,10 +59,10 @@ class AgentConfig:
     @classmethod
     def from_env(cls) -> "AgentConfig":
         """Create configuration from environment variables.
-        
+
         Returns:
             AgentConfig: Validated configuration instance
-            
+
         Raises:
             ValueError: If required environment variables are missing
         """
@@ -75,7 +75,7 @@ class AgentConfig:
 
     def validate_mcp_server(self) -> bool:
         """Check if MCP server URL is configured.
-        
+
         Returns:
             bool: True if MCP server URL is set and valid
         """
@@ -84,12 +84,12 @@ class AgentConfig:
 
 def get_agent_config() -> AgentConfig:
     """Get validated agent configuration from environment.
-    
+
     This is the recommended entry point for loading configuration.
-    
+
     Returns:
         AgentConfig: Validated configuration instance
-        
+
     Raises:
         ValueError: If required environment variables are missing
     """

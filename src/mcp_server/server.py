@@ -6,7 +6,7 @@ FastMCP server that exposes GraphRAG tools via HTTP/SSE for MCP-compatible clien
 Usage:
     # Development
     poetry run python -m mcp_server.server
-    
+
     # Production (with uvicorn)
     poetry run uvicorn mcp_server.server:app --host 0.0.0.0 --port 8011
 """
@@ -50,16 +50,16 @@ async def search_knowledge_graph(
 ) -> dict:
     """
     Search the GraphRAG knowledge graph.
-    
+
     This is the main entry point for GraphRAG queries. It routes to local or global search
     based on the search_type parameter.
-    
+
     Args:
         query: The question to answer
         search_type: "local" for entity-focused or "global" for thematic search
         community_level: Community hierarchy level (0-2, higher = smaller communities)
         response_type: Format of response
-    
+
     Returns:
         dict: Search results with answer, context, and sources
     """
@@ -89,17 +89,17 @@ async def local_search(
 ) -> dict:
     """
     Perform entity-focused search on the knowledge graph.
-    
+
     Best for specific questions about entities and relationships:
     - "Who leads Project Alpha?"
     - "What technologies are used in Project Beta?"
     - "Who resolved the GraphRAG incident?"
-    
+
     Args:
         query: The question to answer
         community_level: Community hierarchy level (0-2)
         response_type: Format of response
-    
+
     Returns:
         dict: Search results with answer and context
     """
@@ -114,17 +114,17 @@ async def global_search(
 ) -> dict:
     """
     Perform thematic search across the entire knowledge graph.
-    
+
     Best for broad organizational questions:
     - "What are the main projects?"
     - "Summarize the organizational structure"
     - "What Azure services are used?"
-    
+
     Args:
         query: The question to answer
         community_level: Community hierarchy level (0-2)
         response_type: Format of response
-    
+
     Returns:
         dict: Search results with answer and context
     """
@@ -138,11 +138,11 @@ async def list_entities(
 ) -> dict:
     """
     List entities from the knowledge graph.
-    
+
     Args:
         entity_type: Filter by type (e.g., "person", "organization", "project")
         limit: Maximum number of entities to return
-    
+
     Returns:
         dict: List of entities with details
     """
@@ -153,10 +153,10 @@ async def list_entities(
 async def get_entity(entity_name: str) -> dict:
     """
     Get details about a specific entity.
-    
+
     Args:
         entity_name: Name of the entity to look up
-    
+
     Returns:
         dict: Entity details
     """

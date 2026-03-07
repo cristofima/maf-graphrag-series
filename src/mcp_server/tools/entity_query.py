@@ -16,18 +16,18 @@ async def entity_query_tool(
 ) -> dict:
     """
     Query entities directly from the knowledge graph.
-    
+
     This tool provides direct access to entity information without complex reasoning.
     Useful for quick lookups and exploration.
-    
+
     Args:
         entity_name: Name of specific entity to look up (case-insensitive)
         entity_type: Filter by entity type (e.g., "person", "organization", "project")
         limit: Maximum number of entities to return
-    
+
     Returns:
         dict: Contains 'entities' list with entity details
-    
+
     Examples:
         - entity_name="Dr. Emily Harrison" - Get details about specific person
         - entity_type="project" - List all projects

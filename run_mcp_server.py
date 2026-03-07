@@ -5,7 +5,7 @@ Start the GraphRAG MCP Server for knowledge graph queries via HTTP/SSE.
 
 Usage:
     poetry run python run_mcp_server.py
-    
+
 Environment Variables:
     MCP_HOST - Server host (default: 127.0.0.1)
     MCP_PORT - Server port (default: 8011)
@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 if __name__ == "__main__":
     # Import here to avoid loading before path is set
     import uvicorn
-
     from mcp_server.server import app, config
 
     print("🚀 Starting GraphRAG MCP Server")

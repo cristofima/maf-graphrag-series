@@ -6,7 +6,7 @@ to perform local and global searches against the knowledge graph.
 
 Usage:
     poetry run python -m core.example "Your question here"
-    
+
     # Or with search type:
     poetry run python -m core.example --type global "What are the main themes?"
 """
@@ -27,7 +27,7 @@ console = Console()
 
 async def run_search(query: str, search_type: str = "local", mode: str = "default") -> None:
     """Run a search and display results.
-    
+
     Args:
         query: The question to ask
         search_type: "local" or "global"
@@ -131,13 +131,13 @@ def main() -> None:
 Examples:
   # Local search (entity-focused)
   python -m core.example "Who leads Project Alpha?"
-  
+
   # Global search - fast mode (default, ~15s, 90%% quality)
   python -m core.example --type global "What are the main themes?"
-  
+
   # Global search - detailed mode (~60s, 100%% quality)
   python -m core.example --type global --detailed "What are the main themes?"
-  
+
   # Explicitly fast mode
   python -m core.example --type global --fast "What are the main projects?"
         """

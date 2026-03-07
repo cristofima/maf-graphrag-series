@@ -6,6 +6,7 @@ Best for: "Who leads Project Alpha?", "What technologies does X use?"
 """
 
 from core import load_all, local_search
+
 from mcp_server.tools.source_resolver import get_unique_documents, resolve_sources
 
 
@@ -16,18 +17,18 @@ async def local_search_tool(
 ) -> dict:
     """
     Search the knowledge graph for specific entities and relationships.
-    
+
     This tool performs entity-focused search using vector similarity to find
     relevant entities, then traverses the graph to gather connected information.
-    
+
     Args:
         query: The question to answer (e.g., "Who leads Project Alpha?")
         community_level: Community hierarchy level (0-2, higher = smaller communities)
         response_type: Format of response ("Multiple Paragraphs", "Single Paragraph", etc.)
-    
+
     Returns:
         dict: Contains 'answer', 'context', and 'sources'
-    
+
     Examples:
         - "Who leads Project Alpha?"
         - "What technologies are used in Project Beta?"

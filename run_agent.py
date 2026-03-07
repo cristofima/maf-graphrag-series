@@ -10,7 +10,7 @@ Prerequisites:
 
 Usage:
     poetry run python run_agent.py
-    
+
     # Or with a single query (non-interactive)
     poetry run python run_agent.py "Who leads Project Alpha?"
 

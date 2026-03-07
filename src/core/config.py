@@ -36,13 +36,13 @@ def get_root_dir() -> Path:
 def get_config() -> GraphRagConfig:
     """
     Load GraphRAG configuration from settings.yaml.
-    
+
     Returns:
         GraphRagConfig: The loaded configuration object.
-        
+
     Raises:
         FileNotFoundError: If settings.yaml is not found.
-        
+
     Note:
         This function is cached - subsequent calls return the same config.
         Environment variables are loaded from .env file automatically.
@@ -83,14 +83,14 @@ def get_output_dir() -> Path:
 def validate_output_files(required: list[str] | None = None) -> bool:
     """
     Check if required output files exist.
-    
+
     Args:
         required: List of required file names (without path).
                   Defaults to core files needed for search.
-    
+
     Returns:
         True if all files exist, False otherwise.
-        
+
     Raises:
         FileNotFoundError: If any required file is missing.
     """

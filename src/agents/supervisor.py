@@ -9,11 +9,11 @@ See README.md for architecture diagrams and detailed documentation.
 
 Usage:
     from agents.supervisor import create_knowledge_captain, KnowledgeCaptainRunner
-    
+
     # Option 1: Quick setup
     async with KnowledgeCaptainRunner() as runner:
         response = await runner.ask("Who leads Project Alpha?")
-    
+
     # Option 2: Manual setup
     mcp_tool, agent = create_knowledge_captain()
     async with mcp_tool:
@@ -51,10 +51,10 @@ class AgentResponse:
 
 def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
     """Create MCPStreamableHTTPTool for GraphRAG server.
-    
+
     Args:
         mcp_url: MCP server URL (default: from config or http://localhost:8011/mcp)
-        
+
     Returns:
         MCPStreamableHTTPTool: Configured MCP tool
     """
@@ -78,7 +78,7 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
 
 def create_azure_client() -> Any:
     """Create Azure OpenAI chat client for Agent Framework.
-    
+
     Returns:
         AzureOpenAIChatClient: Configured chat client that implements SupportsChatGetResponse
     """
@@ -99,18 +99,18 @@ def create_knowledge_captain(
     system_prompt: str | None = None,
 ) -> tuple["MCPStreamableHTTPTool", "Agent"]:
     """Create the Knowledge Captain agent with MCP tool.
-    
+
     The Knowledge Captain uses GPT-4o with a system prompt that guides
     tool selection. No separate routing logic is needed - GPT-4o decides
     which MCP tool to call based on the prompt.
-    
+
     Args:
         mcp_url: Optional MCP server URL override
         system_prompt: Optional system prompt override
-        
+
     Returns:
         tuple: (mcp_tool, agent) - Use mcp_tool as async context manager
-        
+
     Example:
         mcp_tool, agent = create_knowledge_captain()
         async with mcp_tool:
@@ -134,16 +134,16 @@ def create_knowledge_captain(
 
 class KnowledgeCaptainRunner:
     """Context manager for running Knowledge Captain queries.
-    
+
     Handles MCP connection lifecycle and provides a simple interface
     for asking questions. Maintains conversation history across multiple
     questions in the same session.
-    
+
     Example:
         async with KnowledgeCaptainRunner() as runner:
             response = await runner.ask("Who leads Project Alpha?")
             print(response.text)
-            
+
             ### Follow-up questions remember context
             response2 = await runner.ask("What about Project Beta?")
     """
@@ -154,7 +154,7 @@ class KnowledgeCaptainRunner:
         system_prompt: str | None = None,
     ):
         """Initialize the runner.
-        
+
         Args:
             mcp_url: Optional MCP server URL override
             system_prompt: Optional system prompt override
@@ -164,7 +164,7 @@ class KnowledgeCaptainRunner:
             system_prompt=system_prompt,
         )
         self._connected = False
-        self._session: "AgentSession | None" = None
+        self._session: AgentSession | None = None
 
     async def __aenter__(self) -> "KnowledgeCaptainRunner":
         """Connect to MCP server and initialize session."""
@@ -183,16 +183,16 @@ class KnowledgeCaptainRunner:
 
     async def ask(self, question: str) -> AgentResponse:
         """Ask the Knowledge Captain a question.
-        
+
         Maintains conversation history - follow-up questions will have
         context from previous exchanges in this session.
-        
+
         Args:
             question: The question to ask
-            
+
         Returns:
             AgentResponse: The agent's response
-            
+
         Raises:
             RuntimeError: If not connected (not in async context)
         """
@@ -210,7 +210,7 @@ class KnowledgeCaptainRunner:
 
     def clear_history(self) -> None:
         """Clear conversation history, starting fresh.
-        
+
         Use this to reset context without disconnecting from MCP server.
         """
         from agent_framework import AgentSession

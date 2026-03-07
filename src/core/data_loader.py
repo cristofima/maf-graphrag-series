@@ -17,7 +17,7 @@ from core.config import get_output_dir, validate_output_files
 class GraphData:
     """
     Container for all GraphRAG data needed for search operations.
-    
+
     Attributes:
         entities: DataFrame with extracted entities
         relationships: DataFrame with entity relationships
@@ -26,7 +26,7 @@ class GraphData:
         text_units: DataFrame with source text chunks
         documents: DataFrame with source document metadata (title, text)
         covariates: Optional DataFrame with additional entity attributes
-    
+
     Note:
         GraphRAG 3.x removed the 'nodes' parameter from search APIs.
         Communities are now passed directly instead.
@@ -56,14 +56,14 @@ class GraphData:
 def load_parquet(filename: str, output_dir: Path | None = None) -> pd.DataFrame:
     """
     Load a single Parquet file from the output directory.
-    
+
     Args:
         filename: Name of the Parquet file (e.g., "entities.parquet")
         output_dir: Optional path to output directory. Uses default if not specified.
-        
+
     Returns:
         DataFrame with the loaded data.
-        
+
     Raises:
         FileNotFoundError: If the file doesn't exist.
     """
@@ -81,17 +81,17 @@ def load_parquet(filename: str, output_dir: Path | None = None) -> pd.DataFrame:
 def load_all(output_dir: Path | None = None, validate: bool = True) -> GraphData:
     """
     Load all GraphRAG output files needed for search operations.
-    
+
     Args:
         output_dir: Optional path to output directory. Uses default if not specified.
         validate: Whether to validate that required files exist first.
-        
+
     Returns:
         GraphData object containing all loaded DataFrames.
-        
+
     Raises:
         FileNotFoundError: If any required file is missing.
-        
+
     Example:
         >>> data = load_all()
         >>> print(f"Loaded {len(data.entities)} entities")
@@ -149,11 +149,11 @@ def get_community_count(data: GraphData) -> int:
 def list_entities(data: GraphData, limit: int = 20) -> list[str]:
     """
     Get a list of entity names from the graph.
-    
+
     Args:
         data: GraphData object
         limit: Maximum number of entities to return
-        
+
     Returns:
         List of entity names
     """
@@ -168,10 +168,10 @@ def list_entities(data: GraphData, limit: int = 20) -> list[str]:
 def list_entity_types(data: GraphData) -> list[str]:
     """
     Get unique entity types from the graph.
-    
+
     Args:
         data: GraphData object
-        
+
     Returns:
         List of unique entity types
     """

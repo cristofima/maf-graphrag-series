@@ -17,7 +17,6 @@ traces the full chain:
 from __future__ import annotations
 
 import pandas as pd
-
 from core.data_loader import GraphData
 
 # Maximum characters for text preview in source entries

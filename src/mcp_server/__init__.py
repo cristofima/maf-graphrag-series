@@ -7,7 +7,7 @@ enabling AI agents and MCP clients to query knowledge graphs.
 Usage:
     # Start MCP server
     poetry run python -m mcp_server.server
-    
+
     # Or use convenience script
     poetry run python run_mcp_server.py
 """

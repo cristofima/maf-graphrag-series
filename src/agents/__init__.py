@@ -18,11 +18,11 @@ Modules:
 Usage:
     # Quick usage with context manager
     from agents import KnowledgeCaptainRunner
-    
+
     async with KnowledgeCaptainRunner() as runner:
         response = await runner.ask("Who leads Project Alpha?")
         print(response.text)
-    
+
     # Or use the CLI
     poetry run python run_agent.py
 """

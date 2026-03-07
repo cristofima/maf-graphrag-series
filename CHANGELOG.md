@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-03-07
+
+### Added - Part 4: Multi-Agent Workflow Patterns
+
+- **`workflows/` module** - Three orchestration patterns for multi-agent query processing ([8dda887](https://github.com/cristofima/maf-graphrag-series/commit/8dda887))
+  - `workflows/base.py` - Shared types: `WorkflowType` enum, `WorkflowStep` and `WorkflowResult` dataclasses with step tracing, timing, and metadata
+  - `workflows/sequential.py` - `SequentialWorkflow` — structured research pipeline (Analyze → Search → Write) for complex queries
+  - `workflows/concurrent.py` - `ConcurrentWorkflow` — parallel entity + thematic search with synthesis for comprehensive answers
+  - `workflows/handoff.py` - `HandoffWorkflow` — query classification and routing to specialized expert agents
+  - `workflows/__init__.py` - Public re-exports (`SequentialWorkflow`, `ConcurrentWorkflow`, `HandoffWorkflow`, `WorkflowResult`, `WorkflowStep`, `WorkflowType`)
+
+- **Multi-agent workflow patterns**
+  - All workflows are async context managers (`async with WorkflowClass()`) managing MCP connection lifecycle
+  - Agent-specific system prompts for structured reasoning and output formatting (defined inline per workflow)
+  - Step-level traceability and logging for auditing and debugging
+  - Shared infrastructure via `agents/supervisor.py`: `create_mcp_tool()` and `create_azure_client()`
+
+- **`run_workflow.py`** - CLI entry point with Rich formatting; interactive menu and direct mode (`poetry run python run_workflow.py sequential "query"`)
+
+- **CI/CD pipeline** ([c921214](https://github.com/cristofima/maf-graphrag-series/commit/c921214))
+  - GitHub Actions workflow for automated testing and linting
+  - CI triggers on relevant file changes for push and pull_request events ([94f3f45](https://github.com/cristofima/maf-graphrag-series/commit/94f3f45))
+  - pip-based Poetry installation with in-project virtualenvs ([5a6c2b5](https://github.com/cristofima/maf-graphrag-series/commit/5a6c2b5))
+
+- **Testing** ([1d55930](https://github.com/cristofima/maf-graphrag-series/commit/1d55930))
+  - Unit tests for `AgentConfig`, `MCPConfig`, and workflow components
+  - Class-based test organization with `monkeypatch` for env var isolation
+
+- **Dev dependencies added** ([a383b06](https://github.com/cristofima/maf-graphrag-series/commit/a383b06))
+  - `pytest-cov` - Coverage reporting
+  - `mypy` - Static type checking with `disallow_untyped_defs = true`
+  - `ruff` - Linting (line-length 120, `E/W/F/I/B/C4/UP` rules)
+
+### Changed
+
+- **Project layout** — Migrated to PyPA `src/` layout ([3539f8e](https://github.com/cristofima/maf-graphrag-series/commit/3539f8e))
+  - Moved `core/`, `agents/`, `mcp_server/`, and `workflows/` into `src/` directory
+  - Updated `pyproject.toml`: `pythonpath` from `"."` to `"src"`, coverage source paths prefixed with `src/`
+  - No import changes required — bare package names resolve via `pythonpath`
+- **Import paths** ([1864b68](https://github.com/cristofima/maf-graphrag-series/commit/1864b68)) — Updated all import paths to use `src/` directory structure
+- **Dependencies updated**
+  - `agent-framework-core` → `1.0.0rc3`, `agent-framework-orchestrations` → `1.0.0b260304` ([163f0e3](https://github.com/cristofima/maf-graphrag-series/commit/163f0e3), [a383b06](https://github.com/cristofima/maf-graphrag-series/commit/a383b06))
+  - `graphrag` → `3.0.2` ([bd29525](https://github.com/cristofima/maf-graphrag-series/commit/bd29525))
+- **Code quality improvements**
+  - Added type hints across multiple files for improved clarity and type safety ([53ce6f7](https://github.com/cristofima/maf-graphrag-series/commit/53ce6f7))
+  - Cleaned up code formatting and readability ([a6ecabf](https://github.com/cristofima/maf-graphrag-series/commit/a6ecabf))
+  - Cleaned up imports in `run_workflow.py` and `server.py` ([c8caa7e](https://github.com/cristofima/maf-graphrag-series/commit/c8caa7e))
+  - Enhanced logging and error handling across workflows; updated YAML settings ([1dc48d6](https://github.com/cristofima/maf-graphrag-series/commit/1dc48d6))
+- **README** ([54ed926](https://github.com/cristofima/maf-graphrag-series/commit/54ed926), [99a294a](https://github.com/cristofima/maf-graphrag-series/commit/99a294a), [482da8a](https://github.com/cristofima/maf-graphrag-series/commit/482da8a)) — Added Part 4 section with workflow architecture diagrams, visual representations, and updated for `src/` directory structure
+- **`docs/part4-implementation-notes.md`** ([54ed926](https://github.com/cristofima/maf-graphrag-series/commit/54ed926)) — Added detailed implementation notes for Workflow Patterns including architecture, pattern details, and performance optimizations
+- **`docs/lessons-learned.md`** ([54ed926](https://github.com/cristofima/maf-graphrag-series/commit/54ed926)) — Enhanced with insights from MAF and GraphRAG integration challenges
+- **Version bump** — 3.0.0 → 3.1.0
+
+---
+
 ## [3.0.0] - 2026-02-18
 
 ### ⚠️ BREAKING CHANGES

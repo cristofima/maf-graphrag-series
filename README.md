@@ -213,7 +213,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ### What You'll Learn
 
-- Microsoft Agent Framework fundamentals (1.0.0rc2)
+- Microsoft Agent Framework fundamentals (1.0.0rc3)
 - `MCPStreamableHTTPTool` for MCP server integration
 - System prompt-based tool routing (GPT-4o decides, no code router)
 - `AgentSession` for conversation memory across multiple turns
@@ -283,7 +283,7 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.0.0rc2
+### Microsoft Agent Framework 1.0.0rc3
 
 Key patterns used:
 
@@ -497,7 +497,7 @@ async with ExpertHandoffWorkflow() as wf:
 | ------------------- | -------------------------- | ---------------------- |
 | **Azure OpenAI**    | Entity extraction, queries | GPT-4o                 |
 | **Azure OpenAI**    | Document embeddings        | text-embedding-3-small |
-| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc2               |
+| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc3               |
 
 ## Key Files
 

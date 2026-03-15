@@ -20,19 +20,16 @@ Usage:
         result = await agent.run("Who leads Project Alpha?")
 """
 
+import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
-
-from dotenv import load_dotenv
+from typing import TYPE_CHECKING
 
 from agents.config import get_agent_config
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT
 
 if TYPE_CHECKING:
     from agent_framework import Agent, AgentSession, MCPStreamableHTTPTool
-
-# Load environment variables
-load_dotenv()
+    from agent_framework.azure import AzureOpenAIChatClient
 
 
 @dataclass
@@ -76,11 +73,11 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
     )
 
 
-def create_azure_client() -> Any:
+def create_azure_client() -> "AzureOpenAIChatClient":
     """Create Azure OpenAI chat client for Agent Framework.
 
     Returns:
-        AzureOpenAIChatClient: Configured chat client that implements SupportsChatGetResponse
+        AzureOpenAIChatClient: Configured chat client that implements SupportsChatGetResponse.
     """
     from agent_framework.azure import AzureOpenAIChatClient
 
@@ -181,7 +178,7 @@ class KnowledgeCaptainRunner:
         self._connected = False
         self._session = None
 
-    async def ask(self, question: str) -> AgentResponse:
+    async def ask(self, question: str, timeout: float = 120.0) -> AgentResponse:
         """Ask the Knowledge Captain a question.
 
         Maintains conversation history - follow-up questions will have
@@ -189,6 +186,7 @@ class KnowledgeCaptainRunner:
 
         Args:
             question: The question to ask
+            timeout: Maximum seconds to wait for a response (default 120).
 
         Returns:
             AgentResponse: The agent's response
@@ -201,7 +199,13 @@ class KnowledgeCaptainRunner:
                 "Not connected to MCP server. Use 'async with KnowledgeCaptainRunner()'"
             )
 
-        result = await self.agent.run(question, session=self._session)
+        try:
+            result = await asyncio.wait_for(
+                self.agent.run(question, session=self._session),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            return AgentResponse(text="Request timed out. Please try again.")
 
         return AgentResponse(
             text=result.text,

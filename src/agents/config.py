@@ -9,11 +9,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Literal
 
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
 
 @dataclass
 class AgentConfig:
@@ -66,6 +61,9 @@ class AgentConfig:
         Raises:
             ValueError: If required environment variables are missing
         """
+        from dotenv import load_dotenv
+
+        load_dotenv()
         return cls()
 
     @property

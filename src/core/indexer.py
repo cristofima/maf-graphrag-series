@@ -103,12 +103,14 @@ def build_index_sync(
         >>> from core.indexer import build_index_sync
         >>> results = build_index_sync()
     """
-    return asyncio.run(build_index(
-        config=config,
-        method=method,
-        is_update_run=is_update_run,
-        callbacks=callbacks,
-        additional_context=additional_context,
-        verbose=verbose,
-        input_documents=input_documents,
-    ))
+    return asyncio.run(
+        build_index(
+            config=config,
+            method=method,
+            is_update_run=is_update_run,
+            callbacks=callbacks,
+            additional_context=additional_context,
+            verbose=verbose,
+            input_documents=input_documents,
+        )
+    )

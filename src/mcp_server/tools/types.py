@@ -8,9 +8,7 @@ improving type safety at the API boundary.
 import functools
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any, TypedDict
-
-from typing_extensions import NotRequired
+from typing import Any, NotRequired, ParamSpec, TypedDict, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -106,12 +104,13 @@ def validate_entity_name(name: str | None) -> ToolError | None:
     return None
 
 
+_P = ParamSpec("_P")
+_T = TypeVar("_T")
+
+
 def handle_tool_errors(
     tool_name: str,
-) -> Callable[
-    [Callable[..., Coroutine[Any, Any, Any]]],
-    Callable[..., Coroutine[Any, Any, Any]],
-]:
+) -> Callable[[Callable[_P, Coroutine[Any, Any, _T]]], Callable[_P, Coroutine[Any, Any, _T | ToolError]]]:
     """Decorator that wraps MCP tool functions with standard error handling.
 
     Catches ``FileNotFoundError`` (missing index) and generic exceptions,
@@ -122,10 +121,10 @@ def handle_tool_errors(
     """
 
     def decorator(
-        fn: Callable[..., Coroutine[Any, Any, Any]],
-    ) -> Callable[..., Coroutine[Any, Any, Any]]:
+        fn: Callable[_P, Coroutine[Any, Any, _T]],
+    ) -> Callable[_P, Coroutine[Any, Any, _T | ToolError]]:
         @functools.wraps(fn)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        async def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _T | ToolError:
             try:
                 return await fn(*args, **kwargs)
             except FileNotFoundError as e:

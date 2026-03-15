@@ -67,9 +67,7 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
         url = url.rstrip("/") + "/mcp"
 
     return MCPStreamableHTTPTool(
-        name="graphrag",
-        url=url,
-        description="Query the GraphRAG knowledge graph for entity and thematic information"
+        name="graphrag", url=url, description="Query the GraphRAG knowledge graph for entity and thematic information"
     )
 
 
@@ -195,16 +193,14 @@ class KnowledgeCaptainRunner:
             RuntimeError: If not connected (not in async context)
         """
         if not self._connected:
-            raise RuntimeError(
-                "Not connected to MCP server. Use 'async with KnowledgeCaptainRunner()'"
-            )
+            raise RuntimeError("Not connected to MCP server. Use 'async with KnowledgeCaptainRunner()'")
 
         try:
             result = await asyncio.wait_for(
                 self.agent.run(question, session=self._session),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return AgentResponse(text="Request timed out. Please try again.")
 
         return AgentResponse(
@@ -218,4 +214,5 @@ class KnowledgeCaptainRunner:
         Use this to reset context without disconnecting from MCP server.
         """
         from agent_framework import AgentSession
+
         self._session = AgentSession()

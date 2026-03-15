@@ -12,7 +12,9 @@ Workflow Patterns Overview:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any
+
+from typing_extensions import Self  # noqa: UP035
 
 if TYPE_CHECKING:
     from agent_framework import MCPStreamableHTTPTool
@@ -91,7 +93,7 @@ class MCPWorkflowBase(ABC):
 
     def __init__(self, mcp_url: str | None = None) -> None:
         self._mcp_url = mcp_url
-        self._mcp_tool: "MCPStreamableHTTPTool | None" = None
+        self._mcp_tool: MCPStreamableHTTPTool | None = None
 
     @abstractmethod
     def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:

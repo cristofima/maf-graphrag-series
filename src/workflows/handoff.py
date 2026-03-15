@@ -226,9 +226,7 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
 
     def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
         """Create the router and specialist agents."""
-        self._router, self._entity_expert, self._themes_expert = (
-            _create_router_and_experts(mcp_tool)
-        )
+        self._router, self._entity_expert, self._themes_expert = _create_router_and_experts(mcp_tool)
 
     async def run(self, query: str) -> WorkflowResult:
         """Route the query to the appropriate specialist and return the answer.
@@ -243,9 +241,7 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
             RuntimeError: If the workflow has not been entered as a context manager.
         """
         if not self._mcp_tool:
-            raise RuntimeError(
-                "Workflow not connected. Use 'async with ExpertHandoffWorkflow()'"
-            )
+            raise RuntimeError("Workflow not connected. Use 'async with ExpertHandoffWorkflow()'")
         assert self._router is not None
         assert self._entity_expert is not None
         assert self._themes_expert is not None
@@ -258,20 +254,20 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
         # ------------------------------------------------------------------
         logger.info("Step 1: Router — classifying query...")
         step1_start = time.time()
-        route_result = await self._router.run(
-            f"Classify this query: {query}"
-        )
+        route_result = await self._router.run(f"Classify this query: {query}")
         step1_elapsed = time.time() - step1_start
         route_decision = _parse_route(route_result.text)
         logger.info("Step 1: Router decided '%s' (%.1fs)", route_decision, step1_elapsed)
 
-        steps.append(WorkflowStep(
-            agent_name="Router",
-            input_summary=f'Classify: "{query[:60]}..."' if len(query) > 60 else f'Classify: "{query}"',
-            output=f"Decision: {route_decision} (raw: '{route_result.text.strip()}')",
-            elapsed_seconds=step1_elapsed,
-            metadata={"route": route_decision},
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="Router",
+                input_summary=f'Classify: "{query[:60]}..."' if len(query) > 60 else f'Classify: "{query}"',
+                output=f"Decision: {route_decision} (raw: '{route_result.text.strip()}')",
+                elapsed_seconds=step1_elapsed,
+                metadata={"route": route_decision},
+            )
+        )
 
         # ------------------------------------------------------------------
         # Step 2: Handoff to specialist(s)
@@ -286,13 +282,15 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
             final_answer_parts.append(entity_result.text)
             logger.info("Step 2: EntityExpert completed (%.1fs)", step2_elapsed)
 
-            steps.append(WorkflowStep(
-                agent_name="EntityExpert",
-                input_summary="Entity-focused search for specific facts",
-                output=entity_result.text,
-                elapsed_seconds=step2_elapsed,
-                metadata={"handoff_from": "Router", "search_type": "local"},
-            ))
+            steps.append(
+                WorkflowStep(
+                    agent_name="EntityExpert",
+                    input_summary="Entity-focused search for specific facts",
+                    output=entity_result.text,
+                    elapsed_seconds=step2_elapsed,
+                    metadata={"handoff_from": "Router", "search_type": "local"},
+                )
+            )
 
         if route_decision in ("themes", "both"):
             logger.info("Step %d: ThemesExpert — global search...", len(steps) + 1)
@@ -302,13 +300,15 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
             final_answer_parts.append(themes_result.text)
             logger.info("Step %d: ThemesExpert completed (%.1fs)", len(steps) + 1, step3_elapsed)
 
-            steps.append(WorkflowStep(
-                agent_name="ThemesExpert",
-                input_summary="Thematic search for organizational patterns",
-                output=themes_result.text,
-                elapsed_seconds=step3_elapsed,
-                metadata={"handoff_from": "Router", "search_type": "global"},
-            ))
+            steps.append(
+                WorkflowStep(
+                    agent_name="ThemesExpert",
+                    input_summary="Thematic search for organizational patterns",
+                    output=themes_result.text,
+                    elapsed_seconds=step3_elapsed,
+                    metadata={"handoff_from": "Router", "search_type": "global"},
+                )
+            )
 
         # Combine answers when both specialists ran
         if route_decision == "both" and len(final_answer_parts) == 2:

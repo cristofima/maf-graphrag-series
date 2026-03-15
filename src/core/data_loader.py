@@ -31,6 +31,7 @@ class GraphData:
         GraphRAG 3.x removed the 'nodes' parameter from search APIs.
         Communities are now passed directly instead.
     """
+
     entities: pd.DataFrame
     relationships: pd.DataFrame
     communities: pd.DataFrame

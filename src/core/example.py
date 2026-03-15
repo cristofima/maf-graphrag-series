@@ -35,19 +35,13 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
         mode: "fast" (level 2, ~15s), "detailed" (level 1, ~60s), or "default" (level 2)
     """
 
-    mode_icon = {
-        "fast": "⚡",
-        "detailed": "🔬",
-        "default": "🔍" if search_type == "local" else "🌍"
-    }
+    mode_icon = {"fast": "⚡", "detailed": "🔬", "default": "🔍" if search_type == "local" else "🌍"}
 
-    mode_desc = {
-        "fast": " (Fast Mode - Level 2)",
-        "detailed": " (Detailed Mode - Level 1)",
-        "default": ""
-    }
+    mode_desc = {"fast": " (Fast Mode - Level 2)", "detailed": " (Detailed Mode - Level 1)", "default": ""}
 
-    console.print(f"\n[bold blue]{mode_icon.get(mode, '🔍')} {search_type.title()} Search{mode_desc.get(mode, '')}[/bold blue]\n")
+    console.print(
+        f"\n[bold blue]{mode_icon.get(mode, '🔍')} {search_type.title()} Search{mode_desc.get(mode, '')}[/bold blue]\n"
+    )
     console.print(f"[dim]Query:[/dim] {query}\n")
 
     # Load data
@@ -60,14 +54,16 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
             sys.exit(1)
 
     # Show graph stats
-    console.print(Panel(
-        f"📊 [bold]Graph Statistics[/bold]\n\n"
-        f"  Entities: {get_entity_count(data):,}\n"
-        f"  Relationships: {get_relationship_count(data):,}\n"
-        f"  Entity Types: {', '.join(list_entity_types(data))}",
-        title="Knowledge Graph",
-        border_style="blue"
-    ))
+    console.print(
+        Panel(
+            f"📊 [bold]Graph Statistics[/bold]\n\n"
+            f"  Entities: {get_entity_count(data):,}\n"
+            f"  Relationships: {get_relationship_count(data):,}\n"
+            f"  Entity Types: {', '.join(list_entity_types(data))}",
+            title="Knowledge Graph",
+            border_style="blue",
+        )
+    )
 
     # Determine community level for global search
     community_level = None
@@ -94,27 +90,19 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
         if search_type == "local":
             response, context = await local_search(query, data)
         else:
-            response, context = await global_search(
-                query,
-                data,
-                community_level=community_level
-            )
+            response, context = await global_search(query, data, community_level=community_level)
 
     elapsed_time = time.perf_counter() - start_time
 
     # Display results
     console.print("\n")
-    console.print(Panel(
-        Markdown(response),
-        title="📝 Response",
-        border_style="green"
-    ))
+    console.print(Panel(Markdown(response), title="📝 Response", border_style="green"))
 
     # Show context info
     if isinstance(context, dict):
         context_summary = []
         for key, value in context.items():
-            if hasattr(value, '__len__'):
+            if hasattr(value, "__len__"):
                 context_summary.append(f"{key}: {len(value)} items")
         if context_summary:
             console.print(f"\n[dim]Context: {', '.join(context_summary)}[/dim]")
@@ -140,27 +128,19 @@ Examples:
 
   # Explicitly fast mode
   python -m core.example --type global --fast "What are the main projects?"
-        """
+        """,
     )
+    parser.add_argument("query", help="The question to ask")
     parser.add_argument(
-        "query",
-        help="The question to ask"
-    )
-    parser.add_argument(
-        "--type", "-t",
+        "--type",
+        "-t",
         choices=["local", "global"],
         default="local",
-        help="Search type: local (entity-focused) or global (thematic)"
+        help="Search type: local (entity-focused) or global (thematic)",
     )
+    parser.add_argument("--fast", action="store_true", help="Fast mode for global search (level 2, ~15s, 90%% quality)")
     parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast mode for global search (level 2, ~15s, 90%% quality)"
-    )
-    parser.add_argument(
-        "--detailed",
-        action="store_true",
-        help="Detailed mode for global search (level 1, ~60s, 100%% quality)"
+        "--detailed", action="store_true", help="Detailed mode for global search (level 1, ~60s, 100%% quality)"
     )
 
     args = parser.parse_args()

@@ -23,11 +23,11 @@ async def run_indexing(resume: bool = False) -> None:
     """Run the indexing pipeline with progress display."""
 
     console.print()
-    console.print(Panel.fit(
-        "[bold cyan]GraphRAG Indexing[/bold cyan]\n"
-        "Building knowledge graph from documents",
-        border_style="cyan"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]GraphRAG Indexing[/bold cyan]\n" "Building knowledge graph from documents", border_style="cyan"
+        )
+    )
     console.print()
 
     # Check input directory
@@ -54,10 +54,7 @@ async def run_indexing(resume: bool = False) -> None:
         console=console,
         transient=False,
     ) as progress:
-        task = progress.add_task(
-            "[cyan]Running GraphRAG indexing pipeline...",
-            total=None
-        )
+        task = progress.add_task("[cyan]Running GraphRAG indexing pipeline...", total=None)
 
         try:
             results = await build_index(
@@ -85,7 +82,7 @@ async def run_indexing(resume: bool = False) -> None:
 
     for result in results:
         status = "[green]✓ Success[/green]" if not result.error else "[red]✗ Failed[/red]"
-        duration = f"{result.runtime:.2f}s" if hasattr(result, 'runtime') else "N/A"
+        duration = f"{result.runtime:.2f}s" if hasattr(result, "runtime") else "N/A"
         table.add_row(result.workflow, status, duration)
 
     console.print(table)
@@ -110,27 +107,21 @@ def main() -> None:
 Examples:
   python -m core.index
   python -m core.index --resume
-        """
+        """,
     )
 
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Resume from previous interrupted run"
-    )
+    parser.add_argument("--resume", action="store_true", help="Resume from previous interrupted run")
 
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Show detailed error messages"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show detailed error messages")
 
     args = parser.parse_args()
 
     try:
-        asyncio.run(run_indexing(
-            resume=args.resume,
-        ))
+        asyncio.run(
+            run_indexing(
+                resume=args.resume,
+            )
+        )
     except KeyboardInterrupt:
         console.print()
         console.print("[yellow]⚠ Indexing interrupted by user[/yellow]")

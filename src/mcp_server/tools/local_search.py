@@ -8,16 +8,13 @@ Best for: "Who leads Project Alpha?", "What technologies does X use?"
 from core import local_search
 
 from mcp_server.tools._data_cache import get_graph_data
-
 from mcp_server.tools.source_resolver import get_unique_documents, resolve_sources
 from mcp_server.tools.types import SearchResult, ToolError, handle_tool_errors, validate_community_level, validate_query
 
 
 @handle_tool_errors("Local search")
 async def local_search_tool(
-    query: str,
-    community_level: int | None = None,
-    response_type: str | None = None
+    query: str, community_level: int | None = None, response_type: str | None = None
 ) -> SearchResult | ToolError:
     """
     Search the knowledge graph for specific entities and relationships.
@@ -53,7 +50,7 @@ async def local_search_tool(
         query=query,
         data=data,
         community_level=community_level or 2,
-        response_type=response_type or "Multiple Paragraphs"
+        response_type=response_type or "Multiple Paragraphs",
     )
 
     # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
@@ -75,5 +72,5 @@ async def local_search_tool(
             "documents": get_unique_documents(resolved_sources),
         },
         "sources": resolved_sources,
-        "search_type": "local"
+        "search_type": "local",
     }

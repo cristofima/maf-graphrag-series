@@ -210,9 +210,7 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
 
     def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
         """Create the three sequential pipeline agents."""
-        self._query_analyzer, self._knowledge_searcher, self._report_writer = (
-            _create_sequential_agents(mcp_tool)
-        )
+        self._query_analyzer, self._knowledge_searcher, self._report_writer = _create_sequential_agents(mcp_tool)
 
     async def run(self, query: str) -> WorkflowResult:
         """Execute the full 3-step research pipeline.
@@ -227,9 +225,7 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
             RuntimeError: If the workflow has not been entered as a context manager.
         """
         if not self._mcp_tool:
-            raise RuntimeError(
-                "Workflow not connected. Use 'async with ResearchPipelineWorkflow()'"
-            )
+            raise RuntimeError("Workflow not connected. Use 'async with ResearchPipelineWorkflow()'")
         assert self._query_analyzer is not None
         assert self._knowledge_searcher is not None
         assert self._report_writer is not None
@@ -249,12 +245,14 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
         research_plan = analysis_result.text
         logger.info("Step 1/3: QueryAnalyzer completed (%.1fs)", step1_elapsed)
 
-        steps.append(WorkflowStep(
-            agent_name="QueryAnalyzer",
-            input_summary=f'Decompose: "{query[:60]}..."' if len(query) > 60 else f'Decompose: "{query}"',
-            output=research_plan,
-            elapsed_seconds=step1_elapsed,
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="QueryAnalyzer",
+                input_summary=f'Decompose: "{query[:60]}..."' if len(query) > 60 else f'Decompose: "{query}"',
+                output=research_plan,
+                elapsed_seconds=step1_elapsed,
+            )
+        )
 
         # ------------------------------------------------------------------
         # Step 2: Search the knowledge graph using the plan
@@ -271,12 +269,14 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
         raw_findings = search_result.text
         logger.info("Step 2/3: KnowledgeSearcher completed (%.1fs)", step2_elapsed)
 
-        steps.append(WorkflowStep(
-            agent_name="KnowledgeSearcher",
-            input_summary="Execute MCP searches from research plan",
-            output=raw_findings,
-            elapsed_seconds=step2_elapsed,
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="KnowledgeSearcher",
+                input_summary="Execute MCP searches from research plan",
+                output=raw_findings,
+                elapsed_seconds=step2_elapsed,
+            )
+        )
 
         # ------------------------------------------------------------------
         # Step 3: Synthesize findings into a structured report
@@ -294,12 +294,14 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
         final_report = report_result.text
         logger.info("Step 3/3: ReportWriter completed (%.1fs)", step3_elapsed)
 
-        steps.append(WorkflowStep(
-            agent_name="ReportWriter",
-            input_summary="Synthesize findings into structured report",
-            output=final_report,
-            elapsed_seconds=step3_elapsed,
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="ReportWriter",
+                input_summary="Synthesize findings into structured report",
+                output=final_report,
+                elapsed_seconds=step3_elapsed,
+            )
+        )
 
         total_elapsed = time.time() - workflow_start
 

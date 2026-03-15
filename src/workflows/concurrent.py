@@ -203,8 +203,8 @@ class ParallelSearchWorkflow:
         await self._entity_mcp_tool.__aenter__()
         await self._themes_mcp_tool.__aenter__()
 
-        self._entity_searcher, self._themes_searcher, self._answer_synthesizer = (
-            _create_parallel_agents(self._entity_mcp_tool, self._themes_mcp_tool)
+        self._entity_searcher, self._themes_searcher, self._answer_synthesizer = _create_parallel_agents(
+            self._entity_mcp_tool, self._themes_mcp_tool
         )
         return self
 
@@ -234,9 +234,7 @@ class ParallelSearchWorkflow:
             RuntimeError: If the workflow has not been entered as a context manager.
         """
         if not self._entity_mcp_tool:
-            raise RuntimeError(
-                "Workflow not connected. Use 'async with ParallelSearchWorkflow()'"
-            )
+            raise RuntimeError("Workflow not connected. Use 'async with ParallelSearchWorkflow()'")
         assert self._entity_searcher is not None
         assert self._themes_searcher is not None
         assert self._answer_synthesizer is not None
@@ -269,20 +267,24 @@ class ParallelSearchWorkflow:
         logger.info("Steps 1+2: Parallel searches completed (%.1fs)", parallel_elapsed)
 
         # Record both parallel steps with the shared elapsed time
-        steps.append(WorkflowStep(
-            agent_name="EntitySearcher",
-            input_summary=f'Entity search: "{query[:50]}..."' if len(query) > 50 else f'Entity search: "{query}"',
-            output=entity_findings,
-            elapsed_seconds=parallel_elapsed,
-            metadata={"parallel": True, "search_type": "local"},
-        ))
-        steps.append(WorkflowStep(
-            agent_name="ThemesSearcher",
-            input_summary=f'Themes search: "{query[:50]}..."' if len(query) > 50 else f'Themes search: "{query}"',
-            output=themes_findings,
-            elapsed_seconds=parallel_elapsed,
-            metadata={"parallel": True, "search_type": "global"},
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="EntitySearcher",
+                input_summary=f'Entity search: "{query[:50]}..."' if len(query) > 50 else f'Entity search: "{query}"',
+                output=entity_findings,
+                elapsed_seconds=parallel_elapsed,
+                metadata={"parallel": True, "search_type": "local"},
+            )
+        )
+        steps.append(
+            WorkflowStep(
+                agent_name="ThemesSearcher",
+                input_summary=f'Themes search: "{query[:50]}..."' if len(query) > 50 else f'Themes search: "{query}"',
+                output=themes_findings,
+                elapsed_seconds=parallel_elapsed,
+                metadata={"parallel": True, "search_type": "global"},
+            )
+        )
 
         # ------------------------------------------------------------------
         # Step 3: Synthesize both perspectives into one answer
@@ -300,12 +302,14 @@ class ParallelSearchWorkflow:
         final_answer = synthesis_result.text
         logger.info("Step 3: AnswerSynthesizer completed (%.1fs)", step3_elapsed)
 
-        steps.append(WorkflowStep(
-            agent_name="AnswerSynthesizer",
-            input_summary="Merge entity details + thematic patterns",
-            output=final_answer,
-            elapsed_seconds=step3_elapsed,
-        ))
+        steps.append(
+            WorkflowStep(
+                agent_name="AnswerSynthesizer",
+                input_summary="Merge entity details + thematic patterns",
+                output=final_answer,
+                elapsed_seconds=step3_elapsed,
+            )
+        )
 
         total_elapsed = time.time() - workflow_start
 

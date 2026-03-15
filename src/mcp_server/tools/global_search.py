@@ -12,7 +12,6 @@ is not available (by design in GraphRAG).
 from core import global_search
 
 from mcp_server.tools._data_cache import get_graph_data
-
 from mcp_server.tools.types import SearchResult, ToolError, handle_tool_errors, validate_community_level, validate_query
 
 
@@ -21,7 +20,7 @@ async def global_search_tool(
     query: str,
     community_level: int | None = None,
     response_type: str | None = None,
-    dynamic_community_selection: bool = True
+    dynamic_community_selection: bool = True,
 ) -> SearchResult | ToolError:
     """
     Search the knowledge graph for broad themes and organizational insights.
@@ -61,7 +60,7 @@ async def global_search_tool(
         data=data,
         community_level=community_level or 2,
         response_type=response_type or "Multiple Paragraphs",
-        dynamic_community_selection=dynamic_community_selection
+        dynamic_community_selection=dynamic_community_selection,
     )
 
     # GraphRAG 3.x returns context as dict[str, pd.DataFrame]
@@ -74,5 +73,5 @@ async def global_search_tool(
         "context": {
             "communities_analyzed": len(reports_df) if reports_df is not None else 0,
         },
-        "search_type": "global"
+        "search_type": "global",
     }

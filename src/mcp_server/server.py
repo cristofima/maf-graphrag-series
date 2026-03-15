@@ -12,7 +12,6 @@ Usage:
 """
 
 import logging
-from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -21,6 +20,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from mcp_server.config import MCPConfig
 from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
+from mcp_server.tools.types import EntityQueryResult, SearchResult, ToolError
 
 # ---------------------------------------------------------------------------
 # Suppress noisy INFO logs from LiteLLM and GraphRAG internals.
@@ -42,11 +42,8 @@ mcp = FastMCP(name=config.server_name)
 
 @mcp.tool()
 async def search_knowledge_graph(
-    query: str,
-    search_type: str = "local",
-    community_level: int = 2,
-    response_type: str = "Multiple Paragraphs"
-) -> dict:
+    query: str, search_type: str = "local", community_level: int = 2, response_type: str = "Multiple Paragraphs"
+) -> SearchResult | ToolError:
     """
     Search the GraphRAG knowledge graph.
 
@@ -63,29 +60,17 @@ async def search_knowledge_graph(
         dict: Search results with answer, context, and sources
     """
     if search_type.lower() == "local":
-        return await local_search_tool(
-            query=query,
-            community_level=community_level,
-            response_type=response_type
-        )
+        return await local_search_tool(query=query, community_level=community_level, response_type=response_type)
     elif search_type.lower() == "global":
-        return await global_search_tool(
-            query=query,
-            community_level=community_level,
-            response_type=response_type
-        )
+        return await global_search_tool(query=query, community_level=community_level, response_type=response_type)
     else:
-        return {
-            "error": f"Invalid search_type: {search_type}. Must be 'local' or 'global'"
-        }
+        return ToolError(error=f"Invalid search_type: {search_type}. Must be 'local' or 'global'")
 
 
 @mcp.tool()
 async def local_search(
-    query: str,
-    community_level: int = 2,
-    response_type: str = "Multiple Paragraphs"
-) -> dict:
+    query: str, community_level: int = 2, response_type: str = "Multiple Paragraphs"
+) -> SearchResult | ToolError:
     """
     Perform entity-focused search on the knowledge graph.
 
@@ -107,10 +92,8 @@ async def local_search(
 
 @mcp.tool()
 async def global_search(
-    query: str,
-    community_level: int = 2,
-    response_type: str = "Multiple Paragraphs"
-) -> dict:
+    query: str, community_level: int = 2, response_type: str = "Multiple Paragraphs"
+) -> SearchResult | ToolError:
     """
     Perform thematic search across the entire knowledge graph.
 
@@ -131,10 +114,7 @@ async def global_search(
 
 
 @mcp.tool()
-async def list_entities(
-    entity_type: str | None = None,
-    limit: int = 10
-) -> dict:
+async def list_entities(entity_type: str | None = None, limit: int = 10) -> EntityQueryResult | ToolError:
     """
     List entities from the knowledge graph.
 
@@ -149,7 +129,7 @@ async def list_entities(
 
 
 @mcp.tool()
-async def get_entity(entity_name: str) -> dict:
+async def get_entity(entity_name: str) -> EntityQueryResult | ToolError:
     """
     Get details about a specific entity.
 
@@ -202,4 +182,5 @@ if __name__ == "__main__":
 
     # Run with uvicorn
     import uvicorn
+
     uvicorn.run(app, host=config.host, port=config.port)

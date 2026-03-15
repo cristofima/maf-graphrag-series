@@ -12,7 +12,6 @@ Usage:
 """
 
 import logging
-import sys
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -22,9 +21,6 @@ from starlette.middleware.cors import CORSMiddleware
 
 from mcp_server.config import MCPConfig
 from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
-
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # ---------------------------------------------------------------------------
 # Suppress noisy INFO logs from LiteLLM and GraphRAG internals.
@@ -167,7 +163,7 @@ async def get_entity(entity_name: str) -> dict:
 
 
 def create_mcp_server() -> FastMCP:
-    """Create and return configured MCP server instance"""
+    """Create and return configured MCP server instance."""
     return mcp
 
 
@@ -181,9 +177,9 @@ app = mcp.streamable_http_app()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.cors_origins or ["http://127.0.0.1:8011"],
+    allow_methods=config.cors_methods or ["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=config.cors_headers or ["Content-Type", "Authorization"],
 )
 
 

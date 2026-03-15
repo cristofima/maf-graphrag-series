@@ -85,6 +85,7 @@ Main entry point for queries. Routes to local or global search.
 Entity-focused search for specific questions.
 
 **Best for:**
+
 - "Who leads Project Alpha?"
 - "What technologies are used in X?"
 - "Who resolved the incident?"
@@ -124,6 +125,7 @@ Entity-focused search for specific questions.
 Thematic search across the organization via map-reduce over community reports.
 
 **Best for:**
+
 - "What are the main projects?"
 - "Summarize the organizational structure"
 - "What Azure services are used?"
@@ -202,21 +204,24 @@ npx @modelcontextprotocol/inspector
 
 Environment variables:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MCP_HOST` | Server host | `127.0.0.1` |
-| `MCP_PORT` | Server port | `8011` |
-| `GRAPHRAG_ROOT` | GraphRAG root directory | `.` |
+| Variable           | Description                     | Default                 |
+| ------------------ | ------------------------------- | ----------------------- |
+| `MCP_HOST`         | Server host                     | `127.0.0.1`             |
+| `MCP_PORT`         | Server port                     | `8011`                  |
+| `GRAPHRAG_ROOT`    | GraphRAG root directory         | `.`                     |
+| `MCP_CORS_ORIGINS` | Comma-separated allowed origins | `http://127.0.0.1:8011` |
 
 ## Module Structure
 
 ```
 mcp_server/
 ├── __init__.py           # Package exports
-├── config.py             # Configuration management
+├── config.py             # Configuration management (host, port, CORS)
 ├── server.py             # FastMCP server implementation
 └── tools/
     ├── __init__.py       # Tool exports
+    ├── _data_cache.py    # Lazy singleton cache for GraphRAG data
+    ├── types.py          # TypedDicts, validation helpers, error-handling decorator
     ├── local_search.py   # Entity-focused search (with source traceability)
     ├── global_search.py  # Thematic search (community reports only)
     ├── entity_query.py   # Direct entity lookup

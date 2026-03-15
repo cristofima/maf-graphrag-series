@@ -5,15 +5,19 @@ Direct entity lookup for quick facts about specific entities.
 Best for: "List all entities", "Get details about X"
 """
 
-from core import load_all
 from core.data_loader import list_entity_types
 
+from mcp_server.tools._data_cache import get_graph_data
 
+from mcp_server.tools.types import EntityQueryResult, ToolError, handle_tool_errors, validate_entity_name, validate_limit
+
+
+@handle_tool_errors("Entity query")
 async def entity_query_tool(
     entity_name: str | None = None,
     entity_type: str | None = None,
     limit: int = 10
-) -> dict:
+) -> EntityQueryResult | ToolError:
     """
     Query entities directly from the knowledge graph.
 
@@ -33,51 +37,44 @@ async def entity_query_tool(
         - entity_type="project" - List all projects
         - No filters - List all entities (limited to 10)
     """
-    try:
-        # Load knowledge graph
-        data = load_all()
-        entities_df = data.entities
+    # Validate inputs at system boundary
+    if err := validate_entity_name(entity_name):
+        return err
+    if err := validate_limit(limit):
+        return err
 
-        # Filter by name if provided
-        if entity_name:
-            mask = entities_df['title'].str.contains(entity_name, case=False, na=False)
-            filtered = entities_df[mask]
-        # Filter by type if provided
-        elif entity_type:
-            mask = entities_df['type'].str.lower() == entity_type.lower()
-            filtered = entities_df[mask]
-        else:
-            filtered = entities_df
+    # Load knowledge graph (cached after first call)
+    data = get_graph_data()
+    entities_df = data.entities
 
-        # Limit results
-        result_entities = filtered.head(limit)
+    # Filter by name if provided
+    if entity_name:
+        mask = entities_df['title'].str.contains(entity_name, case=False, na=False)
+        filtered = entities_df[mask]
+    # Filter by type if provided
+    elif entity_type:
+        mask = entities_df['type'].str.lower() == entity_type.lower()
+        filtered = entities_df[mask]
+    else:
+        filtered = entities_df
 
-        # Build response
-        entities_list = []
-        for _, row in result_entities.iterrows():
-            entities_list.append({
-                "name": row['title'],
-                "type": row.get('type', 'unknown'),
-                "description": row.get('description', 'No description available'),
-                "community_ids": row.get('community_ids', []),
-            })
+    # Limit results
+    result_entities = filtered.head(limit)
 
-        return {
-            "entities": entities_list,
-            "total_found": len(filtered),
-            "returned": len(entities_list),
-            "available_types": list(list_entity_types(data)),
-            "query_type": "entity_lookup"
-        }
+    # Build response
+    entities_list = []
+    for _, row in result_entities.iterrows():
+        entities_list.append({
+            "name": row['title'],
+            "type": row.get('type', 'unknown'),
+            "description": row.get('description', 'No description available'),
+            "community_ids": row.get('community_ids', []),
+        })
 
-    except FileNotFoundError as e:
-        return {
-            "error": "Knowledge graph not found. Run indexing first: poetry run python -m core.index",
-            "details": str(e)
-        }
-    except Exception as e:
-        return {
-            "error": f"Entity query failed: {str(e)}",
-            "entity_name": entity_name,
-            "entity_type": entity_type
-        }
+    return {
+        "entities": entities_list,
+        "total_found": len(filtered),
+        "returned": len(entities_list),
+        "available_types": list(list_entity_types(data)),
+        "query_type": "entity_lookup"
+    }

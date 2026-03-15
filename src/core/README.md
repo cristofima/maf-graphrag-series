@@ -59,15 +59,15 @@ poetry run python -m core.example "What are the main projects?" --type global
 
 ## Module Structure
 
-| File | Purpose |
-|------|---------|
-| `__init__.py` | Module exports |
-| `config.py` | Load GraphRagConfig, validate output files |
-| `data_loader.py` | Load Parquet files into GraphData dataclass |
-| `indexer.py` | Build knowledge graph from documents |
-| `search.py` | Async search functions (local, global, drift, basic) |
-| `index.py` | CLI for indexing |
-| `example.py` | CLI for querying |
+| File             | Purpose                                              |
+| ---------------- | ---------------------------------------------------- |
+| `__init__.py`    | Module exports                                       |
+| `config.py`      | Load GraphRagConfig, validate output files           |
+| `data_loader.py` | Load Parquet files into GraphData dataclass          |
+| `indexer.py`     | Build knowledge graph from documents                 |
+| `search.py`      | Async search functions (local, global, drift, basic) |
+| `index.py`       | CLI for indexing                                     |
+| `example.py`     | CLI for querying                                     |
 
 ## API Reference
 
@@ -80,13 +80,13 @@ from core import load_all, get_config, GraphData
 data: GraphData = load_all()
 
 # Access individual DataFrames
-data.entities        # All extracted entities
-data.relationships   # Entity relationships
-data.nodes           # Graph nodes
-data.communities     # Community assignments
+data.entities           # All extracted entities
+data.relationships      # Entity relationships
+data.communities        # Community assignments
 data.community_reports  # Generated community summaries
-data.text_units      # Original text chunks
-data.covariates      # Optional claims/covariates
+data.text_units         # Original text chunks
+data.documents          # Source document metadata (optional)
+data.covariates         # Optional claims/covariates
 ```
 
 ### Search Functions
@@ -128,15 +128,15 @@ response, context = await basic_search(query, data)
 
 ## GraphData Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `entities` | DataFrame | Extracted entities with name, type, description |
-| `relationships` | DataFrame | Entity relationships with source, target, description |
-| `nodes` | DataFrame | Graph nodes for search algorithms |
-| `communities` | DataFrame | Leiden community assignments |
-| `community_reports` | DataFrame | Generated summaries per community |
-| `text_units` | DataFrame | Original document chunks |
-| `covariates` | DataFrame | Optional claims (may be None) |
+| Field               | Type              | Description                                           |
+| ------------------- | ----------------- | ----------------------------------------------------- |
+| `entities`          | DataFrame         | Extracted entities with name, type, description       |
+| `relationships`     | DataFrame         | Entity relationships with source, target, description |
+| `communities`       | DataFrame         | Leiden community assignments                          |
+| `community_reports` | DataFrame         | Generated summaries per community                     |
+| `text_units`        | DataFrame         | Original document chunks                              |
+| `documents`         | DataFrame \| None | Source document metadata (title, text)                |
+| `covariates`        | DataFrame \| None | Optional claims/covariates                            |
 
 ## Configuration
 

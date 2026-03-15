@@ -14,6 +14,7 @@ Usage:
 import argparse
 import asyncio
 import sys
+import time
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -87,7 +88,6 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
         console.print(f"{mode_info.get(community_level, '')}\n")
 
     # Perform search
-    import time
     start_time = time.perf_counter()
 
     with console.status(f"[bold green]Running {search_type} search..."):

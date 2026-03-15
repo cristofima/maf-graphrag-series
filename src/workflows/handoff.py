@@ -46,15 +46,12 @@ import logging
 import time
 from typing import TYPE_CHECKING, Literal
 
-from agents.supervisor import create_azure_client, create_mcp_tool
-from dotenv import load_dotenv
+from agents.supervisor import create_azure_client
 
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.base import MCPWorkflowBase, WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +192,7 @@ def _parse_route(router_output: str) -> RouteDecision:
     return "both"
 
 
-class ExpertHandoffWorkflow:
+class ExpertHandoffWorkflow(MCPWorkflowBase):
     """Router-based expert handoff workflow.
 
     A dedicated Router agent examines each query and decides which
@@ -222,26 +219,16 @@ class ExpertHandoffWorkflow:
         Args:
             mcp_url: Optional override for the MCP server URL.
         """
-        self._mcp_url = mcp_url
-        self._mcp_tool: MCPStreamableHTTPTool | None = None
+        super().__init__(mcp_url)
         self._router: Agent | None = None
         self._entity_expert: Agent | None = None
         self._themes_expert: Agent | None = None
 
-    async def __aenter__(self) -> "ExpertHandoffWorkflow":
-        """Connect to MCP server and create agents."""
-        self._mcp_tool = create_mcp_tool(self._mcp_url)
-        await self._mcp_tool.__aenter__()
-
+    def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
+        """Create the router and specialist agents."""
         self._router, self._entity_expert, self._themes_expert = (
-            _create_router_and_experts(self._mcp_tool)
+            _create_router_and_experts(mcp_tool)
         )
-        return self
-
-    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect from MCP server."""
-        if self._mcp_tool:
-            await self._mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
 
     async def run(self, query: str) -> WorkflowResult:
         """Route the query to the appropriate specialist and return the answer.

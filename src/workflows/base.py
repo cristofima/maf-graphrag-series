@@ -9,9 +9,13 @@ Workflow Patterns Overview:
     - HandoffWorkflow: Route to the right specialist (entity vs. themes expert)
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
+
+if TYPE_CHECKING:
+    from agent_framework import MCPStreamableHTTPTool
 
 
 class WorkflowType(str, Enum):
@@ -75,3 +79,37 @@ class WorkflowResult:
         for i, step in enumerate(self.steps, 1):
             lines.append(f"  Step {i} [{step.agent_name}] ({step.elapsed_seconds:.1f}s): {step.input_summary}")
         return "\n".join(lines)
+
+
+class MCPWorkflowBase(ABC):
+    """Base for workflows that manage a single MCP tool connection.
+
+    Encapsulates the async-context-manager lifecycle shared by
+    ``ResearchPipelineWorkflow`` and ``ExpertHandoffWorkflow``.
+    Subclasses only need to implement ``_create_agents``.
+    """
+
+    def __init__(self, mcp_url: str | None = None) -> None:
+        self._mcp_url = mcp_url
+        self._mcp_tool: "MCPStreamableHTTPTool | None" = None
+
+    @abstractmethod
+    def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
+        """Instantiate workflow-specific agents using *mcp_tool*."""
+
+    async def __aenter__(self) -> Self:
+        from agents.supervisor import create_mcp_tool
+
+        self._mcp_tool = create_mcp_tool(self._mcp_url)
+        await self._mcp_tool.__aenter__()
+        self._create_agents(self._mcp_tool)
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        if self._mcp_tool:
+            await self._mcp_tool.__aexit__(exc_type, exc_val, exc_tb)

@@ -179,7 +179,7 @@ class WorkflowStep:
 ```
 workflows/
 ├── __init__.py       # Public API exports
-├── base.py           # WorkflowResult, WorkflowStep, WorkflowType
+├── base.py           # WorkflowResult, WorkflowStep, WorkflowType, MCPWorkflowBase
 ├── sequential.py     # ResearchPipelineWorkflow (3-step chain)
 ├── concurrent.py     # ParallelSearchWorkflow (asyncio.gather + synthesis)
 ├── handoff.py        # ExpertHandoffWorkflow (Router → specialist)

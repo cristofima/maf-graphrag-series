@@ -55,14 +55,11 @@ import time
 from typing import TYPE_CHECKING
 
 from agents.supervisor import create_azure_client, create_mcp_tool
-from dotenv import load_dotenv
 
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

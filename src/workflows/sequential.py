@@ -37,15 +37,12 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from agents.supervisor import create_azure_client, create_mcp_tool
-from dotenv import load_dotenv
+from agents.supervisor import create_azure_client
 
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.base import MCPWorkflowBase, WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +179,7 @@ def _create_sequential_agents(
     return query_analyzer, knowledge_searcher, report_writer
 
 
-class ResearchPipelineWorkflow:
+class ResearchPipelineWorkflow(MCPWorkflowBase):
     """Three-step sequential research pipeline.
 
     Chains three specialized agents:
@@ -206,26 +203,16 @@ class ResearchPipelineWorkflow:
         Args:
             mcp_url: Optional override for the MCP server URL.
         """
-        self._mcp_url = mcp_url
-        self._mcp_tool: MCPStreamableHTTPTool | None = None
+        super().__init__(mcp_url)
         self._query_analyzer: Agent | None = None
         self._knowledge_searcher: Agent | None = None
         self._report_writer: Agent | None = None
 
-    async def __aenter__(self) -> "ResearchPipelineWorkflow":
-        """Connect to MCP server and create agents."""
-        self._mcp_tool = create_mcp_tool(self._mcp_url)
-        await self._mcp_tool.__aenter__()
-
+    def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
+        """Create the three sequential pipeline agents."""
         self._query_analyzer, self._knowledge_searcher, self._report_writer = (
-            _create_sequential_agents(self._mcp_tool)
+            _create_sequential_agents(mcp_tool)
         )
-        return self
-
-    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect from MCP server."""
-        if self._mcp_tool:
-            await self._mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
 
     async def run(self, query: str) -> WorkflowResult:
         """Execute the full 3-step research pipeline.

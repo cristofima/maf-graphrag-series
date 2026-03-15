@@ -98,29 +98,16 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
 
-[tool.black]
-line-length = 120
-target-version = ['py310', 'py311']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-  | output
-  | cache
-)/
-'''
+[tool.ruff.format]
+# Black-compatible formatter settings (ruff format replaces black)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["output", "cache", ".venv"]
 
 [tool.ruff.lint]
@@ -134,16 +121,17 @@ select = [
     "UP", # pyupgrade
 ]
 ignore = [
-    "E501", # line too long (handled by black)
+    "E501", # line too long (handled by ruff format)
     "B008", # do not perform function calls in argument defaults
     "C901", # too complex
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+"src/workflows/base.py" = ["UP035"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

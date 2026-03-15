@@ -129,6 +129,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "src/workflows/base.py" = ["UP035"]
+"src/mcp_server/tools/types.py" = ["UP035"]
 
 [tool.mypy]
 python_version = "3.11"

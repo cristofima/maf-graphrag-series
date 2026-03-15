@@ -8,7 +8,9 @@ improving type safety at the API boundary.
 import functools
 import logging
 from collections.abc import Callable, Coroutine
-from typing import Any, NotRequired, ParamSpec, TypedDict, TypeVar
+from typing import Any, ParamSpec, TypeVar
+
+from typing_extensions import NotRequired, TypedDict  # noqa: UP035
 
 logger = logging.getLogger(__name__)
 

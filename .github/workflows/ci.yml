@@ -50,6 +50,11 @@ jobs:
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: poetry install --with dev --no-interaction
 
+      - name: Format check with Ruff
+        run: |
+          # Fail if any file is not formatted (ruff format is black-compatible)
+          poetry run python -m ruff format src/ tests/ --check
+
       - name: Lint with Ruff (errors only)
         run: |
           # Fail on syntax errors, undefined names, and critical issues
@@ -57,8 +62,8 @@ jobs:
 
       - name: Lint with Ruff (full)
         run: |
-          # Report all issues as warnings without failing the build
-          poetry run python -m ruff check . --output-format github --exit-zero
+          # Fail on all style, import, upgrade, and bug-prone patterns
+          poetry run python -m ruff check . --output-format github
 
       - name: Type check with mypy
         run: |

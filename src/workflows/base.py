@@ -11,7 +11,7 @@ Workflow Patterns Overview:
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self  # noqa: UP035
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from agent_framework import MCPStreamableHTTPTool
 
 
-class WorkflowType(str, Enum):
+class WorkflowType(StrEnum):
     """Available workflow patterns."""
 
     SEQUENTIAL = "sequential"

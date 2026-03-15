@@ -26,9 +26,7 @@ def get_root_dir() -> Path:
     if (cwd / "settings.yaml").exists():
         return cwd
 
-    raise FileNotFoundError(
-        "Could not find settings.yaml. " "Make sure you're running from the project root directory."
-    )
+    raise FileNotFoundError("Could not find settings.yaml. Make sure you're running from the project root directory.")
 
 
 @lru_cache(maxsize=1)
@@ -59,7 +57,7 @@ def get_config() -> GraphRagConfig:
 
     missing = [var for var in required_vars if not os.getenv(var)]
     if missing:
-        raise OSError(f"Missing required environment variables: {', '.join(missing)}\n" "Please check your .env file.")
+        raise OSError(f"Missing required environment variables: {', '.join(missing)}\nPlease check your .env file.")
 
     root_dir = get_root_dir()
 

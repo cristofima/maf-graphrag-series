@@ -43,7 +43,7 @@ class AgentConfig:
         """Validate configuration after initialization."""
         if not self.azure_endpoint:
             raise ValueError(
-                "AZURE_OPENAI_ENDPOINT environment variable is required. " "Set it to your Azure OpenAI endpoint URL."
+                "AZURE_OPENAI_ENDPOINT environment variable is required. Set it to your Azure OpenAI endpoint URL."
             )
 
         # Determine auth method based on API key availability

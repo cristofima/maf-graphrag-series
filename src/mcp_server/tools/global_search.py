@@ -10,7 +10,6 @@ is not available (by design in GraphRAG).
 """
 
 from core import global_search
-
 from mcp_server.tools._data_cache import get_graph_data
 from mcp_server.tools.types import SearchResult, ToolError, handle_tool_errors, validate_community_level, validate_query
 

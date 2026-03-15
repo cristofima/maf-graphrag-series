@@ -13,9 +13,8 @@ Usage:
 
 import logging
 
-from mcp.server.fastmcp import FastMCP
-
-# Add CORS middleware so browser-based clients can connect cross-origin
+from fastmcp import FastMCP
+from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from mcp_server.config import MCPConfig
@@ -36,7 +35,7 @@ for _logger_name in ("litellm", "graphrag", "httpx", "httpcore", "openai"):
 # Initialize configuration
 config = MCPConfig.from_env()
 
-# Create FastMCP server (fastmcp 0.2.0 only accepts 'name' parameter)
+# Create FastMCP server
 mcp = FastMCP(name=config.server_name)
 
 
@@ -147,20 +146,20 @@ def create_mcp_server() -> FastMCP:
     return mcp
 
 
-# Starlette app for deployment
-# streamable_http_app() is for Microsoft Agent Framework (MCPStreamableHTTPTool)
-# sse_app() is for MCP Inspector and legacy SSE clients
-# We use streamable_http_app() as the primary for Part 3
+# CORS middleware for browser-based and MCP Inspector clients
+_cors_middleware = [
+    Middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_origins or ["http://127.0.0.1:8011"],
+        allow_methods=config.cors_methods or ["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=(config.cors_headers or ["Content-Type", "Authorization"])
+        + ["mcp-protocol-version", "mcp-session-id"],
+        expose_headers=["mcp-session-id"],
+    )
+]
 
-# Primary app: Streamable HTTP (for MCPStreamableHTTPTool)
-app = mcp.streamable_http_app()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.cors_origins or ["http://127.0.0.1:8011"],
-    allow_methods=config.cors_methods or ["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=config.cors_headers or ["Content-Type", "Authorization"],
-)
+# ASGI app: Streamable HTTP (for MCPStreamableHTTPTool & MCP Inspector)
+app = mcp.http_app(middleware=_cors_middleware)
 
 
 if __name__ == "__main__":

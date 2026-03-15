@@ -6,7 +6,6 @@ Best for: "Who leads Project Alpha?", "What technologies does X use?"
 """
 
 from core import local_search
-
 from mcp_server.tools._data_cache import get_graph_data
 from mcp_server.tools.source_resolver import get_unique_documents, resolve_sources
 from mcp_server.tools.types import SearchResult, ToolError, handle_tool_errors, validate_community_level, validate_query

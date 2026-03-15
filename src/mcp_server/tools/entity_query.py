@@ -6,7 +6,6 @@ Best for: "List all entities", "Get details about X"
 """
 
 from core.data_loader import list_entity_types
-
 from mcp_server.tools._data_cache import get_graph_data
 from mcp_server.tools.types import (
     EntityInfo,

@@ -25,7 +25,7 @@ async def run_indexing(resume: bool = False) -> None:
     console.print()
     console.print(
         Panel.fit(
-            "[bold cyan]GraphRAG Indexing[/bold cyan]\n" "Building knowledge graph from documents", border_style="cyan"
+            "[bold cyan]GraphRAG Indexing[/bold cyan]\nBuilding knowledge graph from documents", border_style="cyan"
         )
     )
     console.print()

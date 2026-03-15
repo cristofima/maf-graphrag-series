@@ -29,4 +29,6 @@ if __name__ == "__main__":
     print(f"   GraphRAG Root: {config.graphrag_root}")
     print("\n✨ Press Ctrl+C to stop")
 
-    uvicorn.run(app, host=config.host, port=config.port, log_level="info")
+    # ws="none" disables WebSocket protocol — not needed for Streamable HTTP/SSE
+    # and avoids DeprecationWarnings from the websockets legacy API.
+    uvicorn.run(app, host=config.host, port=config.port, log_level="info", ws="none")

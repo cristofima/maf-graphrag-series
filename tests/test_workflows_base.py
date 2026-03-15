@@ -1,6 +1,5 @@
 """Unit tests for workflows/base.py — WorkflowStep, WorkflowResult, WorkflowType."""
 
-
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 

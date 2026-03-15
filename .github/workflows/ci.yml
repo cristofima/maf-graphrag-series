@@ -16,11 +16,29 @@ on:
       - "poetry.lock"
       - ".github/workflows/ci.yml"
 
+# Cancel in-progress runs for the same branch/PR (best practice: save CI minutes)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
+# -----------------------------------------------------------------------
+# Stage layout (best practice: one concern per job, fast feedback via parallelism)
+#
+#   lint ──────────┐
+#                  ├──► test
+#   typecheck ─────┘
+#
+# lint and typecheck run in parallel after setup.
+# test only runs when both quality gates pass.
+# -----------------------------------------------------------------------
+
 jobs:
-  build:
+  # ── Stage 1a: Code formatting & lint rules ──────────────────────────
+  lint:
+    name: "Lint & Format"
     runs-on: ubuntu-latest
 
     steps:
@@ -39,7 +57,6 @@ jobs:
 
       - name: Cache virtual environment
         uses: actions/cache@v4
-        id: cache-venv
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
@@ -47,23 +64,46 @@ jobs:
             venv-${{ runner.os }}-
 
       - name: Install dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
         run: poetry install --with dev --no-interaction
 
-      - name: Format check with Ruff
-        run: |
-          # Fail if any file is not formatted (ruff format is black-compatible)
-          poetry run python -m ruff format src/ tests/ --check
+      - name: Format check (ruff format)
+        run: poetry run python -m ruff format src/ tests/ --check
 
-      - name: Lint with Ruff (errors only)
-        run: |
-          # Fail on syntax errors, undefined names, and critical issues
-          poetry run python -m ruff check . --select E9,F63,F7,F82 --output-format github
+      - name: Lint — critical errors
+        run: poetry run python -m ruff check . --select E9,F63,F7,F82 --output-format github
 
-      - name: Lint with Ruff (full)
-        run: |
-          # Fail on all style, import, upgrade, and bug-prone patterns
-          poetry run python -m ruff check . --output-format github
+      - name: Lint — full rule set
+        run: poetry run python -m ruff check . --output-format github
+
+  # ── Stage 1b: Static type checking (runs in parallel with lint) ─────
+  typecheck:
+    name: "Type Check"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry==2.3.2
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: poetry install --with dev --no-interaction
 
       - name: Type check with mypy
         run: |
@@ -71,5 +111,36 @@ jobs:
             --ignore-missing-imports \
             --no-error-summary
 
-      - name: Test with pytest
+  # ── Stage 2: Tests (only after quality gates pass) ──────────────────
+  test:
+    name: "Test"
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry==2.3.2
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtual environment
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: poetry install --with dev --no-interaction
+
+      - name: Run tests
         run: poetry run pytest

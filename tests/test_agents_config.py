@@ -1,6 +1,7 @@
 """Unit tests for agents/config.py — AgentConfig dataclass."""
 
 import pytest
+
 from agents.config import AgentConfig
 
 

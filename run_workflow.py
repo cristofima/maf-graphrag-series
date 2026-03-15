@@ -48,10 +48,15 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 # Suppress noisy libraries — set to ERROR so harmless WARNINGs are hidden
 for _logger_name in (
-    "litellm", "httpx", "httpcore", "openai", "azure", "mcp",
+    "litellm",
+    "httpx",
+    "httpcore",
+    "openai",
+    "azure",
+    "mcp",
     "agent_framework._mcp",  # cancel-scope cleanup + "Failed to set log level" warnings
-    "agent_framework",       # catch-all for any agent_framework sub-loggers
-    "graphrag.query",        # "Reached token limit" + "Error decoding faulty json" warnings
+    "agent_framework",  # catch-all for any agent_framework sub-loggers
+    "graphrag.query",  # "Reached token limit" + "Error decoding faulty json" warnings
 ):
     logging.getLogger(_logger_name).setLevel(logging.ERROR)
 # Suppress the harmless Windows ProactorEventLoop pipe-close errors
@@ -177,12 +182,14 @@ def _display_result(result) -> None:
     console.print()
 
     # Final answer
-    console.print(Panel(
-        Markdown(result.answer),
-        title=f"[bold green]{result.workflow_type.value.capitalize()} Workflow Result[/bold green]",
-        subtitle=f"[dim]{result.total_elapsed_seconds:.1f}s total · {len(result.steps)} steps[/dim]",
-        border_style="green",
-    ))
+    console.print(
+        Panel(
+            Markdown(result.answer),
+            title=f"[bold green]{result.workflow_type.value.capitalize()} Workflow Result[/bold green]",
+            subtitle=f"[dim]{result.total_elapsed_seconds:.1f}s total · {len(result.steps)} steps[/dim]",
+            border_style="green",
+        )
+    )
     console.print()
 
 
@@ -213,11 +220,13 @@ def _print_workflow_menu() -> None:
         "Specific entity or themes queries",
     )
 
-    console.print(Panel(
-        table,
-        title="[bold blue]Part 4: Workflow Patterns[/bold blue]",
-        subtitle="[dim]All workflows connect to the same GraphRAG MCP Server[/dim]",
-    ))
+    console.print(
+        Panel(
+            table,
+            title="[bold blue]Part 4: Workflow Patterns[/bold blue]",
+            subtitle="[dim]All workflows connect to the same GraphRAG MCP Server[/dim]",
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -315,9 +324,9 @@ def main() -> None:
         # Usage error — need both workflow type and query
         workflow_type = args[0].lower()
         if workflow_type in ("sequential", "concurrent", "handoff"):
-            console.print(f"[yellow]Usage:[/yellow] poetry run python run_workflow.py {workflow_type} \"your query\"")
+            console.print(f'[yellow]Usage:[/yellow] poetry run python run_workflow.py {workflow_type} "your query"')
         else:
-            console.print("[red]Usage:[/red] poetry run python run_workflow.py [sequential|concurrent|handoff] \"query\"")
+            console.print('[red]Usage:[/red] poetry run python run_workflow.py [sequential|concurrent|handoff] "query"')
         sys.exit(1)
     elif len(args) >= 2:
         # Non-interactive: workflow_type + query

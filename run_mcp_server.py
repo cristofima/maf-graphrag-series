@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 if __name__ == "__main__":
     # Import here to avoid loading before path is set
     import uvicorn
+
     from mcp_server.server import app, config
 
     print("🚀 Starting GraphRAG MCP Server")

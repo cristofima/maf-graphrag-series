@@ -40,16 +40,18 @@ async def run_interactive():
     """Run interactive chat mode with conversation memory."""
     from agents.supervisor import KnowledgeCaptainRunner
 
-    console.print(Panel.fit(
-        "[bold blue]Knowledge Captain[/bold blue] - GraphRAG Agent\n\n"
-        "Ask questions about TechVenture Inc's knowledge graph.\n"
-        "The agent uses MCP to query GraphRAG (local/global search).\n"
-        "[dim]Conversation history is maintained for follow-up questions.[/dim]\n\n"
-        "Commands:\n"
-        "  [bold]clear[/bold] - Clear conversation history\n"
-        "  [bold]quit[/bold]  - Exit the chat\n",
-        title="🤖 Part 3: Supervisor Agent Pattern"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]Knowledge Captain[/bold blue] - GraphRAG Agent\n\n"
+            "Ask questions about TechVenture Inc's knowledge graph.\n"
+            "The agent uses MCP to query GraphRAG (local/global search).\n"
+            "[dim]Conversation history is maintained for follow-up questions.[/dim]\n\n"
+            "Commands:\n"
+            "  [bold]clear[/bold] - Clear conversation history\n"
+            "  [bold]quit[/bold]  - Exit the chat\n",
+            title="🤖 Part 3: Supervisor Agent Pattern",
+        )
+    )
 
     try:
         async with KnowledgeCaptainRunner() as runner:
@@ -63,11 +65,11 @@ async def run_interactive():
                     if not user_input:
                         continue
 
-                    if user_input.lower() in ('quit', 'exit', 'q'):
+                    if user_input.lower() in ("quit", "exit", "q"):
                         console.print("\n[yellow]Goodbye![/yellow]\n")
                         break
 
-                    if user_input.lower() == 'clear':
+                    if user_input.lower() == "clear":
                         runner.clear_history()
                         console.print("[green]✓[/green] Conversation history cleared.\n")
                         continue
@@ -81,12 +83,14 @@ async def run_interactive():
                     elapsed = time.time() - start_time
 
                     # Display response
-                    console.print(Panel(
-                        Markdown(response.text),
-                        title="[bold green]Agent[/bold green]",
-                        subtitle=f"[dim]{elapsed:.1f}s[/dim]",
-                        border_style="green"
-                    ))
+                    console.print(
+                        Panel(
+                            Markdown(response.text),
+                            title="[bold green]Agent[/bold green]",
+                            subtitle=f"[dim]{elapsed:.1f}s[/dim]",
+                            border_style="green",
+                        )
+                    )
                     console.print()
 
                 except KeyboardInterrupt:
@@ -115,12 +119,14 @@ async def run_single_query(query: str):
             response = await runner.ask(query)
             elapsed = time.time() - start_time
 
-            console.print(Panel(
-                Markdown(response.text),
-                title="[bold green]Answer[/bold green]",
-                subtitle=f"[dim]{elapsed:.1f}s[/dim]",
-                border_style="green"
-            ))
+            console.print(
+                Panel(
+                    Markdown(response.text),
+                    title="[bold green]Answer[/bold green]",
+                    subtitle=f"[dim]{elapsed:.1f}s[/dim]",
+                    border_style="green",
+                )
+            )
 
     except ConnectionError as e:
         console.print(f"[red]Connection Error:[/red] {e}")

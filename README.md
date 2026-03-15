@@ -97,7 +97,7 @@ from core import build_index
 results = asyncio.run(build_index())
 
 for result in results:
-    print(f"{result.workflow}: {result.error or 'success'}")
+    print(f"{result.workflow}: {result.errors or 'success'}")
 ```
 
 Or use the CLI:
@@ -213,7 +213,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ### What You'll Learn
 
-- Microsoft Agent Framework fundamentals (1.0.0rc3)
+- Microsoft Agent Framework fundamentals (1.0.0rc4)
 - `MCPStreamableHTTPTool` for MCP server integration
 - System prompt-based tool routing (GPT-4o decides, no code router)
 - `AgentSession` for conversation memory across multiple turns
@@ -228,7 +228,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 flowchart TD
     A["run_agent.py<br/>CLI entry point · Rich"]
     B["agents/<br/>KnowledgeCaptainRunner · GPT-4o<br/>MCPStreamableHTTPTool · AgentSession"]
-    C["mcp_server/<br/>FastMCP 0.2.0 · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
+    C["mcp_server/<br/>FastMCP 3.1.x · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
     D["core/<br/>GraphRAG 3.0.x<br/>147 entities<br/>263 relationships<br/>32 communities"]
 
     A --> B
@@ -283,7 +283,7 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.0.0rc3
+### Microsoft Agent Framework 1.0.0rc4
 
 Key patterns used:
 
@@ -338,6 +338,7 @@ maf-graphrag-series/
 │   └── lancedb/               # Vector store
 ├── src/                       # Application source code
 │   ├── core/                  # Part 1: Python API for GraphRAG 3.0.x
+│   │   ├── __init__.py        # Module exports
 │   │   ├── config.py          # Configuration loading
 │   │   ├── data_loader.py     # Parquet file loading
 │   │   ├── indexer.py         # Build knowledge graph
@@ -346,9 +347,13 @@ maf-graphrag-series/
 │   │   ├── example.py         # CLI for querying
 │   │   └── README.md          # Module documentation
 │   ├── mcp_server/            # Part 2: MCP Server
+│   │   ├── __init__.py        # Package exports
 │   │   ├── server.py          # FastMCP server
 │   │   ├── config.py          # MCP configuration
 │   │   ├── tools/             # MCP tools
+│   │   │   ├── __init__.py        # Tool exports
+│   │   │   ├── _data_cache.py     # Lazy singleton cache for GraphRAG data
+│   │   │   ├── types.py           # TypedDicts and validation helpers
 │   │   │   ├── local_search.py    # Entity-focused search (with source traceability)
 │   │   │   ├── global_search.py   # Thematic search (community reports only)
 │   │   │   ├── entity_query.py    # Entity lookup
@@ -361,6 +366,7 @@ maf-graphrag-series/
 │   │   ├── supervisor.py      # KnowledgeCaptainRunner + MCPStreamableHTTPTool
 │   │   └── README.md          # Agents documentation
 │   └── workflows/             # Part 4: Multi-agent orchestration
+│       ├── __init__.py        # Public API exports
 │       ├── base.py            # WorkflowResult, WorkflowStep dataclasses
 │       ├── sequential.py      # Research Pipeline workflow
 │       ├── concurrent.py      # Parallel Search workflow
@@ -497,7 +503,7 @@ async with ExpertHandoffWorkflow() as wf:
 | ------------------- | -------------------------- | ---------------------- |
 | **Azure OpenAI**    | Entity extraction, queries | GPT-4o                 |
 | **Azure OpenAI**    | Document embeddings        | text-embedding-3-small |
-| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc3               |
+| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc4               |
 
 ## Key Files
 

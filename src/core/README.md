@@ -179,7 +179,7 @@ output/
 ## Requirements
 
 - Python >=3.11,<3.13
-- GraphRAG ~3.0.1
+- GraphRAG ~3.0.2
 - pandas ^2.3.0, pyarrow ^22.0.0
-- rich ^13.0.0
+- rich ^14.0.0
 - Azure OpenAI credentials in `.env`

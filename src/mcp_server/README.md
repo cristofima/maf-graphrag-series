@@ -233,7 +233,7 @@ mcp_server/
 ### Running Tests
 
 ```bash
-poetry run pytest tests/test_mcp/
+poetry run pytest tests/test_mcp_config.py
 ```
 
 ### Adding New Tools
@@ -260,6 +260,6 @@ In Part 3, we'll integrate Microsoft Agent Framework to create a supervisor agen
 ## References
 
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
+- [FastMCP Documentation](https://gofastmcp.com/)
 - [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 - [Microsoft GraphRAG](https://github.com/microsoft/graphrag)

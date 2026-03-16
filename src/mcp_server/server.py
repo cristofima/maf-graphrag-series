@@ -17,6 +17,7 @@ from fastmcp import FastMCP
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
+from core.search import DEFAULT_RESPONSE_TYPE
 from mcp_server.config import MCPConfig
 from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
 from mcp_server.tools.types import EntityQueryResult, SearchResult, ToolError
@@ -41,7 +42,7 @@ mcp = FastMCP(name=config.server_name)
 
 @mcp.tool()
 async def search_knowledge_graph(
-    query: str, search_type: str = "local", community_level: int = 2, response_type: str = "Multiple Paragraphs"
+    query: str, search_type: str = "local", community_level: int = 2, response_type: str = DEFAULT_RESPONSE_TYPE
 ) -> SearchResult | ToolError:
     """
     Search the GraphRAG knowledge graph.
@@ -68,7 +69,7 @@ async def search_knowledge_graph(
 
 @mcp.tool()
 async def local_search(
-    query: str, community_level: int = 2, response_type: str = "Multiple Paragraphs"
+    query: str, community_level: int = 2, response_type: str = DEFAULT_RESPONSE_TYPE
 ) -> SearchResult | ToolError:
     """
     Perform entity-focused search on the knowledge graph.
@@ -91,7 +92,7 @@ async def local_search(
 
 @mcp.tool()
 async def global_search(
-    query: str, community_level: int = 2, response_type: str = "Multiple Paragraphs"
+    query: str, community_level: int = 2, response_type: str = DEFAULT_RESPONSE_TYPE
 ) -> SearchResult | ToolError:
     """
     Perform thematic search across the entire knowledge graph.

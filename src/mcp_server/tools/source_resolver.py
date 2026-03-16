@@ -24,6 +24,53 @@ from core.data_loader import GraphData
 TEXT_PREVIEW_LENGTH = 200
 
 
+def _build_text_unit_lookup(data: GraphData) -> dict[int, str]:
+    """Build text_unit human_readable_id → document_id lookup."""
+    tu_to_doc: dict[int, str] = {}
+    if data.text_units is None or data.text_units.empty:
+        return tu_to_doc
+    for _, row in data.text_units.iterrows():
+        hrid = row.get("human_readable_id")
+        doc_id = row.get("document_id")
+        if hrid is not None and doc_id is not None:
+            tu_to_doc[int(hrid)] = str(doc_id)
+    return tu_to_doc
+
+
+def _build_doc_title_lookup(data: GraphData) -> dict[str, str]:
+    """Build document hash → title lookup."""
+    doc_to_title: dict[str, str] = {}
+    if data.documents is None or data.documents.empty:
+        return doc_to_title
+    for _, row in data.documents.iterrows():
+        doc_id = row.get("id")
+        title = row.get("title")
+        if doc_id is not None and title is not None:
+            doc_to_title[str(doc_id)] = str(title)
+    return doc_to_title
+
+
+def _make_text_preview(src_text: object) -> str:
+    """Create a truncated text preview from a source row's text value."""
+    text_str = str(src_text) if src_text else ""
+    preview = text_str[:TEXT_PREVIEW_LENGTH]
+    if len(text_str) > TEXT_PREVIEW_LENGTH:
+        preview += "..."
+    return preview
+
+
+def _resolve_document(src_id: object, tu_to_doc: dict[int, str], doc_to_title: dict[str, str]) -> str:
+    """Resolve a source ID to a document title."""
+    try:
+        hrid = int(src_id)  # type: ignore[arg-type]
+        doc_hash = tu_to_doc.get(hrid)
+        if doc_hash:
+            return doc_to_title.get(doc_hash, "unknown")
+    except (ValueError, TypeError):
+        pass
+    return "unknown"
+
+
 def resolve_sources(
     sources_df: pd.DataFrame | None,
     data: GraphData,
@@ -46,59 +93,25 @@ def resolve_sources(
     if "id" not in sources_df.columns:
         return []
 
-    # Build text_unit human_readable_id → document_id lookup
-    tu_to_doc: dict[int, str] = {}
-    if data.text_units is not None and not data.text_units.empty:
-        for _, row in data.text_units.iterrows():
-            hrid = row.get("human_readable_id")
-            doc_id = row.get("document_id")
-            if hrid is not None and doc_id is not None:
-                tu_to_doc[int(hrid)] = str(doc_id)
-
-    # Build document hash → title lookup
-    doc_to_title: dict[str, str] = {}
-    if data.documents is not None and not data.documents.empty:
-        for _, row in data.documents.iterrows():
-            doc_id = row.get("id")
-            title = row.get("title")
-            if doc_id is not None and title is not None:
-                doc_to_title[str(doc_id)] = str(title)
-
+    tu_to_doc = _build_text_unit_lookup(data)
+    doc_to_title = _build_doc_title_lookup(data)
     has_mapping = bool(tu_to_doc and doc_to_title)
 
     results: list[dict] = []
-    seen_docs: set[str] = set()
 
     for _, src_row in sources_df.iterrows():
         src_id = src_row.get("id")
-        src_text = src_row.get("text", "")
-
-        # Create text preview
-        text_str = str(src_text) if src_text else ""
-        preview = text_str[:TEXT_PREVIEW_LENGTH]
-        if len(text_str) > TEXT_PREVIEW_LENGTH:
-            preview += "..."
+        preview = _make_text_preview(src_row.get("text", ""))
 
         entry: dict = {"text_unit_id": str(src_id)}
 
         if has_mapping:
-            try:
-                hrid = int(src_id)
-                doc_hash = tu_to_doc.get(hrid)
-                if doc_hash:
-                    title = doc_to_title.get(doc_hash, "unknown")
-                    entry["document"] = title
-                else:
-                    entry["document"] = "unknown"
-            except (ValueError, TypeError):
-                entry["document"] = "unknown"
+            entry["document"] = _resolve_document(src_id, tu_to_doc, doc_to_title)
 
         if preview:
             entry["text_preview"] = preview
 
         results.append(entry)
-        if "document" in entry:
-            seen_docs.add(entry["document"])
 
     return results
 

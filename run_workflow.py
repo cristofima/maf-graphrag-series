@@ -234,6 +234,24 @@ def _print_workflow_menu() -> None:
 # ---------------------------------------------------------------------------
 
 
+WORKFLOW_RUNNERS = {
+    "sequential": run_sequential,
+    "concurrent": run_concurrent,
+    "handoff": run_handoff,
+}
+
+
+def _show_examples(workflow_choice: str) -> None:
+    """Print example queries for the chosen workflow."""
+    examples = EXAMPLE_QUERIES.get(workflow_choice, [])
+    if not examples:
+        return
+    console.print("\n[dim]Example queries:[/dim]")
+    for i, ex in enumerate(examples, 1):
+        console.print(f"  [dim]{i}.[/dim] {ex}")
+    console.print()
+
+
 async def run_interactive() -> None:
     """Run interactive workflow selection mode."""
     _print_workflow_menu()
@@ -251,25 +269,15 @@ async def run_interactive() -> None:
             console.print("[yellow]Goodbye![/yellow]")
             break
 
-        # Show example queries for chosen workflow
-        examples = EXAMPLE_QUERIES.get(workflow_choice, [])
-        if examples:
-            console.print("\n[dim]Example queries:[/dim]")
-            for i, ex in enumerate(examples, 1):
-                console.print(f"  [dim]{i}.[/dim] {ex}")
-            console.print()
+        _show_examples(workflow_choice)
 
         query = Prompt.ask("[bold cyan]Query[/bold cyan]").strip()
         if not query:
             continue
 
+        runner = WORKFLOW_RUNNERS[workflow_choice]
         try:
-            if workflow_choice == "sequential":
-                await run_sequential(query)
-            elif workflow_choice == "concurrent":
-                await run_concurrent(query)
-            elif workflow_choice == "handoff":
-                await run_handoff(query)
+            await runner(query)
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/yellow]")
             break
@@ -328,7 +336,7 @@ def main() -> None:
         else:
             console.print('[red]Usage:[/red] poetry run python run_workflow.py [sequential|concurrent|handoff] "query"')
         sys.exit(1)
-    elif len(args) >= 2:
+    else:
         # Non-interactive: workflow_type + query
         workflow_type = args[0]
         query = " ".join(args[1:])

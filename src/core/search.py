@@ -15,13 +15,16 @@ from core.data_loader import GraphData
 # Type alias for search results — graphrag 3.x returns broad union types
 SearchResult = tuple[Any, Any]
 
+# Default response format used across all search functions
+DEFAULT_RESPONSE_TYPE = "Multiple Paragraphs"
+
 
 async def local_search(
     query: str,
     data: GraphData,
     config: GraphRagConfig | None = None,
     community_level: int = 2,
-    response_type: str = "Multiple Paragraphs",
+    response_type: str = DEFAULT_RESPONSE_TYPE,
 ) -> SearchResult:
     """
     Perform a local search query against the knowledge graph.
@@ -76,7 +79,7 @@ async def global_search(
     data: GraphData,
     config: GraphRagConfig | None = None,
     community_level: int | None = 2,
-    response_type: str = "Multiple Paragraphs",
+    response_type: str = DEFAULT_RESPONSE_TYPE,
     dynamic_community_selection: bool = False,
 ) -> SearchResult:
     """
@@ -133,7 +136,7 @@ async def drift_search(
     data: GraphData,
     config: GraphRagConfig | None = None,
     community_level: int = 2,
-    response_type: str = "Multiple Paragraphs",
+    response_type: str = DEFAULT_RESPONSE_TYPE,
 ) -> SearchResult:
     """
     Perform a DRIFT search query against the knowledge graph.
@@ -174,7 +177,7 @@ async def basic_search(
     query: str,
     data: GraphData,
     config: GraphRagConfig | None = None,
-    response_type: str = "Multiple Paragraphs",
+    response_type: str = DEFAULT_RESPONSE_TYPE,
 ) -> SearchResult:
     """
     Perform a basic RAG search (vector similarity only).

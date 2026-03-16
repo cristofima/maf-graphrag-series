@@ -26,6 +26,38 @@ from core.data_loader import get_entity_count, get_relationship_count, list_enti
 console = Console()
 
 
+def _resolve_community_level(search_type: str, mode: str) -> int | None:
+    """Determine community level from search type and mode."""
+    if search_type != "global":
+        return None
+    if mode == "detailed":
+        return 1  # 22 communities, ~60s
+    return 2  # default/fast: 2 communities, ~15s
+
+
+def _print_mode_info(search_type: str, community_level: int | None) -> None:
+    """Print community level info for global searches."""
+    if search_type != "global" or not community_level:
+        return
+    mode_info = {
+        2: "[dim]Using Level 2 (2 communities, ~15-20s, 90% quality)[/dim]",
+        1: "[dim]Using Level 1 (22 communities, ~60s, 100% quality)[/dim]",
+    }
+    console.print(f"{mode_info.get(community_level, '')}\n")
+
+
+def _print_context_info(context: object) -> None:
+    """Print context summary if available."""
+    if not isinstance(context, dict):
+        return
+    context_summary = []
+    for key, value in context.items():
+        if hasattr(value, "__len__"):
+            context_summary.append(f"{key}: {len(value)} items")
+    if context_summary:
+        console.print(f"\n[dim]Context: {', '.join(context_summary)}[/dim]")
+
+
 async def run_search(query: str, search_type: str = "local", mode: str = "default") -> None:
     """Run a search and display results.
 
@@ -65,23 +97,8 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
         )
     )
 
-    # Determine community level for global search
-    community_level = None
-    if search_type == "global":
-        if mode == "fast":
-            community_level = 2  # 2 communities, ~15s
-        elif mode == "detailed":
-            community_level = 1  # 22 communities, ~60s
-        else:
-            community_level = 2  # default to fast
-
-    # Show mode info for global search
-    if search_type == "global" and community_level:
-        mode_info = {
-            2: "[dim]Using Level 2 (2 communities, ~15-20s, 90% quality)[/dim]",
-            1: "[dim]Using Level 1 (22 communities, ~60s, 100% quality)[/dim]",
-        }
-        console.print(f"{mode_info.get(community_level, '')}\n")
+    community_level = _resolve_community_level(search_type, mode)
+    _print_mode_info(search_type, community_level)
 
     # Perform search
     start_time = time.perf_counter()
@@ -98,14 +115,7 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
     console.print("\n")
     console.print(Panel(Markdown(response), title="📝 Response", border_style="green"))
 
-    # Show context info
-    if isinstance(context, dict):
-        context_summary = []
-        for key, value in context.items():
-            if hasattr(value, "__len__"):
-                context_summary.append(f"{key}: {len(value)} items")
-        if context_summary:
-            console.print(f"\n[dim]Context: {', '.join(context_summary)}[/dim]")
+    _print_context_info(context)
 
     # Show timing
     console.print(f"\n[dim]⏱️  Completed in {elapsed_time:.1f} seconds[/dim]")

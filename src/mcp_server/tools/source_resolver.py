@@ -62,7 +62,7 @@ def _make_text_preview(src_text: object) -> str:
 def _resolve_document(src_id: object, tu_to_doc: dict[int, str], doc_to_title: dict[str, str]) -> str:
     """Resolve a source ID to a document title."""
     try:
-        hrid = int(src_id)  # type: ignore[arg-type]
+        hrid = int(str(src_id))
         doc_hash = tu_to_doc.get(hrid)
         if doc_hash:
             return doc_to_title.get(doc_hash, "unknown")

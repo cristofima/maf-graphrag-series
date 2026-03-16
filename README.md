@@ -2,6 +2,13 @@
 
 Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=bugs)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+
 ## Series Overview
 
 This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft GraphRAG and Azure OpenAI.

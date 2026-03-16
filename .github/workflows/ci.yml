@@ -21,8 +21,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+# Workflow-level: no permissions by default (least privilege).
+# Each job declares only what it needs.
+permissions: {}
 
 # -----------------------------------------------------------------------
 # Stage layout (best practice: one concern per job, fast feedback via parallelism)
@@ -40,6 +41,8 @@ jobs:
   lint:
     name: "Lint & Format"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +82,8 @@ jobs:
   typecheck:
     name: "Type Check"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -116,6 +121,8 @@ jobs:
     name: "Test"
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4

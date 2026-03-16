@@ -1,5 +1,7 @@
 """Unit tests for workflows/base.py — WorkflowStep, WorkflowResult, WorkflowType."""
 
+import pytest
+
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 
@@ -13,7 +15,7 @@ class TestWorkflowStep:
         assert step.agent_name == "TestAgent"
         assert step.input_summary == "test input"
         assert step.output == "test output"
-        assert step.elapsed_seconds == 0.0
+        assert step.elapsed_seconds == pytest.approx(0.0)
         assert step.metadata == {}
 
     def test_with_timing_and_metadata(self):
@@ -24,7 +26,7 @@ class TestWorkflowStep:
             elapsed_seconds=1.5,
             metadata={"search_type": "local"},
         )
-        assert step.elapsed_seconds == 1.5
+        assert step.elapsed_seconds == pytest.approx(1.5)
         assert step.metadata["search_type"] == "local"
 
     def test_metadata_is_not_shared(self):
@@ -44,7 +46,7 @@ class TestWorkflowResult:
         assert result.answer == "final answer"
         assert result.workflow_type == WorkflowType.SEQUENTIAL
         assert result.steps == []
-        assert result.total_elapsed_seconds == 0.0
+        assert result.total_elapsed_seconds == pytest.approx(0.0)
         assert result.query == ""
 
     def test_with_steps(self):
@@ -60,7 +62,7 @@ class TestWorkflowResult:
             query="test query",
         )
         assert len(result.steps) == 2
-        assert result.total_elapsed_seconds == 1.5
+        assert result.total_elapsed_seconds == pytest.approx(1.5)
         assert result.query == "test query"
 
     def test_step_summary_format(self):

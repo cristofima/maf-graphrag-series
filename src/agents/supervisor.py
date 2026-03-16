@@ -176,15 +176,16 @@ class KnowledgeCaptainRunner:
         self._connected = False
         self._session = None
 
-    async def ask(self, question: str, timeout: float = 120.0) -> AgentResponse:
+    async def ask(self, question: str) -> AgentResponse:
         """Ask the Knowledge Captain a question.
 
         Maintains conversation history - follow-up questions will have
         context from previous exchanges in this session.
 
+        Uses an internal timeout of 120 seconds via ``asyncio.timeout``.
+
         Args:
             question: The question to ask
-            timeout: Maximum seconds to wait for a response (default 120).
 
         Returns:
             AgentResponse: The agent's response
@@ -196,10 +197,8 @@ class KnowledgeCaptainRunner:
             raise RuntimeError("Not connected to MCP server. Use 'async with KnowledgeCaptainRunner()'")
 
         try:
-            result = await asyncio.wait_for(
-                self.agent.run(question, session=self._session),
-                timeout=timeout,
-            )
+            async with asyncio.timeout(120.0):
+                result = await self.agent.run(question, session=self._session)
         except TimeoutError:
             return AgentResponse(text="Request timed out. Please try again.")
 

@@ -53,10 +53,13 @@ QueryAnalyzer → KnowledgeSearcher → ReportWriter
 
 **When to use**: Questions that benefit from both entity details AND organizational themes simultaneously.
 
+Each parallel agent owns its own `MCPStreamableHTTPTool` with a `tool_name_prefix` (`entity`, `themes`) to avoid duplicate tool-name errors when both connect to the same MCP server.
+
 ```
                     Query
                    /     \
           EntitySearcher  ThemesSearcher    ← asyncio.gather()
+          (prefix=entity)  (prefix=themes)
             (local_search)  (global_search)
                    \     /
                AnswerSynthesizer
@@ -185,3 +188,14 @@ workflows/
 ├── handoff.py        # ExpertHandoffWorkflow (Router → specialist)
 └── README.md         # This file
 ```
+
+## MCP Lifecycle Management
+
+Different workflow patterns use different MCP tool ownership strategies:
+
+| Pattern                  | MCP Ownership                                                                     | Why                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Sequential / Handoff** | Shared MCP tool, managed externally via `AsyncExitStack` in `MCPWorkflowBase`     | Multiple agents share one tool — the base class manages connect/close |
+| **Concurrent**           | Each agent owns its own MCP tool via `Agent` context manager + `tool_name_prefix` | Parallel agents need separate connections to avoid conflicts          |
+
+This follows Agent Framework rc5+ patterns: `Agent` as async context manager auto-manages MCP tool lifecycle. When a tool must be shared across agents, it’s managed externally to avoid premature disconnection.

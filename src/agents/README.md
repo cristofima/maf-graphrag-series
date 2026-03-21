@@ -7,6 +7,7 @@ Supervisor Agent Pattern with Microsoft Agent Framework
 This module implements the **Knowledge Captain** agent that queries GraphRAG via MCP. The agent uses GPT-4o with a system prompt to decide which tool to call—no complex routing logic needed.
 
 **Features:**
+
 - System prompt-based tool routing (no code router)
 - Conversation memory for follow-up questions
 - Single MCP connection to GraphRAG server
@@ -42,12 +43,12 @@ This module implements the **Knowledge Captain** agent that queries GraphRAG via
 
 The agent doesn't need complex routing logic. The system prompt tells GPT-4o when to use each tool:
 
-| Question Type | Tool Selected | Example |
-|---------------|---------------|---------|
-| Entity-focused | `local_search` | "Who leads Project Alpha?" |
-| Thematic | `global_search` | "What are the main themes?" |
-| Browse | `list_entities` | "What entities exist?" |
-| Details | `get_entity` | "Tell me about David Kumar" |
+| Question Type  | Tool Selected   | Example                     |
+| -------------- | --------------- | --------------------------- |
+| Entity-focused | `local_search`  | "Who leads Project Alpha?"  |
+| Thematic       | `global_search` | "What are the main themes?" |
+| Browse         | `list_entities` | "What entities exist?"      |
+| Details        | `get_entity`    | "Tell me about David Kumar" |
 
 ## Module Structure
 
@@ -92,10 +93,10 @@ poetry run python run_agent.py "Who leads Project Alpha?"
 
 ### CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `clear` | Clear conversation history |
-| `quit` / `exit` | Exit the chat |
+| Command         | Description                |
+| --------------- | -------------------------- |
+| `clear`         | Clear conversation history |
+| `quit` / `exit` | Exit the chat              |
 
 ## Usage
 
@@ -108,11 +109,11 @@ async with KnowledgeCaptainRunner() as runner:
     # Ask questions
     response = await runner.ask("Who leads Project Alpha?")
     print(response.text)
-    
+
     # Follow-up questions have context (conversation memory)
     response2 = await runner.ask("What about Project Beta?")
     print(response2.text)
-    
+
     # Clear history to start fresh
     runner.clear_history()
 ```
@@ -122,9 +123,10 @@ async with KnowledgeCaptainRunner() as runner:
 ```python
 from agents import create_knowledge_captain
 
-mcp_tool, agent = create_knowledge_captain()
+# Agent as async context manager (rc5+) — auto-manages MCP tool lifecycle
+agent = create_knowledge_captain()
 
-async with mcp_tool:
+async with agent:
     result = await agent.run("Who leads Project Alpha?")
     print(result.text)
 ```
@@ -143,12 +145,13 @@ async with KnowledgeCaptainRunner(system_prompt=SIMPLE_ASSISTANT_PROMPT) as runn
 
 This module uses the **Streamable HTTP** transport (`/mcp` endpoint) instead of SSE (`/sse`):
 
-| Transport | Endpoint | Use Case |
-|-----------|----------|----------|
-| **Streamable HTTP** | `/mcp` | Microsoft Agent Framework (`MCPStreamableHTTPTool`) |
-| **SSE** | `/sse` | MCP Inspector, browser-based clients |
+| Transport           | Endpoint | Use Case                                            |
+| ------------------- | -------- | --------------------------------------------------- |
+| **Streamable HTTP** | `/mcp`   | Microsoft Agent Framework (`MCPStreamableHTTPTool`) |
+| **SSE**             | `/sse`   | MCP Inspector, browser-based clients                |
 
 **Why Streamable HTTP?**
+
 - Required by `MCPStreamableHTTPTool` from Agent Framework
 - Bidirectional communication (client can send multiple requests)
 - Better suited for agent-to-server interaction
@@ -159,9 +162,11 @@ The MCP Server exposes both endpoints, but agents always connect via `/mcp`.
 ## Architecture Benefits
 
 ```
-agents/supervisor.py      ← Single agent with MCPStreamableHTTPTool
+agents/supervisor.py      ← Agent as async context manager (rc5+)
+                            auto-manages MCPStreamableHTTPTool lifecycle
 ```
 
+- **Agent owns its MCP tool** — `async with agent:` connects on enter, closes on exit
 - **Single source of truth** — All GraphRAG tools live in `mcp_server/`
 - **System prompt routing** — GPT-4o decides which tool to call (no code router)
 - **Simpler architecture** — One agent, one MCP connection

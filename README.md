@@ -220,8 +220,9 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ### What You'll Learn
 
-- Microsoft Agent Framework fundamentals (1.0.0rc4)
+- Microsoft Agent Framework fundamentals (1.0.0rc5)
 - `MCPStreamableHTTPTool` for MCP server integration
+- `Agent` as async context manager for automatic MCP lifecycle management
 - System prompt-based tool routing (GPT-4o decides, no code router)
 - `AgentSession` for conversation memory across multiple turns
 - MCP transport upgrade: SSE (`/sse`) → Streamable HTTP (`/mcp`)
@@ -290,16 +291,17 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.0.0rc4
+### Microsoft Agent Framework 1.0.0rc5
 
 Key patterns used:
 
-| Pattern                 | Description                                         |
-| ----------------------- | --------------------------------------------------- |
-| `Agent` class           | Core agent abstraction                              |
-| `MCPStreamableHTTPTool` | Connect to MCP servers via Streamable HTTP          |
-| `AzureOpenAIChatClient` | Azure OpenAI wrapper (from `agent_framework.azure`) |
-| `AgentSession`          | Conversation memory across multiple turns           |
+| Pattern                          | Description                                                            |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| `Agent` as async context manager | `async with agent:` auto-manages MCP tool connect/close lifecycle      |
+| `MCPStreamableHTTPTool`          | Connect to MCP servers via Streamable HTTP                             |
+| `tool_name_prefix`               | Avoids duplicate tool names when multiple agents share the same server |
+| `AzureOpenAIChatClient`          | Azure OpenAI wrapper (from `agent_framework.azure`)                    |
+| `AgentSession`                   | Conversation memory across multiple turns                              |
 
 📖 **Agents Documentation:** See [src/agents/README.md](src/agents/README.md) for complete API reference.
 
@@ -510,7 +512,7 @@ async with ExpertHandoffWorkflow() as wf:
 | ------------------- | -------------------------- | ---------------------- |
 | **Azure OpenAI**    | Entity extraction, queries | GPT-4o                 |
 | **Azure OpenAI**    | Document embeddings        | text-embedding-3-small |
-| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc4               |
+| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc5               |
 
 ## Key Files
 

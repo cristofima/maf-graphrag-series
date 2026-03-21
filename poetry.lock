@@ -2,46 +2,46 @@
 
 [[package]]
 name = "agent-framework-core"
-version = "1.0.0rc4"
+version = "1.0.0rc5"
 description = "Microsoft Agent Framework for building AI Agents with Python. This is the core package that has all the core abstractions and implementations."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "agent_framework_core-1.0.0rc4-py3-none-any.whl", hash = "sha256:f01a6997be0f5e05853eb6be341dbca692c4e5d6999de5f3e8364296de50635f"},
-    {file = "agent_framework_core-1.0.0rc4.tar.gz", hash = "sha256:f394eb95ae877ae854aa7a3e499f76f34b26102808009a66b264ded89c6b6dbd"},
+    {file = "agent_framework_core-1.0.0rc5-py3-none-any.whl", hash = "sha256:c906c6edac1f7db97e047e0958e77819b43406fb4cb4efcffb3fe042b69029c8"},
+    {file = "agent_framework_core-1.0.0rc5.tar.gz", hash = "sha256:156bed9154a3be5c35000f240c0bef0cf9c4a39b65b9c5c139af5c4a10871f1a"},
 ]
 
 [package.dependencies]
 azure-ai-projects = ">=2.0.0,<3.0"
 azure-identity = ">=1,<2"
 mcp = {version = ">=1.24.0,<2", extras = ["ws"]}
-openai = ">=1.99.0"
-opentelemetry-api = ">=1.39.0"
-opentelemetry-sdk = ">=1.39.0"
-opentelemetry-semantic-conventions-ai = ">=0.4.13"
-packaging = ">=24.1"
+openai = ">=1.99.0,<3"
+opentelemetry-api = ">=1.39.0,<2"
+opentelemetry-sdk = ">=1.39.0,<2"
+opentelemetry-semantic-conventions-ai = ">=0.4.13,<0.4.14"
+packaging = ">=24.1,<25"
 pydantic = ">=2,<3"
 python-dotenv = ">=1,<2"
-typing-extensions = "*"
+typing-extensions = ">=4.15.0,<5"
 
 [package.extras]
 all = ["agent-framework-a2a", "agent-framework-ag-ui", "agent-framework-anthropic", "agent-framework-azure-ai", "agent-framework-azure-ai-search", "agent-framework-azurefunctions", "agent-framework-bedrock", "agent-framework-chatkit", "agent-framework-claude", "agent-framework-copilotstudio", "agent-framework-declarative", "agent-framework-devui", "agent-framework-durabletask", "agent-framework-foundry-local", "agent-framework-github-copilot ; python_version >= \"3.11\"", "agent-framework-lab", "agent-framework-mem0", "agent-framework-ollama", "agent-framework-orchestrations", "agent-framework-purview", "agent-framework-redis"]
 
 [[package]]
 name = "agent-framework-orchestrations"
-version = "1.0.0b260311"
+version = "1.0.0b260319"
 description = "Orchestration patterns for Microsoft Agent Framework. Includes SequentialBuilder, ConcurrentBuilder, HandoffBuilder, GroupChatBuilder, and MagenticBuilder."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "agent_framework_orchestrations-1.0.0b260311-py3-none-any.whl", hash = "sha256:cc7cdebe0abb76208d2c6618d410bf77f0806478dbe25ad1467b27f4f70b8dba"},
-    {file = "agent_framework_orchestrations-1.0.0b260311.tar.gz", hash = "sha256:a303a156c066954bbed5b1ac6e7b3dd8049ffe3bbf0c1841f5ab24e97a8f1fd9"},
+    {file = "agent_framework_orchestrations-1.0.0b260319-py3-none-any.whl", hash = "sha256:f3e22d1ae37f099abd839fb05a73cc1017f951c63a3976977f5fa4bf13093044"},
+    {file = "agent_framework_orchestrations-1.0.0b260319.tar.gz", hash = "sha256:0c951e530a27fad6dc30323f8c769aaebe8fd6869af871d50d7dc87ddc285d80"},
 ]
 
 [package.dependencies]
-agent-framework-core = ">=1.0.0rc4"
+agent-framework-core = ">=1.0.0rc5"
 
 [[package]]
 name = "aiofile"
@@ -4827,14 +4827,14 @@ markers = {dev = "python_version == \"3.11\""}
 
 [[package]]
 name = "packaging"
-version = "26.0"
+version = "24.2"
 description = "Core utilities for Python packages"
 optional = false
 python-versions = ">=3.8"
 groups = ["main", "dev"]
 files = [
-    {file = "packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529"},
-    {file = "packaging-26.0.tar.gz", hash = "sha256:00243ae351a257117b6a241061796684b084ed1c516a08c48a3f7e147a9d80b4"},
+    {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
+    {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
 ]
 
 [[package]]
@@ -8166,4 +8166,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "cc36ce8cfad258a74b29c0fb4e013173e95ac6ec0942e415a807120efd5a0597"
+content-hash = "7df1bc2be7baa09ca518a6b6ef4a73d2e0e9208339f863e9c69ede0338a02e18"

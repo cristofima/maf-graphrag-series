@@ -14,10 +14,11 @@ Usage:
     async with KnowledgeCaptainRunner() as runner:
         response = await runner.ask("Who leads Project Alpha?")
 
-    # Option 2: Manual setup
-    mcp_tool, agent = create_knowledge_captain()
-    async with mcp_tool:
+    # Option 2: Manual setup — Agent as async context manager (rc5+)
+    agent = create_knowledge_captain()
+    async with agent:
         result = await agent.run("Who leads Project Alpha?")
+        print(result.text)
 """
 
 import asyncio
@@ -92,23 +93,26 @@ def create_azure_client() -> "AzureOpenAIChatClient":
 def create_knowledge_captain(
     mcp_url: str | None = None,
     system_prompt: str | None = None,
-) -> tuple["MCPStreamableHTTPTool", "Agent"]:
+) -> "Agent":
     """Create the Knowledge Captain agent with MCP tool.
 
     The Knowledge Captain uses GPT-4o with a system prompt that guides
     tool selection. No separate routing logic is needed - GPT-4o decides
     which MCP tool to call based on the prompt.
 
+    The returned Agent is an async context manager that manages the MCP
+    tool connection lifecycle automatically (rc5+).
+
     Args:
         mcp_url: Optional MCP server URL override
         system_prompt: Optional system prompt override
 
     Returns:
-        tuple: (mcp_tool, agent) - Use mcp_tool as async context manager
+        Agent: Use as async context manager — ``async with agent:``
 
     Example:
-        mcp_tool, agent = create_knowledge_captain()
-        async with mcp_tool:
+        agent = create_knowledge_captain()
+        async with agent:
             result = await agent.run("Who leads Project Alpha?")
             print(result.text)
     """
@@ -117,22 +121,20 @@ def create_knowledge_captain(
     client = create_azure_client()
     mcp_tool = create_mcp_tool(mcp_url)
 
-    agent = Agent(
+    return Agent(
         client=client,
         name="knowledge_captain",
         instructions=system_prompt or KNOWLEDGE_CAPTAIN_PROMPT,
         tools=[mcp_tool],
     )
 
-    return mcp_tool, agent
-
 
 class KnowledgeCaptainRunner:
     """Context manager for running Knowledge Captain queries.
 
-    Handles MCP connection lifecycle and provides a simple interface
-    for asking questions. Maintains conversation history across multiple
-    questions in the same session.
+    Handles MCP connection lifecycle via Agent context manager (rc5+)
+    and provides a simple interface for asking questions. Maintains
+    conversation history across multiple questions in the same session.
 
     Example:
         async with KnowledgeCaptainRunner() as runner:
@@ -154,7 +156,7 @@ class KnowledgeCaptainRunner:
             mcp_url: Optional MCP server URL override
             system_prompt: Optional system prompt override
         """
-        self.mcp_tool, self.agent = create_knowledge_captain(
+        self.agent = create_knowledge_captain(
             mcp_url=mcp_url,
             system_prompt=system_prompt,
         )
@@ -162,17 +164,17 @@ class KnowledgeCaptainRunner:
         self._session: AgentSession | None = None
 
     async def __aenter__(self) -> "KnowledgeCaptainRunner":
-        """Connect to MCP server and initialize session."""
+        """Connect to MCP server via Agent context manager and initialize session."""
         from agent_framework import AgentSession
 
-        await self.mcp_tool.__aenter__()
+        await self.agent.__aenter__()
         self._connected = True
-        self._session = AgentSession()  # Create session for conversation history
+        self._session = AgentSession()
         return self
 
     async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect from MCP server."""
-        await self.mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
+        """Disconnect from MCP server via Agent context manager."""
+        await self.agent.__aexit__(exc_type, exc_val, exc_tb)
         self._connected = False
         self._session = None
 

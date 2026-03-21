@@ -10,6 +10,7 @@ Workflow Patterns Overview:
 """
 
 from abc import ABC, abstractmethod
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
@@ -84,16 +85,21 @@ class WorkflowResult:
 
 
 class MCPWorkflowBase(ABC):
-    """Base for workflows that manage a single MCP tool connection.
+    """Base for workflows that manage a single shared MCP tool connection.
 
     Encapsulates the async-context-manager lifecycle shared by
     ``ResearchPipelineWorkflow`` and ``ExpertHandoffWorkflow``.
+
+    The MCP tool is managed externally (not via Agent context managers)
+    because multiple agents share the same tool instance: only one agent
+    uses it at a time, but the connection must persist across agent runs.
     Subclasses only need to implement ``_create_agents``.
     """
 
     def __init__(self, mcp_url: str | None = None) -> None:
         self._mcp_url = mcp_url
         self._mcp_tool: MCPStreamableHTTPTool | None = None
+        self._exit_stack: AsyncExitStack | None = None
 
     @abstractmethod
     def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
@@ -102,8 +108,9 @@ class MCPWorkflowBase(ABC):
     async def __aenter__(self) -> Self:
         from agents.supervisor import create_mcp_tool
 
+        self._exit_stack = AsyncExitStack()
         self._mcp_tool = create_mcp_tool(self._mcp_url)
-        await self._mcp_tool.__aenter__()
+        await self._exit_stack.enter_async_context(self._mcp_tool)
         self._create_agents(self._mcp_tool)
         return self
 
@@ -113,5 +120,5 @@ class MCPWorkflowBase(ABC):
         exc_val: BaseException | None,
         exc_tb: object,
     ) -> None:
-        if self._mcp_tool:
-            await self._mcp_tool.__aexit__(exc_type, exc_val, exc_tb)
+        if self._exit_stack:
+            await self._exit_stack.aclose()

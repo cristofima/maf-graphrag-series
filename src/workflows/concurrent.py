@@ -52,13 +52,14 @@ Contrast with Sequential (Part 4):
 import asyncio
 import logging
 import time
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING
 
 from agents.supervisor import create_azure_client, create_mcp_tool
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 
 if TYPE_CHECKING:
-    from agent_framework import Agent, MCPStreamableHTTPTool
+    from agent_framework import Agent
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +125,13 @@ End with "Entity-Theme Connections" section that explicitly links both perspecti
 
 
 def _create_parallel_agents(
-    entity_mcp_tool: "MCPStreamableHTTPTool",
-    themes_mcp_tool: "MCPStreamableHTTPTool",
+    mcp_url: str | None = None,
 ) -> tuple["Agent", "Agent", "Agent"]:
     """Create the two parallel search agents and the synthesis agent.
 
-    Each parallel agent gets its own MCP tool instance to avoid concurrent
-    access issues on a single HTTP connection.
+    Each parallel agent gets its own MCP tool instance with a unique
+    ``tool_name_prefix`` to avoid concurrent access issues on a single
+    HTTP connection and prevent duplicate tool-name errors (rc5+).
 
     Returns:
         tuple: (entity_searcher, themes_searcher, answer_synthesizer)
@@ -138,6 +139,10 @@ def _create_parallel_agents(
     from agent_framework import Agent
 
     client = create_azure_client()
+    entity_mcp_tool = create_mcp_tool(mcp_url)
+    entity_mcp_tool.tool_name_prefix = "entity"
+    themes_mcp_tool = create_mcp_tool(mcp_url)
+    themes_mcp_tool.tool_name_prefix = "themes"
 
     entity_searcher = Agent(
         client=client,
@@ -170,8 +175,9 @@ class ParallelSearchWorkflow:
     Runs entity search and thematic search in parallel using
     ``asyncio.gather``, then combines both result sets with a synthesis agent.
 
-    Two separate ``MCPStreamableHTTPTool`` connections are maintained — one
-    per parallel agent — to ensure safe concurrent HTTP access.
+    Each parallel agent owns its own ``MCPStreamableHTTPTool`` connection
+    managed via Agent context managers (rc5+). Tool names are prefixed
+    with ``entity`` / ``themes`` to avoid duplicate-name errors.
 
     Example:
         async with ParallelSearchWorkflow() as workflow:
@@ -187,38 +193,26 @@ class ParallelSearchWorkflow:
             mcp_url: Optional override for the MCP server URL.
         """
         self._mcp_url = mcp_url
-        self._entity_mcp_tool: MCPStreamableHTTPTool | None = None
-        self._themes_mcp_tool: MCPStreamableHTTPTool | None = None
         self._entity_searcher: Agent | None = None
         self._themes_searcher: Agent | None = None
         self._answer_synthesizer: Agent | None = None
+        self._exit_stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> "ParallelSearchWorkflow":
-        """Connect two MCP tool instances and create agents."""
-        # Two separate connections — one per concurrent agent
-        self._entity_mcp_tool = create_mcp_tool(self._mcp_url)
-        self._themes_mcp_tool = create_mcp_tool(self._mcp_url)
-
-        await self._entity_mcp_tool.__aenter__()
-        await self._themes_mcp_tool.__aenter__()
-
+        """Create agents and connect their MCP tools via Agent context managers."""
         self._entity_searcher, self._themes_searcher, self._answer_synthesizer = _create_parallel_agents(
-            self._entity_mcp_tool, self._themes_mcp_tool
+            self._mcp_url,
         )
+
+        self._exit_stack = AsyncExitStack()
+        await self._exit_stack.enter_async_context(self._entity_searcher)
+        await self._exit_stack.enter_async_context(self._themes_searcher)
         return self
 
     async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect both MCP tool instances.
-
-        Each tool is closed independently so that a cancel-scope error
-        on one connection does not prevent the other from cleaning up.
-        """
-        for tool in (self._entity_mcp_tool, self._themes_mcp_tool):
-            if tool:
-                try:
-                    await tool.__aexit__(None, None, None)
-                except Exception:
-                    pass  # Cleanup errors are non-fatal; resources are GC'd
+        """Disconnect agents and their MCP tools via AsyncExitStack."""
+        if self._exit_stack:
+            await self._exit_stack.aclose()
 
     async def run(self, query: str) -> WorkflowResult:
         """Run entity and thematic searches in parallel, then synthesize.
@@ -232,7 +226,7 @@ class ParallelSearchWorkflow:
         Raises:
             RuntimeError: If the workflow has not been entered as a context manager.
         """
-        if not self._entity_mcp_tool:
+        if not self._entity_searcher:
             raise RuntimeError("Workflow not connected. Use 'async with ParallelSearchWorkflow()'")
         assert self._entity_searcher is not None
         assert self._themes_searcher is not None

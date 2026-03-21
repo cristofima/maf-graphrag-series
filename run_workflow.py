@@ -104,25 +104,17 @@ async def _run_workflow(workflow_cls: type, label: str, query: str) -> None:
 
     console.print("[dim]  Connecting to MCP server...[/dim]")
     try:
-        workflow = workflow_cls()
-        await workflow.__aenter__()
+        async with workflow_cls() as workflow:
+            console.print("[dim]  Connected. Executing workflow...[/dim]")
+            try:
+                result = await workflow.run(query)
+            except Exception as e:
+                console.print(f"\n[red]Workflow execution error:[/red] {type(e).__name__}: {e}")
+                return
+
+            _display_result(result)
     except Exception as e:
         _print_connection_error(e)
-        return
-
-    console.print("[dim]  Connected. Executing workflow...[/dim]")
-    try:
-        result = await workflow.run(query)
-    except Exception as e:
-        console.print(f"\n[red]Workflow execution error:[/red] {type(e).__name__}: {e}")
-        return
-    finally:
-        try:
-            await workflow.__aexit__(None, None, None)
-        except Exception:
-            pass
-
-    _display_result(result)
 
 
 async def run_sequential(query: str) -> None:

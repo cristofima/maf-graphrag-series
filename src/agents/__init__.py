@@ -23,6 +23,14 @@ Usage:
         response = await runner.ask("Who leads Project Alpha?")
         print(response.text)
 
+    # Or use Agent directly (rc5+)
+    from agents import create_knowledge_captain
+
+    agent = create_knowledge_captain()
+    async with agent:
+        result = await agent.run("Who leads Project Alpha?")
+        print(result.text)
+
     # Or use the CLI
     poetry run python run_agent.py
 """

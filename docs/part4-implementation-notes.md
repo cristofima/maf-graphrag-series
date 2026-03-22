@@ -6,6 +6,14 @@ Part 4 introduces three multi-agent workflow patterns built on top of the single
 
 **Key Decision**: Workflow patterns are implemented by composing `Agent` objects directly rather than using `agent_framework_orchestrations` builder classes. This makes the patterns explicit, easy to understand, and not subject to beta API changes.
 
+**Additional Design Decisions (rc5+):**
+
+- `MCPWorkflowBase` ABC for shared MCP tool lifecycle (sequential, handoff)
+- `Agent` as async context manager for independent MCP lifecycles (concurrent)
+- `tool_name_prefix` on concurrent MCP tools to avoid duplicate tool-name errors
+- Factory functions for state isolation (one workflow instance per request)
+- `create_client()` multi-provider support inherited from Part 3
+
 ---
 
 ## Architecture
@@ -54,15 +62,15 @@ Part 4 introduces three multi-agent workflow patterns built on top of the single
 
 ## Files Created
 
-| File                                                  | Purpose                                               |
-| ----------------------------------------------------- | ----------------------------------------------------- |
-| [workflows/\_\_init\_\_.py](../workflows/__init__.py) | Public API re-exports                                 |
-| [workflows/base.py](../workflows/base.py)             | `WorkflowResult`, `WorkflowStep`, `WorkflowType`      |
-| [workflows/sequential.py](../workflows/sequential.py) | `ResearchPipelineWorkflow` — 3-step chain             |
-| [workflows/concurrent.py](../workflows/concurrent.py) | `ParallelSearchWorkflow` — asyncio.gather + synthesis |
-| [workflows/handoff.py](../workflows/handoff.py)       | `ExpertHandoffWorkflow` — Router → specialist         |
-| [workflows/README.md](../workflows/README.md)         | Module documentation                                  |
-| [run_workflow.py](../run_workflow.py)                 | Interactive CLI demo                                  |
+| File                                                  | Purpose                                                                |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| [workflows/\_\_init\_\_.py](../workflows/__init__.py) | Public API re-exports                                                  |
+| [workflows/base.py](../workflows/base.py)             | `WorkflowResult`, `WorkflowStep`, `MCPWorkflowBase`, factory functions |
+| [workflows/sequential.py](../workflows/sequential.py) | `ResearchPipelineWorkflow` — 3-step chain                              |
+| [workflows/concurrent.py](../workflows/concurrent.py) | `ParallelSearchWorkflow` — asyncio.gather + synthesis                  |
+| [workflows/handoff.py](../workflows/handoff.py)       | `ExpertHandoffWorkflow` — Router → specialist                          |
+| [workflows/README.md](../workflows/README.md)         | Module documentation                                                   |
+| [run_workflow.py](../run_workflow.py)                 | Interactive CLI demo                                                   |
 
 ---
 
@@ -123,9 +131,16 @@ final_report = report_result.text
 
 ```python
 # Two SEPARATE MCPStreamableHTTPTool instances — one per parallel agent
-# This avoids concurrent writes on a single HTTP session
+# Each gets a unique tool_name_prefix to avoid duplicate tool-name errors (rc5+)
 entity_mcp_tool = create_mcp_tool(mcp_url)
+entity_mcp_tool.tool_name_prefix = "entity"
 themes_mcp_tool = create_mcp_tool(mcp_url)
+themes_mcp_tool.tool_name_prefix = "themes"
+
+# Each agent manages its own MCP lifecycle via async context manager (rc5+)
+exit_stack = AsyncExitStack()
+await exit_stack.enter_async_context(entity_searcher)   # connects entity MCP
+await exit_stack.enter_async_context(themes_searcher)    # connects themes MCP
 
 # Parallel execution
 entity_task = entity_searcher.run(entity_prompt)
@@ -134,7 +149,7 @@ themes_task = themes_searcher.run(themes_prompt)
 entity_result, themes_result = await asyncio.gather(entity_task, themes_task)
 ```
 
-**Why two MCP tool instances**: `asyncio.gather` runs both coroutines concurrently. If both used the same `MCPStreamableHTTPTool` connection object, concurrent writes to the same HTTP session could interleave or fail. Two instances ensure independent connections.
+**Why two MCP tool instances with `tool_name_prefix`**: `asyncio.gather` runs both coroutines concurrently. If both used the same `MCPStreamableHTTPTool` connection object, concurrent writes to the same HTTP session could interleave or fail. Two instances ensure independent connections. The `tool_name_prefix` (rc5+) prevents duplicate tool-name registration errors — without it, both tools would register as `local_search`, `global_search`, etc.
 
 **Speed reality**: `local_search` takes ~5–15s (vector similarity + 1 LLM call), but `global_search` takes **60–140s** (map-reduce over all 32 community reports ≈ 32 LLM calls). The parallel benefit applies to the _overlap_ between the two searches:
 
@@ -203,6 +218,64 @@ for step in result.steps:
 
 ---
 
+## MCPWorkflowBase & Factory Functions
+
+### MCPWorkflowBase (`workflows/base.py`)
+
+Sequential and handoff workflows share a common pattern: one MCP tool connection shared across multiple agents that run one at a time. `MCPWorkflowBase` encapsulates this lifecycle:
+
+```python
+class MCPWorkflowBase(ABC):
+    """Base for workflows that manage a single shared MCP tool connection."""
+
+    def __init__(self, mcp_url: str | None = None) -> None:
+        self._mcp_url = mcp_url
+        self._mcp_tool: MCPStreamableHTTPTool | None = None
+        self._exit_stack: AsyncExitStack | None = None
+
+    @abstractmethod
+    def _create_agents(self, mcp_tool: MCPStreamableHTTPTool) -> None:
+        """Instantiate workflow-specific agents using mcp_tool."""
+
+    async def __aenter__(self) -> Self:
+        self._exit_stack = AsyncExitStack()
+        self._mcp_tool = create_mcp_tool(self._mcp_url)
+        await self._exit_stack.enter_async_context(self._mcp_tool)
+        self._create_agents(self._mcp_tool)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self._exit_stack:
+            await self._exit_stack.aclose()
+```
+
+**Why not use Agent context managers for sequential/handoff**: Multiple agents share the same MCP tool. If each agent managed its own MCP lifecycle, the tool would be connected/disconnected between steps. Managing the tool externally via `AsyncExitStack` keeps the connection alive across all agent runs.
+
+**Contrast with concurrent**: In `ParallelSearchWorkflow`, each agent owns its own MCP tool (with `tool_name_prefix`). There, Agent context managers (rc5+) manage each tool independently — fitting because agents run simultaneously.
+
+### Factory Functions for State Isolation
+
+```python
+def create_sequential_workflow(mcp_url=None) -> ResearchPipelineWorkflow:
+    return ResearchPipelineWorkflow(mcp_url=mcp_url)
+
+def create_concurrent_workflow(mcp_url=None) -> ParallelSearchWorkflow:
+    return ParallelSearchWorkflow(mcp_url=mcp_url)
+
+def create_handoff_workflow(mcp_url=None) -> ExpertHandoffWorkflow:
+    return ExpertHandoffWorkflow(mcp_url=mcp_url)
+```
+
+| Factory                        | Class                      | MCP Lifecycle                |
+| ------------------------------ | -------------------------- | ---------------------------- |
+| `create_sequential_workflow()` | `ResearchPipelineWorkflow` | Shared via `MCPWorkflowBase` |
+| `create_concurrent_workflow()` | `ParallelSearchWorkflow`   | Per-agent via Agent ctx mgr  |
+| `create_handoff_workflow()`    | `ExpertHandoffWorkflow`    | Shared via `MCPWorkflowBase` |
+
+Factories guarantee fresh state per request — no leaked conversations, MCP connections, or agent state between runs. In a web API scenario, each incoming request would call the factory.
+
+---
+
 ## Comparison: When to Use Which Pattern
 
 | Scenario                                         | Recommended Pattern              | Speed           | Reason                                           |
@@ -242,17 +315,22 @@ Several optimizations were applied to keep workflow execution practical:
 
 5. **Logging suppression**: `run_workflow.py` sets noisy loggers (`agent_framework`, `graphrag.query`, `asyncio`) to ERROR/CRITICAL level to suppress non-fatal warnings (cancel scope cleanup, token limit, JSON decode).
 
+6. **Multi-provider LLM client**: All workflows use `create_azure_client()` (alias for `create_client()`) from Part 3, supporting Azure OpenAI, GitHub Models, OpenAI, and Ollama. This is transparent to the workflow code — only the `API_HOST` env var changes.
+
 ---
 
 ## What Was Deferred
 
-| Feature                                   | Deferred To     | Reason                                                   |
-| ----------------------------------------- | --------------- | -------------------------------------------------------- |
-| `agent_framework_orchestrations` builders | Future refactor | Beta API; direct composition is more stable for tutorial |
-| Checkpointing across workflow steps       | Part 8          | Production concern                                       |
-| Parallel synthesis in sequential          | Part 8          | Optimization                                             |
-| Human approval gates between steps        | Part 6          | Human-in-the-Loop pattern                                |
-| Evaluating workflow quality               | Part 5          | Agent Evaluation pattern                                 |
+| Feature                                   | Deferred To     | Reason                                                             |
+| ----------------------------------------- | --------------- | ------------------------------------------------------------------ |
+| `agent_framework_orchestrations` builders | Future refactor | Beta API; direct composition is more stable for tutorial           |
+| `HandoffBuilder` integration              | ❌ Removed      | Tested but removed — explicit routing preferred over builder magic |
+| Checkpointing across workflow steps       | Part 8          | Production concern                                                 |
+| Parallel synthesis in sequential          | Part 8          | Optimization                                                       |
+| Human approval gates between steps        | Part 6          | Human-in-the-Loop pattern                                          |
+| Evaluating workflow quality               | Part 5          | Agent Evaluation pattern                                           |
+
+> **Note on HandoffBuilder**: A `HandoffBuilderWorkflow` was implemented using `agent_framework_orchestrations.HandoffBuilder` but was deliberately removed. The builder abstraction hides routing logic and its beta API is subject to breaking changes. Explicit routing in `handoff.py` is more transparent, testable, and stable.
 
 ---
 
@@ -262,13 +340,24 @@ No new dependencies were added for Part 4. All workflow patterns use:
 
 ```toml
 # Already in pyproject.toml from Part 3
-agent-framework-core = "^1.0.0rc2"
-agent-framework-orchestrations = "^1.0.0b260225"
+agent-framework-core = "1.0.0rc5"              # RC — Agent as async context manager
+agent-framework-orchestrations = "1.0.0b260319"  # Beta — not directly used (deferred)
 ```
 
 Key imports:
 
-- `from agents.supervisor import create_azure_client, create_mcp_tool` — shared factory functions
+- `from agents.supervisor import create_azure_client, create_mcp_tool` — shared factory functions (`create_azure_client` is an alias for `create_client()`)
 - `from agent_framework import Agent, MCPStreamableHTTPTool` (behind `TYPE_CHECKING` guard)
-- `from workflows.base import WorkflowResult, WorkflowStep, WorkflowType`
+- `from workflows.base import WorkflowResult, WorkflowStep, WorkflowType, MCPWorkflowBase`
+- `from workflows.base import create_sequential_workflow, create_concurrent_workflow, create_handoff_workflow`
 - Standard `asyncio.gather` for concurrent execution
+- `contextlib.AsyncExitStack` for managing MCP tool lifecycles
+
+### Key rc5 Patterns Used in Workflows
+
+| Pattern                                          | Where Used                          | Purpose                                        |
+| ------------------------------------------------ | ----------------------------------- | ---------------------------------------------- |
+| `Agent` as async context manager                 | `ParallelSearchWorkflow.__aenter__` | MCP tool lifecycle per agent                   |
+| `tool_name_prefix`                               | `concurrent.py`                     | Avoid duplicate tool names for parallel agents |
+| `MCPStreamableHTTPTool` as async context manager | `MCPWorkflowBase.__aenter__`        | Shared MCP tool for sequential/handoff         |
+| `Agent(middleware=[...])`                        | Inherited from Part 3               | Observability via `create_client()`            |

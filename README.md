@@ -224,9 +224,11 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 - `MCPStreamableHTTPTool` for MCP server integration
 - `Agent` as async context manager for automatic MCP lifecycle management
 - System prompt-based tool routing (GPT-4o decides, no code router)
+- Multi-provider LLM support (Azure OpenAI, GitHub Models, OpenAI, Ollama)
+- Three-layer middleware pipeline (timing, token counting, logging, query rewriting)
+- Local `@tool` functions and research delegate sub-agent
 - `AgentSession` for conversation memory across multiple turns
 - MCP transport upgrade: SSE (`/sse`) → Streamable HTTP (`/mcp`)
-- Azure OpenAI client configuration with Azure Identity support
 
 ### Architecture
 
@@ -235,7 +237,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 ```mermaid
 flowchart TD
     A["run_agent.py<br/>CLI entry point · Rich"]
-    B["agents/<br/>KnowledgeCaptainRunner · GPT-4o<br/>MCPStreamableHTTPTool · AgentSession"]
+    B["agents/<br/>KnowledgeCaptainRunner · create_client()<br/>MCPStreamableHTTPTool · Middleware Pipeline<br/>Local @tools · Research Delegate"]
     C["mcp_server/<br/>FastMCP 3.1.x · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
     D["core/<br/>GraphRAG 3.0.x<br/>147 entities<br/>263 relationships<br/>32 communities"]
 
@@ -300,7 +302,10 @@ Key patterns used:
 | `Agent` as async context manager | `async with agent:` auto-manages MCP tool connect/close lifecycle      |
 | `MCPStreamableHTTPTool`          | Connect to MCP servers via Streamable HTTP                             |
 | `tool_name_prefix`               | Avoids duplicate tool names when multiple agents share the same server |
-| `AzureOpenAIChatClient`          | Azure OpenAI wrapper (from `agent_framework.azure`)                    |
+| Multi-provider `create_client()` | Azure OpenAI, GitHub Models, OpenAI, Ollama via `API_HOST` env var     |
+| Middleware pipeline              | `TimingAgent`, `TokenCounting`, `LoggingFunction`, `QueryRewriting`    |
+| Local `@tool` functions          | `format_as_table`, `extract_key_entities` — no MCP round-trip          |
+| `create_research_delegate()`     | Context-isolated sub-agent for deep knowledge graph searches           |
 | `AgentSession`                   | Conversation memory across multiple turns                              |
 
 📖 **Agents Documentation:** See [src/agents/README.md](src/agents/README.md) for complete API reference.
@@ -370,13 +375,15 @@ maf-graphrag-series/
 │   │   └── README.md          # MCP documentation
 │   ├── agents/                # Part 3: Conversational Agent
 │   │   ├── __init__.py        # Public API re-exports
-│   │   ├── config.py          # Agent configuration (Azure OpenAI + MCP URL)
-│   │   ├── prompts.py         # Knowledge Captain system prompt
-│   │   ├── supervisor.py      # KnowledgeCaptainRunner + MCPStreamableHTTPTool
+│   │   ├── config.py          # Multi-provider LLM configuration
+│   │   ├── middleware.py      # Three-layer observability middleware pipeline
+│   │   ├── prompts.py         # Knowledge Captain & Research Delegate prompts
+│   │   ├── supervisor.py      # KnowledgeCaptainRunner, research delegate, MCP tool
+│   │   ├── tools.py           # Local @tool functions (format_as_table, extract_key_entities)
 │   │   └── README.md          # Agents documentation
 │   └── workflows/             # Part 4: Multi-agent orchestration
 │       ├── __init__.py        # Public API exports
-│       ├── base.py            # WorkflowResult, WorkflowStep dataclasses
+│       ├── base.py            # WorkflowResult, WorkflowStep, MCPWorkflowBase, factory functions
 │       ├── sequential.py      # Research Pipeline workflow
 │       ├── concurrent.py      # Parallel Search workflow
 │       ├── handoff.py         # Expert Routing workflow

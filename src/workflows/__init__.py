@@ -41,7 +41,14 @@ See also:
     - workflows/README.md: Architecture diagrams and detailed documentation
 """
 
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.base import (
+    WorkflowResult,
+    WorkflowStep,
+    WorkflowType,
+    create_concurrent_workflow,
+    create_handoff_workflow,
+    create_sequential_workflow,
+)
 from workflows.concurrent import ParallelSearchWorkflow
 from workflows.handoff import ExpertHandoffWorkflow
 from workflows.sequential import ResearchPipelineWorkflow
@@ -55,4 +62,8 @@ __all__ = [
     "ResearchPipelineWorkflow",
     "ParallelSearchWorkflow",
     "ExpertHandoffWorkflow",
+    # Factory functions (state isolation)
+    "create_sequential_workflow",
+    "create_concurrent_workflow",
+    "create_handoff_workflow",
 ]

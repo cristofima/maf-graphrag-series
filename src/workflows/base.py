@@ -20,6 +20,10 @@ from typing_extensions import Self  # noqa: UP035
 if TYPE_CHECKING:
     from agent_framework import MCPStreamableHTTPTool
 
+    from workflows.concurrent import ParallelSearchWorkflow
+    from workflows.handoff import ExpertHandoffWorkflow
+    from workflows.sequential import ResearchPipelineWorkflow
+
 
 class WorkflowType(StrEnum):
     """Available workflow patterns."""
@@ -122,3 +126,60 @@ class MCPWorkflowBase(ABC):
     ) -> None:
         if self._exit_stack:
             await self._exit_stack.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Factory Functions for State Isolation (Improvement 4.4)
+# ---------------------------------------------------------------------------
+
+
+def create_sequential_workflow(mcp_url: str | None = None) -> "ResearchPipelineWorkflow":
+    """Create a fresh sequential workflow with isolated agent state.
+
+    Each call returns a new instance — agents and MCP tool connections
+    are created on ``__aenter__``, ensuring no state leaks between
+    requests.
+
+    Args:
+        mcp_url: Optional MCP server URL override.
+
+    Returns:
+        A new ``ResearchPipelineWorkflow`` ready for ``async with``.
+
+    Example::
+
+        workflow = create_sequential_workflow()
+        async with workflow:
+            result = await workflow.run("Analyze Project Alpha")
+    """
+    from workflows.sequential import ResearchPipelineWorkflow
+
+    return ResearchPipelineWorkflow(mcp_url=mcp_url)
+
+
+def create_concurrent_workflow(mcp_url: str | None = None) -> "ParallelSearchWorkflow":
+    """Create a fresh concurrent workflow with isolated agent state.
+
+    Args:
+        mcp_url: Optional MCP server URL override.
+
+    Returns:
+        A new ``ParallelSearchWorkflow`` ready for ``async with``.
+    """
+    from workflows.concurrent import ParallelSearchWorkflow
+
+    return ParallelSearchWorkflow(mcp_url=mcp_url)
+
+
+def create_handoff_workflow(mcp_url: str | None = None) -> "ExpertHandoffWorkflow":
+    """Create a fresh handoff workflow with isolated agent state.
+
+    Args:
+        mcp_url: Optional MCP server URL override.
+
+    Returns:
+        A new ``ExpertHandoffWorkflow`` ready for ``async with``.
+    """
+    from workflows.handoff import ExpertHandoffWorkflow
+
+    return ExpertHandoffWorkflow(mcp_url=mcp_url)

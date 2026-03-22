@@ -151,6 +151,30 @@ async with ExpertHandoffWorkflow() as wf:
     print(result.answer)
 ```
 
+### Factory Functions (State Isolation)
+
+Each call returns a fresh instance — agents and MCP connections are created on `__aenter__`, ensuring no state leaks between requests:
+
+```python
+from workflows import create_sequential_workflow, create_concurrent_workflow, create_handoff_workflow
+
+# Each call returns a new, isolated workflow instance
+workflow = create_sequential_workflow(mcp_url="http://localhost:8011/mcp")
+async with workflow:
+    result = await workflow.run("Analyze Project Alpha")
+
+# Fresh instance — no shared state from the previous run
+workflow2 = create_sequential_workflow()
+async with workflow2:
+    result2 = await workflow2.run("Analyze Project Beta")
+```
+
+| Factory Function               | Returns                    |
+| ------------------------------ | -------------------------- |
+| `create_sequential_workflow()` | `ResearchPipelineWorkflow` |
+| `create_concurrent_workflow()` | `ParallelSearchWorkflow`   |
+| `create_handoff_workflow()`    | `ExpertHandoffWorkflow`    |
+
 ## WorkflowResult
 
 Every workflow returns a `WorkflowResult`:
@@ -176,6 +200,60 @@ class WorkflowStep:
     elapsed_seconds: float   # Time for this step
     metadata: dict           # Optional extra info
 ```
+
+## Live Output Examples
+
+### Handoff: `poetry run python run_workflow.py handoff "Who leads Project Alpha?"`
+
+```
+Step 1: Router — classifying query...
+Step 1: Router decided 'entity' (1.4s)
+Step 2: EntityExpert — local search...
+Step 2: EntityExpert completed (7.4s)
+
+┏━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┓
+┃ Step ┃ Agent        ┃ Action                                   ┃ Time ┃
+┡━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━┩
+│ 1    │ Router       │ Classify: "Who leads Project Alpha?"     │ 1.4s │
+│ 2    │ EntityExpert │ Entity-focused search for specific facts │ 7.4s │
+└──────┴──────────────┴──────────────────────────────────────────┴──────┘
+Total: 8.8s · 2 steps
+```
+
+### Sequential: `poetry run python run_workflow.py sequential "What are the key projects and their tech stack?"`
+
+```
+Step 1/3: QueryAnalyzer — decomposing query...     (1.9s)
+Step 2/3: KnowledgeSearcher — executing MCP searches... (68.4s)
+Step 3/3: ReportWriter — synthesizing report...     (13.3s)
+
+┏━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Step ┃ Agent             ┃ Action                                                       ┃  Time ┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ 1    │ QueryAnalyzer     │ Decompose: "What are the key projects and their tech stack?" │  1.9s │
+│ 2    │ KnowledgeSearcher │ Execute MCP searches from research plan                      │ 68.4s │
+│ 3    │ ReportWriter      │ Synthesize findings into structured report                   │ 13.3s │
+└──────┴───────────────────┴──────────────────────────────────────────────────────────────┴───────┘
+Total: 83.7s · 3 steps
+```
+
+### Concurrent: `poetry run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"`
+
+```
+Steps 1+2: EntitySearcher + ThemesSearcher running in parallel... (103.9s)
+Step 3: AnswerSynthesizer — merging perspectives...               (5.3s)
+
+┏━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Step ┃ Agent             ┃ Action                                                                       ┃   Time ┃
+┡━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ 1    │ EntitySearcher    │ Entity search: "Who leads Project Alpha and what are the themes?" (parallel) │ 103.9s │
+│ 2    │ ThemesSearcher    │ Themes search: "Who leads Project Alpha and what are the themes?" (parallel) │ 103.9s │
+│ 3    │ AnswerSynthesizer │ Merge entity details + thematic patterns                                     │   5.3s │
+└──────┴───────────────────┴──────────────────────────────────────────────────────────────────────────────┴────────┘
+Total: 109.2s · 3 steps
+```
+
+> **Timing insight**: Handoff (entity-only) completes in ~9s. Sequential takes ~84s. Concurrent takes ~109s due to `global_search` map-reduce over 32 communities.
 
 ## Module Structure
 

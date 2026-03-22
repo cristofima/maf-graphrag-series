@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-03-22
+
+### Added
+
+- **`agents/tools.py`** — Local tool functions for agent-side data processing ([f0d244c](https://github.com/cristofima/maf-graphrag-series/commit/f0d244c))
+  - `format_as_table` — Formats structured data as readable tables for agent responses
+  - `extract_key_entities` — Extracts key entities from text for focused analysis
+- **Factory functions for state isolation** ([7f647f5](https://github.com/cristofima/maf-graphrag-series/commit/7f647f5)) — Factory-based construction for workflow components, improving testability and state isolation
+- **`MCPWorkflowBase`** ([6959427](https://github.com/cristofima/maf-graphrag-series/commit/6959427)) — Shared base class managing MCP tool connections for sequential and handoff workflows
+- **SonarCloud integration** ([7ba54d2](https://github.com/cristofima/maf-graphrag-series/commit/7ba54d2)) — Quality metric badges in README for maintainability, reliability, and security ratings
+- **Testing** ([3ea31a9](https://github.com/cristofima/maf-graphrag-series/commit/3ea31a9), [f0d244c](https://github.com/cristofima/maf-graphrag-series/commit/f0d244c), [7f647f5](https://github.com/cristofima/maf-graphrag-series/commit/7f647f5))
+  - Unit tests for `mcp_server` — config, tools, types, data caching, entity querying, global/local search, source resolver, and input validation
+  - Unit tests for `workflows` — `WorkflowStep` and `WorkflowResult` classes
+  - Tests for local tools (`format_as_table`, `extract_key_entities`), middleware (logging, token counting, query rewriting), multi-provider config, and supervisor module
+  - Factory function unit tests for state isolation
+- **CI enhancements**
+  - Concurrency group with auto-cancel for in-progress runs on the same branch ([08f3c08](https://github.com/cristofima/maf-graphrag-series/commit/08f3c08))
+  - Ruff format check step alongside linting ([bd8e6eb](https://github.com/cristofima/maf-graphrag-series/commit/bd8e6eb))
+  - Least privilege permissions structure ([0b2e745](https://github.com/cristofima/maf-graphrag-series/commit/0b2e745))
+
+### Fixed
+
+- **Source ID type conversion** ([be73f03](https://github.com/cristofima/maf-graphrag-series/commit/be73f03)) — Ensured source ID is converted to string before integer conversion to prevent `TypeError`
+- **WebSocket deprecation** ([5eaeaf7](https://github.com/cristofima/maf-graphrag-series/commit/5eaeaf7)) — Disabled WebSocket protocol in `uvicorn.run()` to avoid `DeprecationWarning`
+- **Linting per-file ignore** ([63e7d2f](https://github.com/cristofima/maf-graphrag-series/commit/63e7d2f)) — Added `UP035` ignore for `types.py` to prevent false positive linting errors
+
+### Changed
+
+- **Agent context management**
+  - Streamlined workflow execution and enhanced agent context management ([f5cf9ad](https://github.com/cristofima/maf-graphrag-series/commit/f5cf9ad))
+  - Simplified `ask` method by removing `timeout` parameter; uses internal `asyncio` timeout instead ([6bbe86b](https://github.com/cristofima/maf-graphrag-series/commit/6bbe86b))
+  - Environment variable loading in correct context with timeout parameter for `KnowledgeCaptainRunner.ask()` ([0f7d372](https://github.com/cristofima/maf-graphrag-series/commit/0f7d372))
+- **MCP server enhancements** ([7a8b92f](https://github.com/cristofima/maf-graphrag-series/commit/7a8b92f)) — Added CORS support, response caching, and improved error handling in tools
+- **Source resolution** ([9ee62ae](https://github.com/cristofima/maf-graphrag-series/commit/9ee62ae)) — Modularized source resolution functions for improved readability and maintainability
+- **Search functions** ([e2e1476](https://github.com/cristofima/maf-graphrag-series/commit/e2e1476)) — Streamlined community level determination and context printing
+- **Workflow CLI** ([70438b5](https://github.com/cristofima/maf-graphrag-series/commit/70438b5)) — Modularized workflow execution and example query display
+- **Replaced Black with Ruff** ([3012173](https://github.com/cristofima/maf-graphrag-series/commit/3012173)) — Ruff now handles both linting and formatting; updated Python version compatibility
+- **Dependencies updated**
+  - `agent-framework-core` → `1.0.0rc5`, `agent-framework-orchestrations` → `1.0.0b260319` ([aa22269](https://github.com/cristofima/maf-graphrag-series/commit/aa22269))
+  - `rich` → `14.0.0`, `fastmcp` → `3.1.0`, `uvicorn` → `>=0.41.0,<1.0.0` ([6f4ee94](https://github.com/cristofima/maf-graphrag-series/commit/6f4ee94))
+  - `pytest` → `9.0.0`, `pytest-asyncio` → `1.3.0`, `pytest-cov` → `7.0.0`, `ruff` → `0.15.0` ([6f4ee94](https://github.com/cristofima/maf-graphrag-series/commit/6f4ee94))
+- **Code quality improvements**
+  - Improved formatting and readability across entry points, agents, core, MCP server, and workflows ([78a516f](https://github.com/cristofima/maf-graphrag-series/commit/78a516f), [3128350](https://github.com/cristofima/maf-graphrag-series/commit/3128350), [73d4835](https://github.com/cristofima/maf-graphrag-series/commit/73d4835))
+  - Improved notebook formatting and readability ([57112c8](https://github.com/cristofima/maf-graphrag-series/commit/57112c8))
+  - Removed unnecessary blank lines in documentation and code comments ([985d1b0](https://github.com/cristofima/maf-graphrag-series/commit/985d1b0))
+- **Test improvements**
+  - Updated assertions to use `pytest.approx` for floating-point comparisons ([f20f111](https://github.com/cristofima/maf-graphrag-series/commit/f20f111))
+  - Cleaned up unused imports and formatting in test files ([823ed12](https://github.com/cristofima/maf-graphrag-series/commit/823ed12))
+- **Coverage configuration** ([4bf9b42](https://github.com/cristofima/maf-graphrag-series/commit/4bf9b42)) — Expanded coverage source to include additional directories
+- **README** ([a25b37c](https://github.com/cristofima/maf-graphrag-series/commit/a25b37c), [a5a5a54](https://github.com/cristofima/maf-graphrag-series/commit/a5a5a54), [10c0001](https://github.com/cristofima/maf-graphrag-series/commit/10c0001)) — Updated for MAF 1.0.0rc5 changes, MCP lifecycle management details, version changes, and test command adjustments
+- **`.env.example`** ([0ae3f63](https://github.com/cristofima/maf-graphrag-series/commit/0ae3f63)) — Added optional MCP server configuration variables (`MCP_HOST`, `MCP_PORT`)
+
+---
+
 ## [3.1.0] - 2026-03-07
 
 ### Added - Part 4: Multi-Agent Workflow Patterns

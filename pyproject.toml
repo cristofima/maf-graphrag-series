@@ -1,6 +1,6 @@
 [project]
 name = "maf-graphrag-series"
-version = "3.2.0"
+version = "3.3.0"
 description = "MAF + GraphRAG: Enterprise Knowledge Agents - A tutorial series on building knowledge graph-powered AI agents with Microsoft Agent Framework"
 readme = "README.md"
 license = "MIT"
@@ -67,6 +67,17 @@ httpx = "^0.28.1"
 # ===== PART 4: MCP Server + Agent Integration =====
 agent-framework-orchestrations = "1.0.0b260319"
 
+# ===== PART 5: Monitoring, Evaluation & Safety =====
+# Azure AI Evaluation SDK with red team support
+azure-ai-evaluation = { version = ">=1.16.2", extras = ["redteam"] }
+
+# OpenTelemetry for agent monitoring
+# Latest: 1.40.0 (2026-03-04). Breaking changes in 1.35 (LogRecordProcessor.emit→on_emit)
+# and 1.39 (LogData removed) do NOT affect us — we use MAF's configure_otel_providers() abstraction.
+opentelemetry-api = "~1.40.0"
+opentelemetry-sdk = "~1.40.0"
+azure-monitor-opentelemetry-exporter = "~1.0.0b49"
+
 [tool.poetry.group.dev.dependencies]
 # Testing framework
 pytest = "^9.0.0"
@@ -93,7 +104,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 minversion = "9.0"
-addopts = "-ra -q --strict-markers --cov=src/core --cov=src/agents --cov=src/mcp_server --cov=src/workflows --cov-report=term-missing"
+addopts = "-ra -q --strict-markers --cov=src/core --cov=src/agents --cov=src/mcp_server --cov=src/workflows --cov=src/evaluation --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]

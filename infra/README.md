@@ -4,15 +4,15 @@ Terraform configuration for provisioning Azure OpenAI and Storage Account for th
 
 ## 📋 Resources Created
 
-| Resource | Purpose | SKU |
-|----------|---------|-----|
-| **Azure OpenAI** | Entity extraction, embeddings | S0 (Pay-as-you-go) |
-| - GPT-4o deployment | Entity/relationship extraction | 30K TPM |
-| - text-embedding-3-large | Document embeddings | 30K TPM |
-| **Azure Storage Account** | GraphRAG output storage | Standard_LRS |
-| - output container | Parquet files (entities, relationships) | - |
-| - cache container | GraphRAG cache | - |
-| - input container | Optional: Document storage | - |
+| Resource                  | Purpose                                 | SKU                |
+| ------------------------- | --------------------------------------- | ------------------ |
+| **Azure OpenAI**          | Entity extraction, embeddings           | S0 (Pay-as-you-go) |
+| - GPT-4o deployment       | Entity/relationship extraction          | 30K TPM            |
+| - text-embedding-3-small  | Document embeddings                     | 30K TPM            |
+| **Azure Storage Account** | GraphRAG output storage                 | Standard_LRS       |
+| - output container        | Parquet files (entities, relationships) | -                  |
+| - cache container         | GraphRAG cache                          | -                  |
+| - input container         | Optional: Document storage              | -                  |
 
 ## 🚀 Quick Start
 
@@ -101,25 +101,26 @@ terraform output -raw openai_primary_key
 
 ## 🔧 Configuration Options
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `subscription_id` | Azure Subscription ID | *Required* |
-| `project_name` | Project name for resources | `maf-graphrag` |
-| `environment` | Environment (dev/staging/prod) | `dev` |
-| `location` | Primary Azure region | `southcentralus` |
-| `openai_location` | Azure OpenAI region | `southcentralus` |
-| `openai_capacity` | TPM capacity (thousands) | `30` |
-| `storage_sku` | Storage replication | `Standard_LRS` |
+| Variable          | Description                    | Default        |
+| ----------------- | ------------------------------ | -------------- |
+| `subscription_id` | Azure Subscription ID          | _Required_     |
+| `project_name`    | Project name for resources     | `maf-graphrag` |
+| `environment`     | Environment (dev/staging/prod) | `dev`          |
+| `location`        | Primary Azure region           | `eastus2`      |
+| `openai_location` | Azure OpenAI region            | `eastus2`      |
+| `openai_capacity` | TPM capacity (thousands)       | `30`           |
+| `storage_sku`     | Storage replication            | `Standard_LRS` |
+| `enable_foundry`  | Create New Foundry Project     | `true`         |
 
 ## 💰 Cost Estimation
 
 ### Azure OpenAI Service
 
-| Model | Price | Usage (GraphRAG indexing) |
-|-------|-------|---------------------------|
-| **GPT-4o** | $2.50 / 1M input tokens | ~$1-5 per indexing run |
-| **GPT-4o** | $10 / 1M output tokens | ~$2-8 per indexing run |
-| **text-embedding-3-large** | $0.13 / 1M tokens | ~$0.10-0.50 per indexing run |
+| Model                      | Price                   | Usage (GraphRAG indexing)    |
+| -------------------------- | ----------------------- | ---------------------------- |
+| **GPT-4o**                 | $2.50 / 1M input tokens | ~$1-5 per indexing run       |
+| **GPT-4o**                 | $10 / 1M output tokens  | ~$2-8 per indexing run       |
+| **text-embedding-3-small** | See Azure pricing page  | ~$0.10-0.50 per indexing run |
 
 **Estimated monthly cost** (5 indexing runs): **$15-70/month**
 
@@ -130,6 +131,15 @@ terraform output -raw openai_primary_key
 - **Total**: < $1/month
 
 **Total Infrastructure**: **$16-71/month**
+
+## 🧠 Azure AI Foundry & Evaluation Dashboard (Always On)
+
+- **New Foundry Project** is provisioned automatically (`enable_foundry = true`).
+- The `.env` file will always include the `AZURE_AI_PROJECT` variable with the Foundry project endpoint.
+- The Evaluation Dashboard and advanced evaluation flows work out-of-the-box, with no manual steps required.
+- If you want to disable Foundry (not recommended), set `enable_foundry = false` and re-apply.
+
+**No manual changes are needed to use the Evaluation Dashboard: everything is ready after `terraform apply`.**
 
 ## 🧹 Cleanup
 
@@ -150,20 +160,20 @@ terraform destroy
 
 This project uses Azure Blob Storage for Terraform remote state:
 
-| Feature | Description |
-|---------|-------------|
-| **State Locking** | Automatic - prevents concurrent modifications |
-| **State Protection** | Versioning + 7-day soft delete |
-| **Encryption** | At rest (Azure managed) and in transit (TLS 1.2+) |
-| **Team Collaboration** | Shared state accessible by team |
+| Feature                | Description                                       |
+| ---------------------- | ------------------------------------------------- |
+| **State Locking**      | Automatic - prevents concurrent modifications     |
+| **State Protection**   | Versioning + 7-day soft delete                    |
+| **Encryption**         | At rest (Azure managed) and in transit (TLS 1.2+) |
+| **Team Collaboration** | Shared state accessible by team                   |
 
 ### Backend Configuration Files
 
-| File | Purpose | Git Status |
-|------|---------|------------|
-| `backend.hcl` | Backend connection details | Git-ignored |
-| `bootstrap/terraform.tfvars` | Bootstrap subscription ID | Git-ignored |
-| `terraform.tfvars` | Main config subscription ID | Git-ignored |
+| File                         | Purpose                     | Git Status  |
+| ---------------------------- | --------------------------- | ----------- |
+| `backend.hcl`                | Backend connection details  | Git-ignored |
+| `bootstrap/terraform.tfvars` | Bootstrap subscription ID   | Git-ignored |
+| `terraform.tfvars`           | Main config subscription ID | Git-ignored |
 
 Cost: ~$0.50/month
 

@@ -30,16 +30,16 @@ variable "environment" {
 variable "location" {
   description = "Azure region for resource group and storage (compute layer)"
   type        = string
-  default     = "westus"
+  default     = "eastus2"
 }
 
 variable "openai_location" {
   description = <<-EOT
     The Azure region for OpenAI resources (may differ from storage region for model availability).
-    Regions with GPT-4o and text-embedding-3-small: eastus, eastus2, westus, canadaeast, australiaeast, japaneast, switzerlandnorth
+    For stable Step 3 + Step 4 evaluation and red teaming, prefer eastus2.
   EOT
   type        = string
-  default     = "westus"
+  default     = "eastus2"
 }
 
 variable "openai_chat_deployment_name" {
@@ -80,4 +80,10 @@ variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "enable_foundry" {
+  description = "Provision New Foundry project under Azure AI Services for evaluation dashboards and red team scans (Part 5)."
+  type        = bool
+  default     = true
 }

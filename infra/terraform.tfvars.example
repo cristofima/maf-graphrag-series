@@ -6,6 +6,7 @@ subscription_id = "your-azure-subscription-id-here"
 # Optional: Customize settings
 # project_name = "maf-graphrag"
 # environment = "dev"
-# location = "southcentralus"
-# openai_location = "southcentralus"
+# location = "eastus2"
+# openai_location = "eastus2"
 # openai_capacity = 30
+# enable_foundry = true

@@ -35,6 +35,8 @@ logs/
 infra/**/.terraform/
 infra/**/*.tfstate
 infra/**/*.tfstate.backup
+infra/**/tfplan
+infra/**/*.tfplan
 infra/**/terraform.tfvars
 infra/**/backend.hcl
 infra/**/.terraform.lock.hcl

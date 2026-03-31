@@ -25,20 +25,22 @@ class EntityAccuracyEvaluator:
     """
 
     def __init__(self, entities_parquet_path: str) -> None:
-        entities_df = pd.read_parquet(entities_parquet_path, columns=["name"])
-        self.valid_entities: set[str] = set(entities_df["name"].str.lower().tolist())
+        entities_df = pd.read_parquet(entities_parquet_path)
+        entity_col = _resolve_entity_name_column(entities_df)
+        self.valid_entities: set[str] = set(entities_df[entity_col].astype(str).str.lower().tolist())
 
-    def __call__(self, *, response: str, **kwargs: object) -> dict[str, Any]:
+    def __call__(self, *, response: object, **kwargs: object) -> dict[str, Any]:
         """Evaluate entity accuracy in a response.
 
         Args:
-            response: The agent's text response to evaluate.
+            response: The agent response to evaluate.
 
         Returns:
             Dict with entity_accuracy score (0.0-1.0), valid/invalid entity lists,
             and total counts.
         """
-        mentioned = self._extract_entity_mentions(response)
+        response_text = _coerce_response_text(response)
+        mentioned = self._extract_entity_mentions(response_text)
 
         if not mentioned:
             return {
@@ -94,3 +96,45 @@ class EntityAccuracyEvaluator:
                 result.append(entity)
 
         return result
+
+
+def _resolve_entity_name_column(entities_df: pd.DataFrame) -> str:
+    """Resolve the entity text column across GraphRAG schema versions."""
+    if "name" in entities_df.columns:
+        return "name"
+    if "title" in entities_df.columns:
+        return "title"
+    raise ValueError("Entities parquet must contain either 'name' or 'title' column.")
+
+
+def _coerce_response_text(response: object) -> str:
+    """Convert evaluator response payloads into plain text."""
+    if isinstance(response, str):
+        return response
+
+    if isinstance(response, list):
+        parts: list[str] = []
+        for item in response:
+            if not isinstance(item, dict):
+                continue
+            if item.get("role") != "assistant":
+                continue
+
+            content = item.get("content")
+            if isinstance(content, str):
+                parts.append(content)
+                continue
+
+            if isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    block_type = str(block.get("type", "")).lower()
+                    if block_type in {"text", "output_text", "input_text"}:
+                        text = block.get("text")
+                        if isinstance(text, str) and text:
+                            parts.append(text)
+
+        return "\n".join(parts)
+
+    return str(response)

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 load_dotenv()
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ EVAL_DATA_PATH = DATASETS_DIR / "eval_data.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
 DATA_QUERY = "${data.query}"
 DATA_RESPONSE = "${data.response}"
+DATA_GROUND_TRUTH = "${data.ground_truth}"
 AI_SCOPE = "https://ai.azure.com/.default"
 EVALS_TIMEOUT_SECONDS = 600
 EVALS_POLL_INTERVAL_SECONDS = 5
@@ -46,6 +47,7 @@ ITEM_QUERY_TEMPLATE = "{{item.query}}"
 ITEM_RESPONSE_TEMPLATE = "{{item.response}}"
 ITEM_GROUND_TRUTH_TEMPLATE = "{{item.ground_truth}}"
 ITEM_TOOL_DEFINITIONS_TEMPLATE = "{{item.tool_definitions}}"
+ITEM_TOOL_CALLS_TEMPLATE = "{{item.tool_calls}}"
 
 
 def run_batch_evaluation(
@@ -82,6 +84,13 @@ def run_batch_evaluation(
     # Built-in quality evaluators (Azure OpenAI as LLM-judge)
     evaluators: dict[str, object] = create_quality_evaluators(config.model_config)
 
+    _, has_structured_tool_calls = _load_new_foundry_rows(data_path)
+    if "tool_call_accuracy" in evaluators and not has_structured_tool_calls:
+        evaluators.pop("tool_call_accuracy", None)
+        logger.warning(
+            "Skipping ToolCallAccuracyEvaluator: no structured tool_call items were found in eval_data response payloads."
+        )
+
     # Some newer chat models/deployments reject ``max_tokens`` and require
     # ``max_completion_tokens``. IntentResolutionEvaluator currently sends
     # ``max_tokens`` internally, so we skip it when the deployment is incompatible.
@@ -96,18 +105,31 @@ def run_batch_evaluation(
 
     # Evaluator config with column mappings
     evaluator_config: dict[str, dict[str, object]] = {
-        "task_adherence": {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}},
-        "tool_call_accuracy": {
+        "task_adherence": {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
+    }
+
+    if "tool_call_accuracy" in evaluators:
+        evaluator_config["tool_call_accuracy"] = {
             "column_mapping": {
                 "query": DATA_QUERY,
                 "response": DATA_RESPONSE,
                 "tool_definitions": "${data.tool_definitions}",
             }
-        },
-    }
+        }
 
     if "intent_resolution" in evaluators:
         evaluator_config["intent_resolution"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
+
+    if "relevance" in evaluators:
+        evaluator_config["relevance"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
+
+    if "coherence" in evaluators:
+        evaluator_config["coherence"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
+
+    if "response_completeness" in evaluators:
+        evaluator_config["response_completeness"] = {
+            "column_mapping": {"ground_truth": DATA_GROUND_TRUTH, "response": DATA_RESPONSE}
+        }
 
     # Custom evaluators use direct response text
     if "entity_accuracy" in evaluators:
@@ -116,7 +138,16 @@ def run_batch_evaluation(
         evaluator_config["relationship_validity"] = {"column_mapping": {"response": DATA_RESPONSE}}
 
     selected_foundry_evaluators = {
-        name for name in ("task_adherence", "intent_resolution", "tool_call_accuracy") if name in evaluators
+        name
+        for name in (
+            "task_adherence",
+            "intent_resolution",
+            "relevance",
+            "coherence",
+            "response_completeness",
+            "tool_call_accuracy",
+        )
+        if name in evaluators
     }
 
     # Evaluate kwargs
@@ -252,9 +283,39 @@ def _extract_last_assistant_text(messages: list[object]) -> str:
     return ""
 
 
-def _load_new_foundry_rows(data_path: Path) -> list[dict[str, object]]:
+def _extract_tool_calls(response: object) -> list[dict[str, object]]:
+    """Extract OpenAI-style tool_call entries from structured response payloads."""
+    if not isinstance(response, list):
+        return []
+
+    tool_calls: list[dict[str, object]] = []
+
+    for message in response:
+        if not isinstance(message, dict):
+            continue
+
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+
+            if item.get("type") != "tool_call":
+                continue
+
+            tool_call = item.get("tool_call")
+            if isinstance(tool_call, dict):
+                tool_calls.append(tool_call)
+
+    return tool_calls
+
+
+def _load_new_foundry_rows(data_path: Path) -> tuple[list[dict[str, object]], bool]:
     """Load JSONL records and normalize them for New Foundry evals."""
     rows: list[dict[str, object]] = []
+    has_structured_tool_calls = False
 
     with data_path.open(encoding="utf-8") as file_handle:
         for line in file_handle:
@@ -267,22 +328,31 @@ def _load_new_foundry_rows(data_path: Path) -> list[dict[str, object]]:
             if not query:
                 continue
 
-            rows.append(
-                {
-                    "query": query,
-                    "response": _extract_response_text(entry.get("response", "")),
-                    "ground_truth": str(entry.get("ground_truth", "")),
-                    "tool_definitions": entry.get("tool_definitions", []),
-                }
-            )
+            row = {
+                "query": query,
+                "response": _extract_response_text(entry.get("response", "")),
+                "ground_truth": str(entry.get("ground_truth", "")),
+                "tool_definitions": entry.get("tool_definitions", []),
+                "tool_calls": _extract_tool_calls(entry.get("response", [])),
+            }
+
+            if row["tool_calls"]:
+                has_structured_tool_calls = True
+
+            rows.append(row)
 
     if not rows:
         raise ValueError(f"No evaluation rows were loaded from {data_path}")
 
-    return rows
+    return rows, has_structured_tool_calls
 
 
-def _build_new_foundry_testing_criteria(evaluator_names: set[str], model_deployment: str) -> list[dict[str, object]]:
+def _build_new_foundry_testing_criteria(
+    evaluator_names: set[str],
+    model_deployment: str,
+    *,
+    has_structured_tool_calls: bool,
+) -> list[dict[str, object]]:
     """Build testing_criteria payload for New Foundry evals API."""
     criteria: list[dict[str, object]] = []
 
@@ -308,7 +378,7 @@ def _build_new_foundry_testing_criteria(evaluator_names: set[str], model_deploym
             }
         )
 
-    if "tool_call_accuracy" in evaluator_names:
+    if "tool_call_accuracy" in evaluator_names and has_structured_tool_calls:
         criteria.append(
             {
                 "type": "azure_ai_evaluator",
@@ -317,23 +387,53 @@ def _build_new_foundry_testing_criteria(evaluator_names: set[str], model_deploym
                 "initialization_parameters": {"deployment_name": model_deployment},
                 "data_mapping": {
                     "query": ITEM_QUERY_TEMPLATE,
-                    "response": ITEM_RESPONSE_TEMPLATE,
+                    "tool_calls": ITEM_TOOL_CALLS_TEMPLATE,
                     "tool_definitions": ITEM_TOOL_DEFINITIONS_TEMPLATE,
                 },
             }
         )
 
-    criteria.append(
-        {
-            "type": "azure_ai_evaluator",
-            "name": "f1",
-            "evaluator_name": "builtin.f1_score",
-            "data_mapping": {
-                "response": ITEM_RESPONSE_TEMPLATE,
-                "ground_truth": ITEM_GROUND_TRUTH_TEMPLATE,
-            },
-        }
-    )
+    if "relevance" in evaluator_names:
+        criteria.append(
+            {
+                "type": "azure_ai_evaluator",
+                "name": "relevance",
+                "evaluator_name": "builtin.relevance",
+                "initialization_parameters": {"deployment_name": model_deployment},
+                "data_mapping": {
+                    "query": ITEM_QUERY_TEMPLATE,
+                    "response": ITEM_RESPONSE_TEMPLATE,
+                },
+            }
+        )
+
+    if "coherence" in evaluator_names:
+        criteria.append(
+            {
+                "type": "azure_ai_evaluator",
+                "name": "coherence",
+                "evaluator_name": "builtin.coherence",
+                "initialization_parameters": {"deployment_name": model_deployment},
+                "data_mapping": {
+                    "query": ITEM_QUERY_TEMPLATE,
+                    "response": ITEM_RESPONSE_TEMPLATE,
+                },
+            }
+        )
+
+    if "response_completeness" in evaluator_names:
+        criteria.append(
+            {
+                "type": "azure_ai_evaluator",
+                "name": "response_completeness",
+                "evaluator_name": "builtin.response_completeness",
+                "initialization_parameters": {"deployment_name": model_deployment},
+                "data_mapping": {
+                    "ground_truth": ITEM_GROUND_TRUTH_TEMPLATE,
+                    "response": ITEM_RESPONSE_TEMPLATE,
+                },
+            }
+        )
 
     return criteria
 
@@ -362,10 +462,17 @@ def _publish_new_foundry_batch_run(
     if not config.azure_ai_project:
         raise RuntimeError("--foundry requires AZURE_AI_PROJECT to publish New Foundry runs.")
 
-    rows = _load_new_foundry_rows(data_path)
+    rows, has_structured_tool_calls = _load_new_foundry_rows(data_path)
     testing_criteria = _build_new_foundry_testing_criteria(
-        evaluator_names, model_deployment=config.eval_chat_deployment
+        evaluator_names,
+        model_deployment=config.eval_chat_deployment,
+        has_structured_tool_calls=has_structured_tool_calls,
     )
+
+    if "tool_call_accuracy" in evaluator_names and not has_structured_tool_calls:
+        logger.warning(
+            "Skipping New Foundry tool_call_accuracy: no structured tool_call items were found in eval_data response payloads."
+        )
     base_url = f"{config.azure_ai_project.rstrip('/')}/openai/v1"
     eval_name = f"graphrag-batch-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
 
@@ -384,6 +491,7 @@ def _publish_new_foundry_batch_run(
                     "response": {"type": "string"},
                     "ground_truth": {"type": "string"},
                     "tool_definitions": {"type": "array"},
+                    "tool_calls": {"type": "array"},
                 },
                 "required": ["query", "response", "ground_truth"],
             },
@@ -483,20 +591,50 @@ def _add_custom_evaluators(evaluators: dict[str, object], config: EvalConfig, *,
     if not include_custom:
         return
 
-    entities_path = Path(config.entities_parquet_path)
-    relationships_path = Path(config.relationships_parquet_path)
+    entities_path = _resolve_parquet_path(
+        Path(config.entities_parquet_path),
+        fallback_name="entities.parquet",
+    )
+    relationships_path = _resolve_parquet_path(
+        Path(config.relationships_parquet_path),
+        fallback_name="relationships.parquet",
+    )
 
     if entities_path.exists():
-        from evaluation.evaluators.entity_accuracy import EntityAccuracyEvaluator
+        try:
+            from evaluation.evaluators.entity_accuracy import EntityAccuracyEvaluator
 
-        evaluators["entity_accuracy"] = EntityAccuracyEvaluator(str(entities_path))
-        logger.info("Added EntityAccuracyEvaluator")
+            evaluators["entity_accuracy"] = EntityAccuracyEvaluator(str(entities_path))
+            logger.info("Added EntityAccuracyEvaluator")
+        except Exception as exc:  # pragma: no cover - depends on local parquet shape
+            logger.warning("Skipping EntityAccuracyEvaluator due to initialization error: %s", exc)
 
     if relationships_path.exists() and entities_path.exists():
-        from evaluation.evaluators.relationship_validity import RelationshipValidityEvaluator
+        try:
+            from evaluation.evaluators.relationship_validity import RelationshipValidityEvaluator
 
-        evaluators["relationship_validity"] = RelationshipValidityEvaluator(str(relationships_path), str(entities_path))
-        logger.info("Added RelationshipValidityEvaluator")
+            evaluators["relationship_validity"] = RelationshipValidityEvaluator(str(relationships_path), str(entities_path))
+            logger.info("Added RelationshipValidityEvaluator")
+        except Exception as exc:  # pragma: no cover - depends on local parquet shape
+            logger.warning("Skipping RelationshipValidityEvaluator due to initialization error: %s", exc)
+
+
+def _resolve_parquet_path(preferred_path: Path, *, fallback_name: str) -> Path:
+    """Resolve graph parquet file path with a backward-compatible fallback.
+
+    GraphRAG output names changed across versions. We first try the configured
+    path, then fall back to the same directory with the newer filename.
+    """
+    if preferred_path.exists():
+        return preferred_path
+
+    fallback_path = preferred_path.parent / fallback_name
+    if fallback_path.exists():
+        logger.info("Using fallback parquet path: %s", fallback_path)
+        return fallback_path
+
+    logger.warning("Parquet path not found: %s", preferred_path)
+    return preferred_path
 
 
 if __name__ == "__main__":

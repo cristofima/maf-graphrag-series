@@ -19,7 +19,10 @@ golden_questions.jsonl
          │
          ├── TaskAdherenceEvaluator        (Azure OpenAI as judge)
          ├── IntentResolutionEvaluator     (Azure OpenAI as judge)
-         ├── ToolCallAccuracyEvaluator     (Azure OpenAI as judge)
+         ├── RelevanceEvaluator            (Azure OpenAI as judge)
+         ├── CoherenceEvaluator            (Azure OpenAI as judge)
+         ├── ResponseCompletenessEvaluator (Azure OpenAI as judge)
+         ├── ToolCallAccuracyEvaluator     (Azure OpenAI as judge, conditional)
          ├── EntityAccuracyEvaluator       (graph Parquet, no LLM)
          └── RelationshipValidityEvaluator (graph Parquet, no LLM)
          │
@@ -114,8 +117,10 @@ Evaluation data written to src/evaluation/datasets/eval_data.jsonl
 
 ### Step 3 — Run batch evaluation
 
-Uses Azure OpenAI as the LLM-judge for the three built-in quality evaluators, plus
-the two custom graph evaluators that validate against the Parquet files:
+Uses Azure OpenAI as the LLM-judge for five built-in quality evaluators, plus
+the two custom graph evaluators that validate against the Parquet files.
+`ToolCallAccuracyEvaluator` is included conditionally when structured `tool_call`
+entries are present in `eval_data.jsonl`:
 
 > Note: if your chat deployment rejects `max_tokens` (requires `max_completion_tokens`),
 > the script automatically skips `IntentResolutionEvaluator` and continues with the
@@ -141,6 +146,26 @@ Results are written to:
 
 When `--foundry` is enabled, Step 3 now publishes through New Foundry `openai/v1/evals`
 and writes the nextgen `report_url` into the local report (`studio_url` field).
+
+### Latest Foundry Snapshot (March 2026)
+
+Latest quality run summary from Azure AI Foundry (10 rows):
+
+| Metric                | Value  | Rows  |
+| --------------------- | ------ | ----- |
+| Task adherence        | 80%    | 8/10  |
+| Intent resolution     | 100%   | 10/10 |
+| Relevance             | 100%   | 10/10 |
+| Coherence             | 100%   | 10/10 |
+| Response completeness | 100%   | 10/10 |
+| Prompt tokens         | 85,686 | -     |
+| Completion tokens     | 5,048  | -     |
+
+Interpretation:
+
+- The current bottleneck is `task_adherence` (8/10), while semantic quality signals are stable.
+- `ToolCallAccuracyEvaluator` is emitted only when `eval_data.jsonl` contains structured `tool_call` items.
+- Custom graph evaluators remain available in local artifacts (`evaluation_results.json`, `evaluation_report.md`).
 
 ### Step 4 — (Optional) Red team safety scan
 
@@ -210,11 +235,11 @@ that project in a region that supports Step 4 red teaming.
 
 Use these Foundry views when documenting Part 5 outcomes:
 
-| Screenshot                                                                             | Include in        | Why it is useful                                                                                          |
-| -------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------- |
-| Batch run details (`graphrag-batch-...-run`) with overall metrics and detailed rows    | Evaluation README | Shows evaluator results (`task_adherence`, `intent_resolution`, `tool_call_accuracy`, `f1`) in one place. |
-| Red team run details (`graphrag-redteam-...-run`) with ASR metrics and attack outcomes | Evaluation README | Shows safety metrics by risk category and attack strategy.                                                |
-| Evaluations list page and Red team list page                                           | Root README       | Gives a quick project-level proof that both quality and safety workflows run successfully.                |
+| Screenshot                                                                             | Include in        | Why it is useful                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Batch run details (`graphrag-batch-...-run`) with overall metrics and detailed rows    | Evaluation README | Shows quality results (`task_adherence`, `intent_resolution`, `relevance`, `coherence`, `response_completeness`) and token usage in one place. |
+| Red team run details (`graphrag-redteam-...-run`) with ASR metrics and attack outcomes | Evaluation README | Shows safety metrics by risk category and attack strategy.                                                                                     |
+| Evaluations list page and Red team list page                                           | Root README       | Gives a quick project-level proof that both quality and safety workflows run successfully.                                                     |
 
 Avoid using reduced-detail run pages that only show token counts, they do not communicate evaluation quality.
 
@@ -252,10 +277,18 @@ the `.env` file generated by `terraform output -raw env_file_content > ../.env`.
 
 ### Built-in (LLM-as-judge, require Azure OpenAI)
 
+| Evaluator                       | What it measures                               | Output    |
+| ------------------------------- | ---------------------------------------------- | --------- |
+| `TaskAdherenceEvaluator`        | Does the response complete the requested task? | 0–5 scale |
+| `IntentResolutionEvaluator`     | Does the response address the user's intent?   | 0–5 scale |
+| `RelevanceEvaluator`            | Is the response relevant to the query?         | 0–5 scale |
+| `CoherenceEvaluator`            | Is the response logically consistent?          | 0–5 scale |
+| `ResponseCompletenessEvaluator` | Does the response cover expected content?      | 0–5 scale |
+
+### Built-in tool behavior (conditional)
+
 | Evaluator                   | What it measures                                     | Output    |
 | --------------------------- | ---------------------------------------------------- | --------- |
-| `TaskAdherenceEvaluator`    | Does the response complete the requested task?       | 0–5 scale |
-| `IntentResolutionEvaluator` | Does the response address the user's intent?         | 0–5 scale |
 | `ToolCallAccuracyEvaluator` | Were the right tools called with correct parameters? | 0–1 scale |
 
 ### Custom (graph-based, no LLM)

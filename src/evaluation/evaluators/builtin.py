@@ -204,7 +204,10 @@ def create_quality_evaluators(model_config: dict[str, str]) -> dict[str, Any]:
         Dict mapping evaluator names to evaluator instances.
     """
     from azure.ai.evaluation import (
+        CoherenceEvaluator,
         IntentResolutionEvaluator,
+        RelevanceEvaluator,
+        ResponseCompletenessEvaluator,
         TaskAdherenceEvaluator,
         ToolCallAccuracyEvaluator,
     )
@@ -212,6 +215,9 @@ def create_quality_evaluators(model_config: dict[str, str]) -> dict[str, Any]:
     return {
         "task_adherence": TaskAdherenceEvaluator(model_config=model_config),
         "intent_resolution": IntentResolutionEvaluator(model_config=model_config),
+        "relevance": RelevanceEvaluator(model_config=model_config),
+        "coherence": CoherenceEvaluator(model_config=model_config),
+        "response_completeness": ResponseCompletenessEvaluator(model_config=model_config),
         "tool_call_accuracy": ToolCallAccuracyEvaluator(model_config=model_config),
     }
 

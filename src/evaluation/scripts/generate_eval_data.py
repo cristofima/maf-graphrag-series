@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ensure src/ is importable
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 logger = logging.getLogger(__name__)
 

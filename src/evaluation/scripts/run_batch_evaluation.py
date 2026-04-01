@@ -613,7 +613,9 @@ def _add_custom_evaluators(evaluators: dict[str, object], config: EvalConfig, *,
         try:
             from evaluation.evaluators.relationship_validity import RelationshipValidityEvaluator
 
-            evaluators["relationship_validity"] = RelationshipValidityEvaluator(str(relationships_path), str(entities_path))
+            evaluators["relationship_validity"] = RelationshipValidityEvaluator(
+                str(relationships_path), str(entities_path)
+            )
             logger.info("Added RelationshipValidityEvaluator")
         except Exception as exc:  # pragma: no cover - depends on local parquet shape
             logger.warning("Skipping RelationshipValidityEvaluator due to initialization error: %s", exc)

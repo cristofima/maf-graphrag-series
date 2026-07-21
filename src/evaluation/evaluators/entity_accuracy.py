@@ -111,30 +111,37 @@ def _coerce_response_text(response: object) -> str:
     """Convert evaluator response payloads into plain text."""
     if isinstance(response, str):
         return response
-
     if isinstance(response, list):
-        parts: list[str] = []
-        for item in response:
-            if not isinstance(item, dict):
-                continue
-            if item.get("role") != "assistant":
-                continue
-
-            content = item.get("content")
-            if isinstance(content, str):
-                parts.append(content)
-                continue
-
-            if isinstance(content, list):
-                for block in content:
-                    if not isinstance(block, dict):
-                        continue
-                    block_type = str(block.get("type", "")).lower()
-                    if block_type in {"text", "output_text", "input_text"}:
-                        text = block.get("text")
-                        if isinstance(text, str) and text:
-                            parts.append(text)
-
-        return "\n".join(parts)
-
+        return _extract_text_from_messages(response)
     return str(response)
+
+
+def _extract_text_from_messages(messages: list[object]) -> str:
+    """Extract text from a list of message dicts, keeping only assistant turns."""
+    parts: list[str] = []
+    for item in messages:
+        if isinstance(item, dict) and item.get("role") == "assistant":
+            _collect_assistant_text(item, parts)
+    return "\n".join(parts)
+
+
+def _collect_assistant_text(item: dict[str, object], parts: list[str]) -> None:
+    """Append text from a single assistant message dict into parts."""
+    content = item.get("content")
+    if isinstance(content, str):
+        parts.append(content)
+    elif isinstance(content, list):
+        _collect_content_block_text(content, parts)
+
+
+def _collect_content_block_text(content: list[object], parts: list[str]) -> None:
+    """Append text from content blocks of recognised types into parts."""
+    _TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if str(block.get("type", "")).lower() not in _TEXT_BLOCK_TYPES:
+            continue
+        text = block.get("text")
+        if isinstance(text, str) and text:
+            parts.append(text)

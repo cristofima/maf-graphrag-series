@@ -112,39 +112,7 @@ def run_batch_evaluation(
 
     _add_custom_evaluators(evaluators, config, include_custom=include_custom)
 
-    # Evaluator config with column mappings
-    evaluator_config: dict[str, dict[str, object]] = {
-        "task_adherence": {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
-    }
-
-    if "tool_call_accuracy" in evaluators:
-        evaluator_config["tool_call_accuracy"] = {
-            "column_mapping": {
-                "query": DATA_QUERY,
-                "response": DATA_RESPONSE,
-                "tool_definitions": "${data.tool_definitions}",
-            }
-        }
-
-    if "intent_resolution" in evaluators:
-        evaluator_config["intent_resolution"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
-
-    if "relevance" in evaluators:
-        evaluator_config["relevance"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
-
-    if "coherence" in evaluators:
-        evaluator_config["coherence"] = {"column_mapping": {"query": DATA_QUERY, "response": DATA_RESPONSE}}
-
-    if "response_completeness" in evaluators:
-        evaluator_config["response_completeness"] = {
-            "column_mapping": {"ground_truth": DATA_GROUND_TRUTH, "response": DATA_RESPONSE}
-        }
-
-    # Custom evaluators use direct response text
-    if "entity_accuracy" in evaluators:
-        evaluator_config["entity_accuracy"] = {"column_mapping": {"response": DATA_RESPONSE}}
-    if "relationship_validity" in evaluators:
-        evaluator_config["relationship_validity"] = {"column_mapping": {"response": DATA_RESPONSE}}
+    evaluator_config = _build_evaluator_config(evaluators)
 
     selected_foundry_evaluators = {
         name
@@ -186,6 +154,29 @@ def run_batch_evaluation(
     _write_report(result, output_dir / "evaluation_report.md")
 
     return result
+
+
+def _build_evaluator_config(evaluators: dict[str, object]) -> dict[str, dict[str, object]]:
+    """Build column-mapping config for all active evaluators."""
+    _query_response = {"query": DATA_QUERY, "response": DATA_RESPONSE}
+    config: dict[str, dict[str, object]] = {
+        "task_adherence": {"column_mapping": _query_response},
+    }
+    if "tool_call_accuracy" in evaluators:
+        config["tool_call_accuracy"] = {
+            "column_mapping": {**_query_response, "tool_definitions": "${data.tool_definitions}"}
+        }
+    for name in ("intent_resolution", "relevance", "coherence"):
+        if name in evaluators:
+            config[name] = {"column_mapping": _query_response}
+    if "response_completeness" in evaluators:
+        config["response_completeness"] = {
+            "column_mapping": {"ground_truth": DATA_GROUND_TRUTH, "response": DATA_RESPONSE}
+        }
+    for name in ("entity_accuracy", "relationship_validity"):
+        if name in evaluators:
+            config[name] = {"column_mapping": {"response": DATA_RESPONSE}}
+    return config
 
 
 def _write_report(result: dict[str, object], output_path: Path) -> None:
@@ -294,29 +285,24 @@ def _extract_tool_calls(response: object) -> list[dict[str, object]]:
     """Extract OpenAI-style tool_call entries from structured response payloads."""
     if not isinstance(response, list):
         return []
-
     tool_calls: list[dict[str, object]] = []
-
     for message in response:
-        if not isinstance(message, dict):
-            continue
-
-        content = message.get("content")
-        if not isinstance(content, list):
-            continue
-
-        for item in content:
-            if not isinstance(item, dict):
-                continue
-
-            if item.get("type") != "tool_call":
-                continue
-
-            tool_call = item.get("tool_call")
-            if isinstance(tool_call, dict):
-                tool_calls.append(tool_call)
-
+        if isinstance(message, dict):
+            _collect_tool_calls_from_message(message, tool_calls)
     return tool_calls
+
+
+def _collect_tool_calls_from_message(message: dict[str, object], tool_calls: list[dict[str, object]]) -> None:
+    """Append any tool_call items from a single message into tool_calls."""
+    content = message.get("content")
+    if not isinstance(content, list):
+        return
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "tool_call":
+            continue
+        tool_call = item.get("tool_call")
+        if isinstance(tool_call, dict):
+            tool_calls.append(tool_call)
 
 
 def _load_new_foundry_rows(data_path: Path) -> tuple[list[dict[str, object]], bool]:

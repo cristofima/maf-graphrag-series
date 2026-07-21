@@ -14,6 +14,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+_QUERY_DESC = "The question to answer"
+_COMMUNITY_LEVEL_DESC = "Community hierarchy level (0-2)"
+_RESPONSE_TYPE_DESC = "Format of response"
+
 # MCP tool definitions for the GraphRAG server
 # Used by tool-focused evaluators (ToolCallAccuracy, ToolSelection, etc.)
 GRAPHRAG_TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -23,14 +27,14 @@ GRAPHRAG_TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "The question to answer"},
+                "query": {"type": "string", "description": _QUERY_DESC},
                 "search_type": {
                     "type": "string",
                     "description": "local for entity-focused or global for thematic search",
                     "enum": ["local", "global"],
                 },
-                "community_level": {"type": "integer", "description": "Community hierarchy level (0-2)"},
-                "response_type": {"type": "string", "description": "Format of response"},
+                "community_level": {"type": "integer", "description": _COMMUNITY_LEVEL_DESC},
+                "response_type": {"type": "string", "description": _RESPONSE_TYPE_DESC},
             },
             "required": ["query"],
         },
@@ -41,9 +45,9 @@ GRAPHRAG_TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "The question to answer"},
-                "community_level": {"type": "integer", "description": "Community hierarchy level (0-2)"},
-                "response_type": {"type": "string", "description": "Format of response"},
+                "query": {"type": "string", "description": _QUERY_DESC},
+                "community_level": {"type": "integer", "description": _COMMUNITY_LEVEL_DESC},
+                "response_type": {"type": "string", "description": _RESPONSE_TYPE_DESC},
             },
             "required": ["query"],
         },
@@ -54,9 +58,9 @@ GRAPHRAG_TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "The question to answer"},
-                "community_level": {"type": "integer", "description": "Community hierarchy level (0-2)"},
-                "response_type": {"type": "string", "description": "Format of response"},
+                "query": {"type": "string", "description": _QUERY_DESC},
+                "community_level": {"type": "integer", "description": _COMMUNITY_LEVEL_DESC},
+                "response_type": {"type": "string", "description": _RESPONSE_TYPE_DESC},
             },
             "required": ["query"],
         },
@@ -132,25 +136,25 @@ def convert_to_evaluator_messages(messages: list[Any]) -> list[dict[str, Any]]:
 
 def _extract_text(msg: Any) -> str:
     """Extract text content from a MAF message."""
-    # Try .text attribute first (rc5+)
     if hasattr(msg, "text") and msg.text:
         return str(msg.text)
-
-    # Try .content attribute
     if hasattr(msg, "content"):
-        content = msg.content
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            texts = []
-            for item in content:
-                if isinstance(item, str):
-                    texts.append(item)
-                elif hasattr(item, "text"):
-                    texts.append(str(item.text))
-            return " ".join(texts) if texts else ""
-
+        return _extract_text_from_content(msg.content)
     return ""
+
+
+def _extract_text_from_content(content: Any) -> str:
+    """Extract plain text from a message content field (str or list)."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    texts = [
+        item if isinstance(item, str) else str(item.text)
+        for item in content
+        if isinstance(item, str) or hasattr(item, "text")
+    ]
+    return " ".join(texts) if texts else ""
 
 
 def _extract_assistant_content(msg: Any) -> list[dict[str, Any]]:

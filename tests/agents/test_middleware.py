@@ -200,13 +200,14 @@ class TestQueryRewritingChatMiddleware:
             self._make_msg("assistant", "Sarah Chen."),
             self._make_msg("user", "What is Project Beta?"),
         ]
+        initial_count = len(context.messages)
         call_next = AsyncMock()
 
         await mw.process(context, call_next)
 
         call_next.assert_awaited_once()
         # No anaphora → no injection
-        assert len(context.messages) == 4
+        assert len(context.messages) == initial_count
 
     async def test_detects_various_pronouns(self):
         """Should detect multiple pronoun types."""
@@ -384,7 +385,7 @@ class TestSummarizationMiddleware:
         assert token_counter.total_tokens == 200
 
     async def test_handles_missing_client_gracefully(self):
-        mw, token_counter = self._make_mw(total_tokens=200, threshold=100)
+        mw, _ = self._make_mw(total_tokens=200, threshold=100)
 
         msg1 = MagicMock(role="user", text="Hello")
         msg2 = MagicMock(role="assistant", text="Hi")

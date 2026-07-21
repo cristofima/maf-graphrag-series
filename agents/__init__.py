@@ -17,32 +17,38 @@ if src_path not in sys.path:
 
 __path__ = [str(_PKG)]
 
+_MOD_CONFIG = "agents.config"
+_MOD_MIDDLEWARE = "agents.middleware"
+_MOD_PROMPTS = "agents.prompts"
+_MOD_SUPERVISOR = "agents.supervisor"
+_MOD_TOOLS = "agents.tools"
+
 _SYMBOL_TO_MODULE = {
     # Configuration
-    "AgentConfig": "agents.config",
-    "get_agent_config": "agents.config",
-    "is_azure": "agents.config",
+    "AgentConfig": _MOD_CONFIG,
+    "get_agent_config": _MOD_CONFIG,
+    "is_azure": _MOD_CONFIG,
     # Middleware
-    "TimingAgentMiddleware": "agents.middleware",
-    "TokenCountingChatMiddleware": "agents.middleware",
-    "LoggingFunctionMiddleware": "agents.middleware",
-    "QueryRewritingChatMiddleware": "agents.middleware",
-    "SummarizationMiddleware": "agents.middleware",
+    "TimingAgentMiddleware": _MOD_MIDDLEWARE,
+    "TokenCountingChatMiddleware": _MOD_MIDDLEWARE,
+    "LoggingFunctionMiddleware": _MOD_MIDDLEWARE,
+    "QueryRewritingChatMiddleware": _MOD_MIDDLEWARE,
+    "SummarizationMiddleware": _MOD_MIDDLEWARE,
     # Prompts
-    "KNOWLEDGE_CAPTAIN_PROMPT": "agents.prompts",
-    "SIMPLE_ASSISTANT_PROMPT": "agents.prompts",
-    "RESEARCH_DELEGATE_PROMPT": "agents.prompts",
+    "KNOWLEDGE_CAPTAIN_PROMPT": _MOD_PROMPTS,
+    "SIMPLE_ASSISTANT_PROMPT": _MOD_PROMPTS,
+    "RESEARCH_DELEGATE_PROMPT": _MOD_PROMPTS,
     # Supervisor
-    "KnowledgeCaptainRunner": "agents.supervisor",
-    "create_knowledge_captain": "agents.supervisor",
-    "create_client": "agents.supervisor",
-    "create_azure_client": "agents.supervisor",
-    "create_mcp_tool": "agents.supervisor",
-    "create_research_delegate": "agents.supervisor",
-    "AgentResponse": "agents.supervisor",
+    "KnowledgeCaptainRunner": _MOD_SUPERVISOR,
+    "create_knowledge_captain": _MOD_SUPERVISOR,
+    "create_client": _MOD_SUPERVISOR,
+    "create_azure_client": _MOD_SUPERVISOR,
+    "create_mcp_tool": _MOD_SUPERVISOR,
+    "create_research_delegate": _MOD_SUPERVISOR,
+    "AgentResponse": _MOD_SUPERVISOR,
     # Local tools
-    "format_as_table": "agents.tools",
-    "extract_key_entities": "agents.tools",
+    "format_as_table": _MOD_TOOLS,
+    "extract_key_entities": _MOD_TOOLS,
 }
 
 __all__ = [

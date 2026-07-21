@@ -17,19 +17,24 @@ if src_path not in sys.path:
 
 __path__ = [str(_PKG)]
 
+_MOD_BASE = "workflows.base"
+_MOD_SEQUENTIAL = "workflows.sequential"
+_MOD_CONCURRENT = "workflows.concurrent"
+_MOD_HANDOFF = "workflows.handoff"
+
 _SYMBOL_TO_MODULE = {
     # Base types
-    "WorkflowResult": "workflows.base",
-    "WorkflowStep": "workflows.base",
-    "WorkflowType": "workflows.base",
+    "WorkflowResult": _MOD_BASE,
+    "WorkflowStep": _MOD_BASE,
+    "WorkflowType": _MOD_BASE,
     # Workflow classes
-    "ResearchPipelineWorkflow": "workflows.sequential",
-    "ParallelSearchWorkflow": "workflows.concurrent",
-    "ExpertHandoffWorkflow": "workflows.handoff",
+    "ResearchPipelineWorkflow": _MOD_SEQUENTIAL,
+    "ParallelSearchWorkflow": _MOD_CONCURRENT,
+    "ExpertHandoffWorkflow": _MOD_HANDOFF,
     # Factory functions
-    "create_sequential_workflow": "workflows.base",
-    "create_concurrent_workflow": "workflows.base",
-    "create_handoff_workflow": "workflows.base",
+    "create_sequential_workflow": _MOD_BASE,
+    "create_concurrent_workflow": _MOD_BASE,
+    "create_handoff_workflow": _MOD_BASE,
 }
 
 __all__ = [

@@ -19,7 +19,7 @@ This repository contains the code for the **MAF + GraphRAG** article series, dem
 | 2    | GraphRAG MCP Server      | ✅ Complete | `src/mcp_server/` |
 | 3    | Supervisor Agent Pattern | ✅ Complete | `src/agents/`     |
 | 4    | Workflow Patterns        | ✅ Complete | `src/workflows/`  |
-| 5    | Agent Evaluation         | ⏳ Planned  | —                 |
+| 5    | Agent Evaluation         | ✅ Complete | `src/evaluation/` |
 | 6    | Human-in-the-Loop        | ⏳ Planned  | —                 |
 | 7    | Tool Registry            | ⏳ Planned  | —                 |
 | 8    | Production Deployment    | ⏳ Planned  | —                 |
@@ -513,13 +513,98 @@ async with ExpertHandoffWorkflow() as wf:
 
 ---
 
+## Part 5: Agent Evaluation
+
+End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based evaluators, OpenTelemetry tracing, and optional red team safety scanning.
+
+### What You'll Learn
+
+- Azure AI Evaluation SDK (`TaskAdherence`, `IntentResolution`, semantic quality evaluators)
+- Custom evaluators that validate against the GraphRAG Parquet knowledge graph (no LLM needed)
+- MAF agent observability with OpenTelemetry and Application Insights
+- Red team safety scanning with `RedTeam` (requires Azure AI Foundry)
+
+### Latest Foundry Snapshot (March 2026)
+
+Most recent Step 3 quality run summary (10 rows):
+
+| Metric                | Score  | Rows  |
+| --------------------- | ------ | ----- |
+| Task adherence        | 80%    | 8/10  |
+| Intent resolution     | 100%   | 10/10 |
+| Relevance             | 100%   | 10/10 |
+| Coherence             | 100%   | 10/10 |
+| Response completeness | 100%   | 10/10 |
+| Prompt tokens         | 85,686 | -     |
+| Completion tokens     | 5,048  | -     |
+
+`ToolCallAccuracyEvaluator` appears only when the evaluation dataset includes structured `tool_call` payloads.
+
+### Evaluation Pipeline
+
+| Step | Script                    | What it does                                         |
+| ---- | ------------------------- | ---------------------------------------------------- |
+| 1    | `run_mcp_server.py`       | Start the MCP server (prerequisite)                  |
+| 2    | `generate_eval_data.py`   | Run agent on 10 golden questions → `eval_data.jsonl` |
+| 3    | `run_batch_evaluation.py` | Built-in + custom evaluators, write results + report |
+| 4    | `run_redteam.py`          | Safety scan (optional, requires Azure AI Foundry)    |
+
+### Quick Start
+
+```powershell
+# Terminal 1: Start MCP server
+poetry run python run_mcp_server.py
+
+# Terminal 2: Full pipeline
+poetry run python -m evaluation.scripts.generate_eval_data
+poetry run python -m evaluation.scripts.run_batch_evaluation
+
+# With Foundry dashboard
+poetry run python -m evaluation.scripts.run_batch_evaluation --foundry
+
+# Red team scan (requires AZURE_AI_PROJECT)
+poetry run python -m evaluation.scripts.run_redteam
+```
+
+**Configuration note**: keep `AZURE_OPENAI_API_VERSION` and `AZURE_OPENAI_EVAL_API_VERSION` separate. In this repo, agent and workflow chat calls are validated with `AZURE_OPENAI_API_VERSION=2024-11-20`, while Azure AI Evaluation built-in evaluators are validated with `AZURE_OPENAI_EVAL_API_VERSION=2025-04-01-preview`. Reusing `2024-11-20` for the evaluators can return `404 Resource not found` even when the same endpoint and deployment work for the workflow path.
+
+### Evaluators
+
+| Evaluator                       | Type                    | What it measures                                             |
+| ------------------------------- | ----------------------- | ------------------------------------------------------------ |
+| `TaskAdherenceEvaluator`        | LLM-judge               | Does the response complete the task?                         |
+| `IntentResolutionEvaluator`     | LLM-judge               | Does the response address user intent?                       |
+| `RelevanceEvaluator`            | LLM-judge               | Is the response relevant to the query?                       |
+| `CoherenceEvaluator`            | LLM-judge               | Is the response logically consistent?                        |
+| `ResponseCompletenessEvaluator` | LLM-judge               | Does the response cover expected content?                    |
+| `ToolCallAccuracyEvaluator`     | LLM-judge (conditional) | Were the right graph tools called correctly?                 |
+| `EntityAccuracyEvaluator`       | Graph Parquet           | Are named entities in the response valid graph entities?     |
+| `RelationshipValidityEvaluator` | Graph Parquet           | Do entity co-occurrences reflect actual graph relationships? |
+
+### Screenshot Guidance
+
+For documentation clarity, use this split:
+
+| Screenshot                                                     | Best location              | Reason                                                      |
+| -------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------- |
+| Evaluations list page                                          | Root README                | High-level proof that batch evaluation runs are completing. |
+| Red team list page                                             | Root README                | High-level proof that safety scans are running.             |
+| Batch run details page with metrics table                      | `src/evaluation/README.md` | Step 3 metric interpretation and troubleshooting.           |
+| Red team run details page with ASR columns and attack outcomes | `src/evaluation/README.md` | Step 4 safety evidence and attack-level analysis.           |
+
+📖 **Evaluation Documentation:** See [src/evaluation/README.md](src/evaluation/README.md) for the complete reference.
+
+---
+
 ## Azure AI Services Used
 
-| Service             | Purpose                    | Model/Version          |
-| ------------------- | -------------------------- | ---------------------- |
-| **Azure OpenAI**    | Entity extraction, queries | GPT-4o                 |
-| **Azure OpenAI**    | Document embeddings        | text-embedding-3-small |
-| **Agent Framework** | Multi-agent orchestration  | 1.0.0rc5               |
+| Service                  | Purpose                    | Model/Version                |
+| ------------------------ | -------------------------- | ---------------------------- |
+| **Azure OpenAI**         | Entity extraction, queries | GPT-4o                       |
+| **Azure OpenAI**         | Document embeddings        | text-embedding-3-small       |
+| **Agent Framework**      | Multi-agent orchestration  | 1.0.0rc5                     |
+| **Azure AI Evaluation**  | LLM-as-judge + red team    | `azure-ai-evaluation` 1.16.x |
+| **Application Insights** | Agent observability traces | via OpenTelemetry 1.40.x     |
 
 ## Key Files
 
@@ -530,6 +615,7 @@ async with ExpertHandoffWorkflow() as wf:
 | `src/mcp_server/` | MCP server exposing GraphRAG tools                        |
 | `src/agents/`     | Knowledge Captain conversational agent                    |
 | `src/workflows/`  | Multi-agent workflow patterns                             |
+| `src/evaluation/` | Evaluation pipeline — evaluators, monitoring, scripts     |
 | `.env`            | Azure OpenAI credentials (create from .env.example)       |
 
 ## License

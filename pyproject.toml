@@ -37,56 +37,59 @@ python = ">=3.11,<3.13"
 
 # ===== PART 1: GraphRAG Fundamentals =====
 # Microsoft GraphRAG - Knowledge graph construction
-graphrag = "~3.0.2"
+graphrag = "~3.0.9"
 
 # Data processing for parquet files and dataframes
 pandas = "^2.3.0"
 pyarrow = "^22.0.0"
 
 # CLI formatting
-rich = "^14.0.0"
+rich = "^15.0.0"
 
 # ===== PART 2: MCP Server + Agent Integration =====
 # Environment configuration
-python-dotenv = "^1.2.1"
+python-dotenv = "^1.2.2"
 
 # MCP server framework
-fastmcp = "^3.1.0"
-uvicorn = { version = ">=0.41.0,<1.0.0", extras = ["standard"] }
+fastmcp = "^3.4.4"
+uvicorn = { version = "^0.51.0", extras = ["standard"] }
 
 # ===== PART 3: Supervisor Agent Pattern =====
 # Microsoft Agent Framework - Core agent abstractions and orchestration
-agent-framework-core = "1.0.0rc5"
+agent-framework-core = "^1.11.0"
+agent-framework-openai = "^1.10.1"
 
 # Azure Identity for authentication
-azure-identity = "^1.25.2"
+azure-identity = "^1.25.3"
 
 # HTTP client for MCP integration
 httpx = "^0.28.1"
 
 # ===== PART 4: MCP Server + Agent Integration =====
-agent-framework-orchestrations = "1.0.0b260319"
+agent-framework-orchestrations = "^1.0.0"
 
 # ===== PART 5: Monitoring, Evaluation & Safety =====
 # Azure AI Evaluation SDK with red team support
-azure-ai-evaluation = { version = ">=1.16.2", extras = ["redteam"] }
+azure-ai-evaluation = { version = ">=1.18.1", extras = ["redteam"] }
 
 # OpenTelemetry for agent monitoring
-# Latest: 1.40.0 (2026-03-04). Breaking changes in 1.35 (LogRecordProcessor.emit→on_emit)
-# and 1.39 (LogData removed) do NOT affect us — we use MAF's configure_otel_providers() abstraction.
-opentelemetry-api = "~1.40.0"
-opentelemetry-sdk = "~1.40.0"
-azure-monitor-opentelemetry-exporter = "~1.0.0b49"
+# Latest: 1.44.0 (2026-07-16), but azure-monitor-opentelemetry-exporter (as of 1.0.0b55)
+# caps opentelemetry-sdk at <1.44.0, so we pin to the latest compatible line: 1.43.0.
+# Breaking changes in 1.35 (LogRecordProcessor.emit→on_emit) and 1.39 (LogData removed)
+# do NOT affect us — we use MAF's configure_otel_providers() abstraction.
+opentelemetry-api = "~1.43.0"
+opentelemetry-sdk = "~1.43.0"
+azure-monitor-opentelemetry-exporter = "~1.0.0b55"
 
 [tool.poetry.group.dev.dependencies]
 # Testing framework
-pytest = "^9.0.0"
-pytest-asyncio = "^1.3.0"
-pytest-cov = "^7.0.0"
+pytest = "^9.1.1"
+pytest-asyncio = "^1.4.0"
+pytest-cov = "^7.1.0"
 
 # Type checking & linting
-mypy = "^1.10.0"
-ruff = "^0.15.0"
+mypy = "^2.3.0"
+ruff = "^0.15.22"
 
 # Jupyter notebooks for exploration
 jupyter = "^1.0.0"

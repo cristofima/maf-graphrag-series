@@ -69,26 +69,26 @@ async def generate_eval_data(
     agent = create_knowledge_captain()
     async with agent:
         for i, case in enumerate(test_cases, 1):
-                query = case["query"]
-                logger.info("[%d/%d] Processing: %s", i, len(test_cases), query)
+            query = case["query"]
+            logger.info("[%d/%d] Processing: %s", i, len(test_cases), query)
 
-                session = AgentSession()
-                result = await agent.run(query, session=session)
+            session = AgentSession()
+            result = await agent.run(query, session=session)
 
-                session_msgs = list(session.state.get("messages", []))
-                response_msgs = list(result.messages) if result.messages else []
-                all_msgs = session_msgs + [m for m in response_msgs if m not in session_msgs]
+            session_msgs = list(session.state.get("messages", []))
+            response_msgs = list(result.messages) if result.messages else []
+            all_msgs = session_msgs + [m for m in response_msgs if m not in session_msgs]
 
-                messages = convert_to_evaluator_messages(all_msgs)
+            messages = convert_to_evaluator_messages(all_msgs)
 
-                eval_record = {
-                    "query": query,
-                    "response": messages,
-                    "ground_truth": case.get("ground_truth", ""),
-                    "tool_definitions": GRAPHRAG_TOOL_DEFINITIONS,
-                }
+            eval_record = {
+                "query": query,
+                "response": messages,
+                "ground_truth": case.get("ground_truth", ""),
+                "tool_definitions": GRAPHRAG_TOOL_DEFINITIONS,
+            }
 
-                records.append(json.dumps(eval_record, ensure_ascii=False) + "\n")
+            records.append(json.dumps(eval_record, ensure_ascii=False) + "\n")
 
     processed = len(records)
 

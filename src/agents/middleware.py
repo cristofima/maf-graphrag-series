@@ -239,7 +239,7 @@ class QueryRewritingChatMiddleware(ChatMiddleware):
             if self._needs_rewriting(last_text):
                 from agent_framework import Message
 
-                rewrite_msg = Message("system", text=self._REWRITE_INSTRUCTION)
+                rewrite_msg = Message("system", contents=[self._REWRITE_INSTRUCTION])
                 # Insert the instruction just before the last user message
                 context.messages = [*messages[:-1], rewrite_msg, messages[-1]]
                 logger.debug("QueryRewritingChatMiddleware: injected rewriting instruction")
@@ -339,7 +339,7 @@ class SummarizationMiddleware(AgentMiddleware):
 
         summary_prompt = Message(
             "user",
-            text=f"Summarize this conversation concisely, preserving key facts:\n\n{conversation_text}",
+            contents=[f"Summarize this conversation concisely, preserving key facts:\n\n{conversation_text}"],
         )
 
         try:
@@ -351,7 +351,7 @@ class SummarizationMiddleware(AgentMiddleware):
 
         # Replace history with summary
         source_state["messages"] = [
-            Message("assistant", text=f"[Summary]\n{summary_text}"),
+            Message("assistant", contents=[f"[Summary]\n{summary_text}"]),
         ]
 
         self._token_counter.reset()

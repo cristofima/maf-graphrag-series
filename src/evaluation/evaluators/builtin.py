@@ -12,7 +12,7 @@ function handles this remapping.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 # MCP tool definitions for the GraphRAG server
 # Used by tool-focused evaluators (ToolCallAccuracy, ToolSelection, etc.)
@@ -243,4 +243,4 @@ def run_single_evaluation(
     kwargs: dict[str, Any] = {"query": query, "response": response}
     if tool_definitions is not None:
         kwargs["tool_definitions"] = tool_definitions
-    return evaluator(**kwargs)
+    return cast(dict[str, Any], evaluator(**kwargs))

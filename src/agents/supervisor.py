@@ -42,8 +42,8 @@ if TYPE_CHECKING:
         ChatMiddleware,
         FunctionMiddleware,
         MCPStreamableHTTPTool,
+        SupportsChatGetResponse,
     )
-    from agent_framework.types import SupportsChatGetResponse
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +99,11 @@ def create_client() -> "SupportsChatGetResponse":
     config = get_agent_config()
 
     if config.api_host == "azure":
-        from agent_framework.azure import AzureOpenAIChatClient
+        from agent_framework.openai import OpenAIChatCompletionClient
 
-        return AzureOpenAIChatClient(
-            endpoint=config.azure_endpoint,
-            deployment_name=config.deployment_name,
+        return OpenAIChatCompletionClient(
+            model=config.deployment_name,
+            base_url=config.provider_base_url,
             api_key=config.api_key if not config.uses_azure_cli else None,
             api_version=config.api_version,
         )
@@ -111,7 +111,7 @@ def create_client() -> "SupportsChatGetResponse":
     from agent_framework.openai import OpenAIChatClient
 
     return OpenAIChatClient(
-        model_id=config.model_id,
+        model=config.model_id,
         api_key=config.provider_api_key,
         base_url=config.provider_base_url,
     )

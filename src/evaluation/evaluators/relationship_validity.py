@@ -96,7 +96,8 @@ class RelationshipValidityEvaluator:
                 for e2 in in_sentence[i + 1 :]:
                     if e1.lower() != e2.lower():
                         pair = (e1, e2)
-                        normalized = tuple(sorted([e1.lower(), e2.lower()]))
+                        normalized_values = sorted((e1.lower(), e2.lower()))
+                        normalized = (normalized_values[0], normalized_values[1])
                         if normalized not in seen:
                             seen.add(normalized)
                             pairs.append(pair)

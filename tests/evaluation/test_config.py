@@ -10,6 +10,7 @@ class TestEvalConfigFromEnv:
         monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key-123")
         monkeypatch.setenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+        monkeypatch.delenv("AZURE_OPENAI_EVAL_API_VERSION", raising=False)
         monkeypatch.delenv("AZURE_AI_PROJECT", raising=False)
         monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
         monkeypatch.delenv("OTEL_TRACING_ENDPOINT", raising=False)
@@ -20,6 +21,7 @@ class TestEvalConfigFromEnv:
         assert config.api_key == "test-key-123"
         assert config.chat_deployment == "gpt-4o"
         assert config.eval_chat_deployment == "gpt-4o"
+        assert config.api_version == "2025-04-01-preview"
         assert config.azure_ai_project is None
         assert config.otel_tracing_endpoint == "http://localhost:4317"
 
@@ -101,6 +103,15 @@ class TestEvalConfigFromEnv:
 
         assert config.otel_tracing_endpoint == "http://jaeger:4317"
 
+    def test_eval_api_version_override(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "key")
+        monkeypatch.setenv("AZURE_OPENAI_EVAL_API_VERSION", "2024-06-01")
+
+        config = EvalConfig.from_env()
+
+        assert config.api_version == "2024-06-01"
+
 
 class TestEvalConfigProperties:
     def test_model_config_dict(self):
@@ -117,7 +128,7 @@ class TestEvalConfigProperties:
             "azure_endpoint": "https://test.openai.azure.com/",
             "api_key": "test-key",
             "azure_deployment": "gpt-4.1-mini",
-            "api_version": "2024-08-01-preview",
+            "api_version": "2025-04-01-preview",
         }
 
     def test_has_foundry_project_true(self):

@@ -22,6 +22,8 @@ class EvalConfig:
     Optional (evaluation model override):
         - AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT: Deployment used only by evaluators.
           Defaults to AZURE_OPENAI_CHAT_DEPLOYMENT.
+                - AZURE_OPENAI_EVAL_API_VERSION: API version used only by evaluators.
+                    Defaults to 2025-04-01-preview for Azure AI Evaluation SDK compatibility.
 
     Optional (Azure AI Foundry for red teaming + dashboard):
         - AZURE_AI_PROJECT: Foundry project endpoint (e.g., https://account.services.ai.azure.com/api/projects/project)
@@ -38,7 +40,7 @@ class EvalConfig:
     azure_ai_project: str | None = None
     app_insights_connection_string: str | None = None
     otel_tracing_endpoint: str = "http://localhost:4317"
-    api_version: str = "2024-08-01-preview"
+    api_version: str = "2025-04-01-preview"
     entities_parquet_path: str = field(default="output/create_final_entities.parquet")
     relationships_parquet_path: str = field(default="output/create_final_relationships.parquet")
 
@@ -67,7 +69,7 @@ class EvalConfig:
             azure_ai_project=os.environ.get("AZURE_AI_PROJECT"),
             app_insights_connection_string=os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"),
             otel_tracing_endpoint=os.environ.get("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
-            api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
+            api_version=os.environ.get("AZURE_OPENAI_EVAL_API_VERSION", "2025-04-01-preview"),
             entities_parquet_path=os.environ.get("ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"),
             relationships_parquet_path=os.environ.get(
                 "RELATIONSHIPS_PARQUET_PATH", "output/create_final_relationships.parquet"

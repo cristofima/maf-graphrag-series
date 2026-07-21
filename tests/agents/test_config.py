@@ -1,6 +1,7 @@
 """Unit tests for agents/config.py — AgentConfig dataclass."""
 
 import pytest
+import dotenv
 
 from agents.config import AgentConfig
 
@@ -62,10 +63,18 @@ class TestAgentConfig:
         assert config.validate_mcp_server() is False
 
     def test_from_env(self, monkeypatch):
+        load_calls: list[bool] = []
+
+        def fake_load_dotenv(*, override: bool = False, **_kwargs: object) -> bool:
+            load_calls.append(override)
+            return True
+
+        monkeypatch.setattr(dotenv, "load_dotenv", fake_load_dotenv)
         monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "my-key")
 
         config = AgentConfig.from_env()
 
         assert isinstance(config, AgentConfig)
+        assert load_calls == [True]
         assert config.azure_endpoint == "https://test.openai.azure.com/"

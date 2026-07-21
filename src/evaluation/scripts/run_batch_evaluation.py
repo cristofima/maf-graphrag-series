@@ -19,9 +19,10 @@ import json
 import logging
 import sys
 import time
+from collections.abc import Mapping, Set
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from dotenv import load_dotenv
 
@@ -48,6 +49,14 @@ ITEM_RESPONSE_TEMPLATE = "{{item.response}}"
 ITEM_GROUND_TRUTH_TEMPLATE = "{{item.ground_truth}}"
 ITEM_TOOL_DEFINITIONS_TEMPLATE = "{{item.tool_definitions}}"
 ITEM_TOOL_CALLS_TEMPLATE = "{{item.tool_calls}}"
+
+
+def _coerce_metrics(result: Mapping[str, object]) -> dict[str, object]:
+    """Return a metrics dictionary from a loosely typed evaluation result."""
+    metrics = result.get("metrics")
+    if isinstance(metrics, dict):
+        return metrics
+    return {}
 
 
 def run_batch_evaluation(
@@ -150,14 +159,6 @@ def run_batch_evaluation(
         if name in evaluators
     }
 
-    # Evaluate kwargs
-    evaluate_kwargs: dict[str, object] = {
-        "data": str(data_path),
-        "evaluators": evaluators,
-        "evaluator_config": evaluator_config,
-        "output_path": str(output_dir / "evaluation_results.json"),
-    }
-
     new_foundry_run: dict[str, object] | None = None
     if use_foundry:
         new_foundry_run = _publish_new_foundry_batch_run(
@@ -167,7 +168,13 @@ def run_batch_evaluation(
         )
 
     logger.info("Running batch evaluation on %s", data_path)
-    result = evaluate(**evaluate_kwargs)
+    raw_result = evaluate(
+        data=str(data_path),
+        evaluators=cast(Any, evaluators),
+        evaluator_config=cast(Any, evaluator_config),
+        output_path=str(output_dir / "evaluation_results.json"),
+    )
+    result: dict[str, object] = dict(raw_result)
 
     if new_foundry_run:
         result["new_foundry"] = new_foundry_run
@@ -183,7 +190,7 @@ def run_batch_evaluation(
 
 def _write_report(result: dict[str, object], output_path: Path) -> None:
     """Write a Markdown evaluation report."""
-    metrics = result.get("metrics", {})
+    metrics = _coerce_metrics(result)
     studio_url = result.get("studio_url", "")
 
     lines = [
@@ -348,7 +355,7 @@ def _load_new_foundry_rows(data_path: Path) -> tuple[list[dict[str, object]], bo
 
 
 def _build_new_foundry_testing_criteria(
-    evaluator_names: set[str],
+    evaluator_names: Set[str],
     model_deployment: str,
     *,
     has_structured_tool_calls: bool,
@@ -441,7 +448,7 @@ def _build_new_foundry_testing_criteria(
 def _publish_new_foundry_batch_run(
     data_path: Path,
     config: EvalConfig,
-    evaluator_names: set[str],
+    evaluator_names: Set[str],
 ) -> dict[str, object]:
     """Publish an evaluation run to New Foundry via openai/v1/evals.
 
@@ -655,7 +662,7 @@ if __name__ == "__main__":
     )
 
     print("\n=== Evaluation Metrics ===")
-    for name, value in sorted(result.get("metrics", {}).items()):
+    for name, value in sorted(_coerce_metrics(result).items()):
         print(f"  {name}: {value}")
 
     studio_url = result.get("studio_url")

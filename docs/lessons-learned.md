@@ -8,6 +8,7 @@ This document captures key insights, challenges, and solutions encountered durin
 2. **GraphRAG 1.2.0 → 3.0.1 migration** (Challenges 6-10)
 3. **Agent Framework integration** with MCP Server (Challenges 11-13)
 4. **Multi-agent workflow patterns** — performance and concurrency (Challenges 14-16)
+5. **Agent evaluation (Part 5)** — monitoring, quality, safety, and Foundry integration (Challenges 17-21)
 
 ---
 
@@ -132,7 +133,7 @@ We evaluated three embedding models based on cost, performance, and regional ava
 | text-embedding-3-small | 44.0 (+40% vs ada-002) | 62.3       | 1,536      | 8,192          |
 | text-embedding-ada-002 | 31.4 (baseline)        | 61.0       | 1,536      | 8,192 (v2)     |
 
-**MIRACL**: Multi-language retrieval benchmark  
+**MIRACL**: Multi-language retrieval benchmark
 **MTEB**: Massive Text Embedding Benchmark (English)
 
 #### Cost Comparison (Approximate)
@@ -248,7 +249,7 @@ Azure quota limitations in `eastus` and model availability gaps in `southcentral
 
 Multi-region architectures are explicitly supported for Azure OpenAI:
 
-> "You can use multiple Azure regions together to distribute your solution across a wide geographical area. You can use this multi-region approach to improve your solution's reliability or to support geographically distributed users."  
+> "You can use multiple Azure regions together to distribute your solution across a wide geographical area. You can use this multi-region approach to improve your solution's reliability or to support geographically distributed users."
 > — [Architecture strategies for using availability zones and regions](https://learn.microsoft.com/en-us/azure/well-architected/design-guides/regions-availability-zones)
 
 **Recommended Patterns**:
@@ -906,6 +907,138 @@ MCP tools behave like database connections — each concurrent consumer needs it
 
 ---
 
+## Challenge 17: IntentResolutionEvaluator Fails on Deployments Requiring `max_completion_tokens`
+
+### Problem
+
+Batch evaluation failed on some Azure OpenAI deployments when `IntentResolutionEvaluator` was included.
+
+Observed behavior in Step 3 runs:
+
+```
+... request failed ... max_tokens ... requires max_completion_tokens
+```
+
+### Root Cause
+
+`IntentResolutionEvaluator` currently sends `max_tokens` internally. Newer chat deployments can reject that parameter and require `max_completion_tokens`, causing evaluator-level failures even when other evaluators are healthy.
+
+### Solution
+
+Implemented a compatibility guard in `run_batch_evaluation.py`:
+
+1. Probe whether the configured deployment accepts `max_tokens`
+2. If incompatible, skip `IntentResolutionEvaluator` with an explicit warning
+3. Continue with remaining evaluators (`TaskAdherenceEvaluator`, `ToolCallAccuracyEvaluator`)
+
+Also added `AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT` so Step 3 can use a separate evaluator deployment if needed.
+
+### Key Insight
+
+Evaluator compatibility can differ from normal chat usage. Treat evaluator model selection as a separate concern from agent runtime model selection.
+
+---
+
+## Challenge 18: `evaluator_config` Column Mapping Shape Causes Silent Misconfiguration
+
+### Problem
+
+Batch evaluations failed or produced incorrect input binding when column mappings were defined in a flattened format.
+
+### Root Cause
+
+`azure.ai.evaluation.evaluate()` expects mappings under:
+
+```python
+{"<evaluator_name>": {"column_mapping": {...}}}
+```
+
+Using a flattened structure appears valid at first glance but breaks binding for fields like `query`, `response`, and `tool_definitions`.
+
+### Solution
+
+Standardized all Step 3 mappings to the nested `column_mapping` format and documented the gotcha in Part 5 notes.
+
+### Key Insight
+
+For SDK-driven evaluation pipelines, schema shape is as important as field names. A tiny dictionary-structure mismatch can invalidate an entire batch run.
+
+---
+
+## Challenge 19: Legacy Foundry Fallbacks Created Operational Drift
+
+### Problem
+
+Step 4 red team behavior was ambiguous due to mixed compatibility paths (legacy scope-style fallback vs New Foundry URL).
+
+### Root Cause
+
+Supporting both old and new Foundry modes increased complexity and made troubleshooting harder, especially across infra output changes.
+
+### Solution
+
+Removed old fallback behavior and moved to a single New Foundry contract:
+
+- `AZURE_AI_PROJECT` is required for Step 4
+- URL format only: `https://<account>.services.ai.azure.com/api/projects/<project>`
+- Removed legacy env fallback fields from infra env output
+
+### Key Insight
+
+During platform transitions, strict single-path behavior is better than backward-compatible branching for production-facing evaluation flows.
+
+---
+
+## Challenge 20: Foundry Publishing via Legacy Path Was Fragile (DNS/Transport Failures)
+
+### Problem
+
+Step 3 runs could finish evaluator execution but fail at Foundry publishing with transient or environment-specific service errors.
+
+Observed failure pattern:
+
+```
+ServiceRequestError: Failed to resolve '<account>.services.ai.azure.com'
+```
+
+### Root Cause
+
+The legacy publish path introduced additional dependencies and error surfaces after local evaluator completion, making success criteria inconsistent.
+
+### Solution
+
+Adopted New Foundry `openai/v1/evals` publishing for Step 3 (`--foundry`) and kept local results/report generation as the primary completion path.
+
+### Key Insight
+
+Decouple "evaluation execution succeeded" from "remote dashboard publish succeeded". Persist local artifacts first, then publish as a secondary, observable step.
+
+---
+
+## Challenge 21: Red Team `0/0` False-Success in Unsupported Regions
+
+### Problem
+
+Step 4 occasionally completed without usable safety signal (`0/0` evaluated attacks), which looked like success but provided no real validation.
+
+### Root Cause
+
+Selected Foundry region lacked required RAI safety scoring capability for the configured red-team run, so no attacks were effectively evaluated.
+
+### Solution
+
+Added explicit fail-fast behavior in `run_redteam.py`:
+
+- If run completes with zero evaluated attacks, raise a clear runtime error
+- Guide users to move the Foundry project to a supported region
+- Keep the single-project architecture but require region compatibility for Step 4
+
+### Key Insight
+
+In safety pipelines, "completed" is not enough. Enforce semantic success criteria (non-zero evaluated attacks) to avoid false confidence.
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -926,15 +1059,24 @@ MCP tools behave like database connections — each concurrent consumer needs it
 14. ✅ **Understand the computational model of each tool before designing workflows**
 15. ✅ **Use explicit prompt constraints to limit agent tool-call frequency**
 16. ✅ **Create separate MCP tool instances for concurrent agent patterns**
+17. ✅ **Validate evaluator-model parameter compatibility (`max_tokens` vs `max_completion_tokens`)**
+18. ✅ **Use strict `evaluator_config.column_mapping` schema in batch evaluation**
+19. ✅ **Standardize on New Foundry URL-only behavior for Step 4**
+20. ✅ **Treat Foundry publish as secondary to local result persistence**
+21. ✅ **Fail red team runs that return `0/0` evaluated attacks**
 
 ### Final Architecture
 
-| Component       | Region         | Model/SKU                       | Rationale                                 |
-| --------------- | -------------- | ------------------------------- | ----------------------------------------- |
-| Azure OpenAI    | westus         | GPT-4o + text-embedding-3-small | Model availability, lower demand          |
-| Storage Account | southcentralus | Standard LRS                    | Quota availability                        |
-| App Services    | southcentralus | TBD                             | Quota availability, proximity to storage  |
-| GraphRAG        | —              | v3.0.1 (migrated from v1.2.0)   | numpy 2.x compat, agent-framework support |
+| Component                | Region           | Model/SKU                       | Rationale                                         |
+| ------------------------ | ---------------- | ------------------------------- | ------------------------------------------------- |
+| Azure OpenAI             | westus           | GPT-4o + text-embedding-3-small | Model availability, lower demand                  |
+| Storage Account          | southcentralus   | Standard LRS                    | Quota availability                                |
+| App Services             | southcentralus   | TBD                             | Quota availability, proximity to storage          |
+| Azure AI Foundry Project | westus/eastus2\* | New Foundry project endpoint    | Step 3/4 eval visibility and red team integration |
+| Application Insights     | southcentralus   | Workspace-based                 | Production OpenTelemetry traces                   |
+| GraphRAG                 | —                | v3.0.1 (migrated from v1.2.0)   | numpy 2.x compat, agent-framework support         |
+
+\*Region must support required evaluation and safety capabilities.
 
 **Estimated Monthly Cost** (based on 30K TPM, moderate usage):
 
@@ -954,11 +1096,13 @@ MCP tools behave like database connections — each concurrent consumer needs it
 4. ~~Implement MCP Server (Part 2)~~ ✅
 5. ~~Implement Supervisor Agent Pattern (Part 3)~~ ✅
 6. ~~Implement Multi-Agent Workflow Patterns (Part 4)~~ ✅
-7. Implement Agent Evaluation (Part 5)
+7. ~~Implement Agent Evaluation (Part 5)~~ ✅
+8. Strengthen Part 6 (Human-in-the-Loop) with eval regression gates
+9. Add CI quality gates for Part 5 (`generate_eval_data` + `run_batch_evaluation` smoke)
 
 ---
 
-**Document Version**: 4.0  
-**Last Updated**: February 16, 2026  
-**Author**: Cristopher Coronado  
-**Series**: MAF + GraphRAG - Parts 1, 2, 3 & 4
+**Document Version**: 5.0
+**Last Updated**: March 29, 2026
+**Author**: Cristopher Coronado
+**Series**: MAF + GraphRAG - Parts 1, 2, 3, 4 & 5

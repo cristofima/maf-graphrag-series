@@ -12,7 +12,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-
 _SRC_DIR = Path(__file__).resolve().parent / "src"
 
 if _SRC_DIR.is_dir():

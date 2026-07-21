@@ -36,7 +36,7 @@ Usage:
         print(result.text)
 
     # Or use the CLI
-    poetry run python run_agent.py
+    uv run python run_agent.py
 """
 
 from agents.config import AgentConfig, get_agent_config, is_azure

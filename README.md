@@ -48,7 +48,7 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
 ### Prerequisites
 
 - **Python 3.11+** (tested with 3.11 and 3.12)
-- **Poetry** for dependency management
+- **uv** for dependency and environment management
 - Azure OpenAI resource with:
   - GPT-4o deployment (for entity extraction and queries)
   - text-embedding-3-small deployment (for embeddings)
@@ -57,38 +57,35 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
 ### Quick Start
 
 ```powershell
-# Install Poetry (if not installed)
+# Install uv (if not installed)
 # Windows PowerShell:
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 # Linux/macOS:
-# curl -sSL https://install.python-poetry.org | python3 -
+# curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
 git clone https://github.com/cristofima/maf-graphrag-series.git
 cd maf-graphrag-series
 
-# RECOMMENDED: Configure Poetry to create .venv in project folder
-poetry config virtualenvs.in-project true
-
-# Install dependencies (Poetry creates virtual environment automatically)
-poetry install
+# Install dependencies and create .venv
+uv sync --dev
 
 # Configure environment variables
 cp .env.example .env
 # Edit .env with your Azure OpenAI credentials
 
 # Build the knowledge graph
-poetry run python -m core.index
+uv run python -m core.index
 
 # Query the knowledge graph
-poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "What are the main projects?" --type global
+uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "What are the main projects?" --type global
 ```
 
-💡 **Note:** Poetry manages virtual environments automatically. You don't need to manually create `.venv` like with pip.
+💡 **Note:** uv creates and manages `.venv` automatically in the project folder when you run `uv sync`.
 
-📖 **Poetry Guide:** See [docs/poetry-guide.md](docs/poetry-guide.md) for detailed usage instructions.
+📖 **uv Guide:** See [docs/uv-guide.md](docs/uv-guide.md) for detailed usage instructions.
 
 ### Using the Python API
 
@@ -110,8 +107,8 @@ for result in results:
 Or use the CLI:
 
 ```powershell
-poetry run python -m core.index
-poetry run python -m core.index --resume  # Resume interrupted run
+uv run python -m core.index
+uv run python -m core.index --resume  # Resume interrupted run
 ```
 
 #### Querying the Knowledge Graph
@@ -136,8 +133,8 @@ print(response)
 Or use the CLI:
 
 ```powershell
-poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "What are the main themes?" --type global
+uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "What are the main themes?" --type global
 ```
 
 📖 **API Documentation:** See [src/core/README.md](src/core/README.md) for full API reference.
@@ -168,13 +165,13 @@ MCP enables agents to access external tools and data sources dynamically:
 
 ```bash
 # Install Part 2 dependencies
-poetry install
+uv sync --dev
 
 # Option 1: Test in notebook (recommended, no server needed)
 jupyter notebook notebooks/02_test_mcp_server.ipynb
 
 # Option 2: Start MCP Server + use MCP Inspector
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 npx @modelcontextprotocol/inspector   # Opens browser UI at http://localhost:6274
 ```
 
@@ -200,7 +197,7 @@ The [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) is the
 
 ```bash
 # Terminal 1: Start MCP Server
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Terminal 2: Launch MCP Inspector
 npx @modelcontextprotocol/inspector
@@ -256,13 +253,13 @@ _Two round trips to Azure OpenAI per query: call 1 selects the tool, call 2 comp
 
 ```bash
 # Install dependencies
-poetry install
+uv sync --dev
 
 # Start MCP server (Terminal 1)
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Interactive agent (Terminal 2)
-poetry run python run_agent.py
+uv run python run_agent.py
 ```
 
 ### Key Pattern: System Prompt Routing
@@ -327,8 +324,8 @@ After indexing the 10 sample documents, the knowledge graph contains:
 ```
 maf-graphrag-series/
 ├── README.md
-├── pyproject.toml             # Poetry dependency management
-├── poetry.lock                # Locked dependency versions
+├── pyproject.toml             # Project and dependency configuration
+├── uv.lock                    # Locked dependency versions
 ├── settings.yaml              # GraphRAG configuration
 ├── .env.example
 ├── run_agent.py               # Interactive agent CLI (Part 3)
@@ -454,15 +451,15 @@ Extend the single Knowledge Captain agent with multi-agent workflow patterns tha
 
 ```bash
 # Prerequisites (same as Part 3)
-poetry run python run_mcp_server.py          # Terminal 1
+uv run python run_mcp_server.py          # Terminal 1
 
 # Interactive workflow selector
-poetry run python run_workflow.py            # Terminal 2
+uv run python run_workflow.py            # Terminal 2
 
 # Direct single-query mode
-poetry run python run_workflow.py sequential "What are the key projects and their tech stack?"
-poetry run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
-poetry run python run_workflow.py handoff    "Who leads Project Alpha?"
+uv run python run_workflow.py sequential "What are the key projects and their tech stack?"
+uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
+uv run python run_workflow.py handoff    "Who leads Project Alpha?"
 ```
 
 ### Architecture
@@ -553,17 +550,17 @@ Most recent Step 3 quality run summary (10 rows):
 
 ```powershell
 # Terminal 1: Start MCP server
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Terminal 2: Full pipeline
-poetry run python -m evaluation.scripts.generate_eval_data
-poetry run python -m evaluation.scripts.run_batch_evaluation
+uv run python -m evaluation.scripts.generate_eval_data
+uv run python -m evaluation.scripts.run_batch_evaluation
 
 # With Foundry dashboard
-poetry run python -m evaluation.scripts.run_batch_evaluation --foundry
+uv run python -m evaluation.scripts.run_batch_evaluation --foundry
 
 # Red team scan (requires AZURE_AI_PROJECT)
-poetry run python -m evaluation.scripts.run_redteam
+uv run python -m evaluation.scripts.run_redteam
 ```
 
 **Configuration note**: keep `AZURE_OPENAI_API_VERSION` and `AZURE_OPENAI_EVAL_API_VERSION` separate. In this repo, agent and workflow chat calls are validated with `AZURE_OPENAI_API_VERSION=2024-11-20`, while Azure AI Evaluation built-in evaluators are validated with `AZURE_OPENAI_EVAL_API_VERSION=2025-04-01-preview`. Reusing `2024-11-20` for the evaluators can return `404 Resource not found` even when the same endpoint and deployment work for the workflow path.

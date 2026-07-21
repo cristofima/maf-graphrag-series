@@ -45,10 +45,10 @@ Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for Microso
 
 ```bash
 # Using Python module
-poetry run python -m mcp_server.server
+uv run python -m mcp_server.server
 
 # Or using convenience script
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 ```
 
 Server will start at: `http://localhost:8011`
@@ -60,7 +60,7 @@ Server will start at: `http://localhost:8011`
 jupyter notebook notebooks/02_test_mcp_server.ipynb
 
 # Option B: Use MCP Inspector (interactive testing via server)
-poetry run python run_mcp_server.py  # Start server first
+uv run python run_mcp_server.py  # Start server first
 npx @modelcontextprotocol/inspector
 # In the UI: Transport = Streamable HTTP, URL = http://localhost:8011/mcp
 ```
@@ -179,7 +179,7 @@ The [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) is an 
 
 ```bash
 # Terminal 1: Start MCP Server
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Terminal 2: Launch Inspector
 npx @modelcontextprotocol/inspector
@@ -233,7 +233,7 @@ mcp_server/
 ### Running Tests
 
 ```bash
-poetry run pytest tests/test_mcp_config.py
+uv run pytest tests/test_mcp_config.py
 ```
 
 ### Adding New Tools
@@ -246,7 +246,7 @@ poetry run pytest tests/test_mcp_config.py
 
 ```bash
 # Production with Gunicorn
-poetry run gunicorn mcp_server.server:app -w 4 -k uvicorn.workers.UvicornWorker
+uv run gunicorn mcp_server.server:app -w 4 -k uvicorn.workers.UvicornWorker
 
 # Docker
 docker build -t graphrag-mcp .
@@ -263,3 +263,4 @@ In Part 3, we'll integrate Microsoft Agent Framework to create a supervisor agen
 - [FastMCP Documentation](https://gofastmcp.com/)
 - [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 - [Microsoft GraphRAG](https://github.com/microsoft/graphrag)
+

@@ -10,7 +10,7 @@ Part 2 extends Part 1 by exposing GraphRAG as a **Model Context Protocol (MCP) s
 
 ## Goals & Status
 
-1. ✅ **Poetry Setup** — Professional dependency management
+1. ✅ **uv setup** — Professional dependency management
 2. ✅ **Create MCP Server** — 5 GraphRAG tools exposed via FastMCP over SSE
 3. ✅ **Testing via MCP Inspector** — All tools verified with MCP Inspector v0.19.0
 4. ✅ **Notebook Testing** — `02_test_mcp_server.ipynb` validates all tools programmatically
@@ -95,7 +95,7 @@ graphrag = "~3.0.1"     # Microsoft GraphRAG
 
 ```bash
 # Start server
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Server runs on http://localhost:8011
 # SSE endpoint: http://localhost:8011/sse
@@ -153,3 +153,4 @@ Part 3 will add Microsoft Agent Framework integration:
 - `ChatAgent` with `MCPStreamableHTTPTool` pointing to this MCP server
 - Supervisor agent pattern orchestrating multiple tools
 - The MCP server from Part 2 serves as the foundation
+

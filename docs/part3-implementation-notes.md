@@ -343,7 +343,7 @@ The Agent Framework's `MCPStreamableHTTPTool` specifically requires Streamable H
 1. MCP Server running (from Part 2):
 
    ```powershell
-   poetry run python run_mcp_server.py
+   uv run python run_mcp_server.py
    ```
 
 2. Environment variables configured:
@@ -369,7 +369,7 @@ The Agent Framework's `MCPStreamableHTTPTool` specifically requires Streamable H
 ### Interactive CLI
 
 ```powershell
-poetry run python run_agent.py
+uv run python run_agent.py
 ```
 
 Commands:
@@ -413,10 +413,10 @@ async with agent:
 
 ```powershell
 # Terminal 1: Start MCP Server
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 
 # Terminal 2: Run agent
-poetry run python run_agent.py
+uv run python run_agent.py
 ```
 
 Example session:
@@ -470,7 +470,7 @@ Features analyzed but deferred to later parts:
 
 ```toml
 # pyproject.toml
-[tool.poetry.dependencies]
+[project] / [dependency-groups]
 agent-framework-core = "1.0.0rc5"  # Microsoft Agent Framework (RC)
 ```
 
@@ -492,3 +492,5 @@ Key imports:
 | Local tools           | Not available                     | `@tool(approval_mode="never_require")` decorator       |
 | `Message` constructor | `items=[...]` parameter           | `text="..."` parameter                                 |
 | MCP tool naming       | Single name per process           | `tool_name_prefix` to avoid duplicate names            |
+
+

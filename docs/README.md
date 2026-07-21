@@ -23,7 +23,7 @@ This directory contains detailed documentation, lessons learned, and reference m
 | [qa-examples.md](./qa-examples.md)                             | Real Q&A responses from GraphRAG          |
 | [query-guide.md](./query-guide.md)                             | Query syntax and search types             |
 | [multi-region-architecture.md](./multi-region-architecture.md) | Cross-region strategy                     |
-| [poetry-guide.md](./poetry-guide.md)                           | Poetry setup and usage guide              |
+| [uv-guide.md](./uv-guide.md)                                   | uv setup and usage guide                  |
 
 ## Documentation Purpose
 

@@ -8,8 +8,8 @@ REQUIRES Azure AI Foundry project — the RedTeam class needs a Foundry
 project connection for adversarial LLM generation.
 
 Usage:
-    poetry run python -m evaluation.scripts.run_redteam
-    poetry run python -m evaluation.scripts.run_redteam --strategies baseline jailbreak
+    uv run python -m evaluation.scripts.run_redteam
+    uv run python -m evaluation.scripts.run_redteam --strategies baseline jailbreak
 """
 
 from __future__ import annotations

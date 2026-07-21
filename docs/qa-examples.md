@@ -24,7 +24,7 @@ Who leads Project Alpha and what is their role?
 
 **Command:**
 ```powershell
-poetry run python -m core.example "Who leads Project Alpha and what is their role?"
+uv run python -m core.example "Who leads Project Alpha and what is their role?"
 ```
 
 **Response:**
@@ -50,7 +50,7 @@ What technologies are used in Project Alpha?
 
 **Command:**
 ```powershell
-poetry run python -m core.example "What technologies are used in Project Alpha?"
+uv run python -m core.example "What technologies are used in Project Alpha?"
 ```
 
 **Response:**
@@ -96,7 +96,7 @@ What are the main themes and strategic initiatives at TechVenture Inc?
 
 **Command:**
 ```powershell
-poetry run python -m core.example "What are the main themes and strategic initiatives at TechVenture Inc?" --type global
+uv run python -m core.example "What are the main themes and strategic initiatives at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -130,7 +130,7 @@ How are departments connected at TechVenture Inc?
 
 **Command:**
 ```powershell
-poetry run python -m core.example "How are departments connected at TechVenture Inc?" --type global
+uv run python -m core.example "How are departments connected at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -189,10 +189,12 @@ poetry run python -m core.example "How are departments connected at TechVenture 
 
 ```powershell
 # Local search (entity-focused)
-poetry run python -m core.example "Your specific question about an entity"
+uv run python -m core.example "Your specific question about an entity"
 
 # Global search (thematic)
-poetry run python -m core.example "Your broad question about themes or patterns" --type global
+uv run python -m core.example "Your broad question about themes or patterns" --type global
 ```
 
 See [query-guide.md](query-guide.md) for more query options and configurations.
+
+

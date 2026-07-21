@@ -149,19 +149,19 @@ Run commands:
 
 ```powershell
 # Step 1: Generate (requires running MCP server)
-poetry run python -m evaluation.scripts.generate_eval_data
+uv run python -m evaluation.scripts.generate_eval_data
 
 # Step 2: Evaluate (requires Azure OpenAI, NOT Foundry)
-poetry run python -m evaluation.scripts.run_batch_evaluation
+uv run python -m evaluation.scripts.run_batch_evaluation
 
 # Step 2a: Optional - skip custom graph evaluators
-poetry run python -m evaluation.scripts.run_batch_evaluation --no-custom
+uv run python -m evaluation.scripts.run_batch_evaluation --no-custom
 
 # Step 2b: Optional — log to Foundry dashboard
-poetry run python -m evaluation.scripts.run_batch_evaluation --foundry
+uv run python -m evaluation.scripts.run_batch_evaluation --foundry
 
 # Step 3: Red team (requires Azure AI Foundry)
-poetry run python -m evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak
+uv run python -m evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak
 ```
 
 ## Pillar C — Safety (Red Teaming)
@@ -217,7 +217,7 @@ opentelemetry-sdk = "~1.43.0"
 azure-monitor-opentelemetry-exporter = "~1.0.0b55"
 ```
 
-Install: `poetry install`
+Install: `uv sync --dev`
 
 ## EvalConfig
 
@@ -284,3 +284,5 @@ Part 5 test suite currently has **64 tests** in `tests/evaluation/`:
 | `test_run_redteam.py`        | 7     | New Foundry flow helpers and target resolution            |
 
 No Azure credentials needed for tests — all use mocks and temporary Parquet fixtures.
+
+

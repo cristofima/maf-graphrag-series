@@ -4,7 +4,7 @@ Run MCP Server Convenience Script
 Start the GraphRAG MCP Server for knowledge graph queries via HTTP/SSE.
 
 Usage:
-    poetry run python run_mcp_server.py
+    uv run python run_mcp_server.py
 
 Environment Variables:
     MCP_HOST - Server host (default: 127.0.0.1)
@@ -33,3 +33,4 @@ if __name__ == "__main__":
     # ws="none" disables WebSocket protocol — not needed for Streamable HTTP/SSE
     # and avoids DeprecationWarnings from the websockets legacy API.
     uvicorn.run(app, host=config.host, port=config.port, log_level="info", ws="none")
+

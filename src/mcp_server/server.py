@@ -5,10 +5,10 @@ FastMCP server that exposes GraphRAG tools via HTTP/SSE for MCP-compatible clien
 
 Usage:
     # Development
-    poetry run python -m mcp_server.server
+    uv run python -m mcp_server.server
 
     # Production (with uvicorn)
-    poetry run uvicorn mcp_server.server:app --host 0.0.0.0 --port 8011
+    uv run uvicorn mcp_server.server:app --host 0.0.0.0 --port 8011
 """
 
 import logging

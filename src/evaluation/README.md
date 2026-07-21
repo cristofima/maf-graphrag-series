@@ -39,7 +39,7 @@ golden_questions.jsonl
 
 ## Prerequisites
 
-- Knowledge graph already indexed (`poetry run python -m core.index`)
+- Knowledge graph already indexed (`uv run python -m core.index`)
 - MCP server running on `localhost:8011`
 - Azure OpenAI credentials in `.env`
 
@@ -94,7 +94,7 @@ Use one New Foundry project in a region that supports the features you need most
 ### Step 1 — Start the MCP server (terminal 1)
 
 ```powershell
-poetry run python run_mcp_server.py
+uv run python run_mcp_server.py
 ```
 
 ### Step 2 — Generate evaluation data (terminal 2)
@@ -105,7 +105,7 @@ Runs the Knowledge Captain agent against each of the 10 golden questions and wri
 Step 2 is independent from Foundry/New Foundry. If you already have `eval_data.jsonl`, you can reuse it directly.
 
 ```powershell
-poetry run python -m evaluation.scripts.generate_eval_data
+uv run python -m evaluation.scripts.generate_eval_data
 ```
 
 Output:
@@ -130,13 +130,13 @@ To avoid the skip, set `AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT` to a compatible deplo
 
 ```powershell
 # Standard evaluation (results saved locally)
-poetry run python -m evaluation.scripts.run_batch_evaluation
+uv run python -m evaluation.scripts.run_batch_evaluation
 
 # Skip custom graph evaluators (no Parquet needed)
-poetry run python -m evaluation.scripts.run_batch_evaluation --no-custom
+uv run python -m evaluation.scripts.run_batch_evaluation --no-custom
 
 # Publish a New Foundry evaluation run (openai/v1/evals)
-poetry run python -m evaluation.scripts.run_batch_evaluation --foundry
+uv run python -m evaluation.scripts.run_batch_evaluation --foundry
 ```
 
 Results are written to:
@@ -195,19 +195,19 @@ terraform output -raw env_file_content > ../.env  # adds AZURE_AI_PROJECT automa
 
 ```powershell
 # Default flow: cloud-model, Baseline + EASY strategies, all 4 risk categories
-poetry run python -m evaluation.scripts.run_redteam
+uv run python -m evaluation.scripts.run_redteam
 
 # Explicit cloud flow
-poetry run python -m evaluation.scripts.run_redteam --flow cloud-model
+uv run python -m evaluation.scripts.run_redteam --flow cloud-model
 
 # Local callback flow (requires MCP server running)
-poetry run python -m evaluation.scripts.run_redteam --flow local-agent
+uv run python -m evaluation.scripts.run_redteam --flow local-agent
 
 # Custom strategies
-poetry run python -m evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak crescendo
+uv run python -m evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak crescendo
 
 # Custom risk categories
-poetry run python -m evaluation.scripts.run_redteam --flow cloud-model --risks Violence HateUnfairness
+uv run python -m evaluation.scripts.run_redteam --flow cloud-model --risks Violence HateUnfairness
 ```
 
 Optional environment override:
@@ -318,3 +318,4 @@ src/evaluation/
     ├── run_batch_evaluation.py # Step 3: batch evaluate with SDK
     └── run_redteam.py          # Step 4: safety scan (Foundry required)
 ```
+

@@ -78,8 +78,8 @@ agents/
 
 ### Prerequisites
 
-1. MCP Server running: `poetry run python run_mcp_server.py`
-2. Knowledge graph built: `poetry run python -m core.index`
+1. MCP Server running: `uv run python run_mcp_server.py`
+2. Knowledge graph built: `uv run python -m core.index`
 3. Azure OpenAI configured in `.env`
 
 ### Environment Variables
@@ -106,10 +106,10 @@ MCP_SERVER_URL=http://127.0.0.1:8011/mcp
 
 ```bash
 # Interactive CLI mode
-poetry run python run_agent.py
+uv run python run_agent.py
 
 # Single query
-poetry run python run_agent.py "Who leads Project Alpha?"
+uv run python run_agent.py "Who leads Project Alpha?"
 ```
 
 ### CLI Commands
@@ -282,3 +282,4 @@ The MCP Server exposes both endpoints, but agents always connect via `/mcp`.
 - [Microsoft Agent Framework Documentation](https://learn.microsoft.com/agent-framework/)
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [GraphRAG Documentation](https://microsoft.github.io/graphrag/)
+

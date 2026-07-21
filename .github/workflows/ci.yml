@@ -6,14 +6,14 @@ on:
     paths:
       - "**.py"
       - "pyproject.toml"
-      - "poetry.lock"
+      - "uv.lock"
       - ".github/workflows/ci.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "**.py"
       - "pyproject.toml"
-      - "poetry.lock"
+      - "uv.lock"
       - ".github/workflows/ci.yml"
 
 # Cancel in-progress runs for the same branch/PR (best practice: save CI minutes)
@@ -52,31 +52,23 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        run: pip install poetry==2.3.2
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Cache virtual environment
-        uses: actions/cache@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
+          enable-cache: true
+          python-version: "3.11"
 
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction
+        run: uv sync --dev --frozen
 
       - name: Format check (ruff format)
-        run: poetry run python -m ruff format src/ tests/ --check
+        run: uv run python -m ruff format src/ tests/ --check
 
       - name: Lint — critical errors
-        run: poetry run python -m ruff check . --select E9,F63,F7,F82 --output-format github
+        run: uv run python -m ruff check . --select E9,F63,F7,F82 --output-format github
 
       - name: Lint — full rule set
-        run: poetry run python -m ruff check . --output-format github
+        run: uv run python -m ruff check . --output-format github
 
   # ── Stage 1b: Static type checking (runs in parallel with lint) ─────
   typecheck:
@@ -93,26 +85,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        run: pip install poetry==2.3.2
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Cache virtual environment
-        uses: actions/cache@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
+          enable-cache: true
+          python-version: "3.11"
 
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction
+        run: uv sync --dev --frozen
 
       - name: Type check with mypy
         run: |
-          poetry run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ \
+          uv run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ \
             --ignore-missing-imports \
             --no-error-summary
 
@@ -132,22 +116,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        run: pip install poetry==2.3.2
-
-      - name: Configure Poetry
-        run: poetry config virtualenvs.in-project true
-
-      - name: Cache virtual environment
-        uses: actions/cache@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-
+          enable-cache: true
+          python-version: "3.11"
 
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction
+        run: uv sync --dev --frozen
 
       - name: Run tests
-        run: poetry run pytest
+        run: uv run pytest

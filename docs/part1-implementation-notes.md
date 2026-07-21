@@ -158,9 +158,9 @@ Build the knowledge graph using Python:
 
 ```bash
 # CLI usage
-poetry run python -m core.index
-poetry run python -m core.index --resume          # Resume interrupted run
-poetry run python -m core.index --memory-profile  # Enable profiling
+uv run python -m core.index
+uv run python -m core.index --resume          # Resume interrupted run
+uv run python -m core.index --memory-profile  # Enable profiling
 
 # Programmatic usage
 from core import build_index
@@ -176,8 +176,8 @@ Query the knowledge graph using the `core/` module:
 
 ```bash
 # CLI usage
-poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "Summarize the organization" --type global
+uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "Summarize the organization" --type global
 
 # Python API usage
 from core import load_all, local_search
@@ -345,21 +345,21 @@ mcp_server/                # New folder for Part 2
 
 ```bash
 # Install dependencies
-poetry install
+uv sync --dev
 
 # Build knowledge graph
-poetry run python -m core.index
+uv run python -m core.index
 
 # Build with options
-poetry run python -m core.index --resume          # Resume interrupted
-poetry run python -m core.index --memory-profile  # Enable profiling
+uv run python -m core.index --resume          # Resume interrupted
+uv run python -m core.index --memory-profile  # Enable profiling
 
 # Query using Python CLI
-poetry run python -m core.example "Your question"
-poetry run python -m core.example "Your question" --type global
+uv run python -m core.example "Your question"
+uv run python -m core.example "Your question" --type global
 
 # Query using Python API
-poetry run python -c "import asyncio; from core import load_all, local_search; data = load_all(); print(asyncio.run(local_search('Your question', data))[0])"
+uv run python -c "import asyncio; from core import load_all, local_search; data = load_all(); print(asyncio.run(local_search('Your question', data))[0])"
 
 # Run notebook
 jupyter notebook notebooks/01_explore_graph.ipynb
@@ -371,10 +371,10 @@ jupyter notebook notebooks/01_explore_graph.ipynb
 
 ```
 maf-graphrag-series/
-├── .venv/                     # Python virtual environment (Poetry-managed)
+├── .venv/                     # Python virtual environment (uv-managed)
 ├── .env                       # Azure credentials (gitignored)
 ├── .env.example               # Template for credentials
-├── pyproject.toml             # Poetry dependencies
+├── pyproject.toml             # Project dependencies
 ├── settings.yaml              # GraphRAG configuration
 ├── requirements.txt           # Legacy Python dependencies
 ├── input/
@@ -406,3 +406,6 @@ Cristopher Coronado - Microsoft MVP AI
 ---
 
 *Last updated: February 7, 2026*
+
+
+

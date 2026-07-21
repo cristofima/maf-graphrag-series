@@ -11,17 +11,17 @@ Workflow Patterns:
     handoff     - Expert Routing:    Router → EntityExpert | ThemesExpert
 
 Prerequisites:
-    1. Knowledge graph built:   poetry run python -m core.index
-    2. MCP Server running:      poetry run python run_mcp_server.py
+    1. Knowledge graph built:   uv run python -m core.index
+    2. MCP Server running:      uv run python run_mcp_server.py
 
 Usage:
     # Interactive mode (choose workflow + query)
-    poetry run python run_workflow.py
+    uv run python run_workflow.py
 
     # Direct mode
-    poetry run python run_workflow.py sequential "What are the key projects and their tech stack?"
-    poetry run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"
-    poetry run python run_workflow.py handoff    "Who leads Project Alpha?"
+    uv run python run_workflow.py sequential "What are the key projects and their tech stack?"
+    uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"
+    uv run python run_workflow.py handoff    "Who leads Project Alpha?"
 
 Environment Variables:
     AZURE_OPENAI_ENDPOINT         - Azure OpenAI endpoint
@@ -147,7 +147,7 @@ def _print_connection_error(exc: Exception) -> None:
     """Print a user-friendly MCP connection error."""
     console.print(f"\n[red]MCP Connection Error:[/red] {type(exc).__name__}: {exc}")
     console.print("[yellow]Hint:[/yellow] Make sure the MCP server is running:")
-    console.print("      [bold]poetry run python run_mcp_server.py[/bold]")
+    console.print("      [bold]uv run python run_mcp_server.py[/bold]")
     console.print("      Then verify it's accessible at the configured URL (default: http://127.0.0.1:8011/mcp)\n")
 
 
@@ -324,9 +324,9 @@ def main() -> None:
         # Usage error — need both workflow type and query
         workflow_type = args[0].lower()
         if workflow_type in ("sequential", "concurrent", "handoff"):
-            console.print(f'[yellow]Usage:[/yellow] poetry run python run_workflow.py {workflow_type} "your query"')
+            console.print(f'[yellow]Usage:[/yellow] uv run python run_workflow.py {workflow_type} "your query"')
         else:
-            console.print('[red]Usage:[/red] poetry run python run_workflow.py [sequential|concurrent|handoff] "query"')
+            console.print('[red]Usage:[/red] uv run python run_workflow.py [sequential|concurrent|handoff] "query"')
         sys.exit(1)
     else:
         # Non-interactive: workflow_type + query
@@ -337,3 +337,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -6,7 +6,7 @@ converts the conversation to evaluator format, and writes results to
 eval_data.jsonl for batch evaluation.
 
 Usage:
-    poetry run python -m evaluation.scripts.generate_eval_data
+    uv run python -m evaluation.scripts.generate_eval_data
 """
 
 from __future__ import annotations

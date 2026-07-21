@@ -5,14 +5,14 @@ Interactive CLI to chat with the Knowledge Captain agent, which queries
 the GraphRAG knowledge graph via MCP.
 
 Prerequisites:
-    1. MCP Server must be running: poetry run python run_mcp_server.py
-    2. Knowledge graph must be built: poetry run python -m core.index
+    1. MCP Server must be running: uv run python run_mcp_server.py
+    2. Knowledge graph must be built: uv run python -m core.index
 
 Usage:
-    poetry run python run_agent.py
+    uv run python run_agent.py
 
     # Or with a single query (non-interactive)
-    poetry run python run_agent.py "Who leads Project Alpha?"
+    uv run python run_agent.py "Who leads Project Alpha?"
 
 Environment Variables:
     AZURE_OPENAI_ENDPOINT - Azure OpenAI endpoint
@@ -100,7 +100,7 @@ async def run_interactive():
     except ConnectionError as e:
         console.print(f"\n[red]Connection Error:[/red] {e}")
         console.print("[yellow]Hint:[/yellow] Is the MCP server running?")
-        console.print("      Run: [bold]poetry run python run_mcp_server.py[/bold]\n")
+        console.print("      Run: [bold]uv run python run_mcp_server.py[/bold]\n")
         sys.exit(1)
     except Exception as e:
         console.print(f"\n[red]Error:[/red] {e}\n")
@@ -150,3 +150,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

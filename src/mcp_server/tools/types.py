@@ -132,7 +132,7 @@ def handle_tool_errors(
             except FileNotFoundError as e:
                 logger.warning("%s: knowledge graph not found — %s", tool_name, e)
                 return ToolError(
-                    error="Knowledge graph not found. Run indexing first: poetry run python -m core.index",
+                    error="Knowledge graph not found. Run indexing first: uv run python -m core.index",
                     details=str(e),
                 )
             except Exception as e:

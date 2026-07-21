@@ -23,7 +23,7 @@ Before querying, build the knowledge graph:
 
 ```powershell
 # Using Python (recommended)
-poetry run python -m core.index
+uv run python -m core.index
 ```
 
 ## Quick Start
@@ -32,10 +32,10 @@ Use the Python API to run queries:
 
 ```powershell
 # Local Search - Specific entity-focused questions
-poetry run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "Who leads Project Alpha?"
 
 # Global Search - Broad organizational questions  
-poetry run python -m core.example "What are the main projects at TechVenture Inc?" --type global
+uv run python -m core.example "What are the main projects at TechVenture Inc?" --type global
 ```
 
 Or use it programmatically:
@@ -87,36 +87,36 @@ print(response)
 
 ```powershell
 # Leadership & Teams
-poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "Who works on the Infrastructure Department?"
-poetry run python -m core.example "What does Jennifer Park do?"
+uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "Who works on the Infrastructure Department?"
+uv run python -m core.example "What does Jennifer Park do?"
 
 # Technology Stack
-poetry run python -m core.example "What technologies are used in Project Alpha?"
-poetry run python -m core.example "What is the Azure architecture used by TechVenture?"
+uv run python -m core.example "What technologies are used in Project Alpha?"
+uv run python -m core.example "What is the Azure architecture used by TechVenture?"
 
 # Cross-Document Queries (demonstrates graph power)
-poetry run python -m core.example "Who resolved the GraphRAG index corruption incident and what was the root cause?"
-poetry run python -m core.example "What customers are using Project Beta?"
-poetry run python -m core.example "What is the relationship between David Kumar and Sophia Lee?"
+uv run python -m core.example "Who resolved the GraphRAG index corruption incident and what was the root cause?"
+uv run python -m core.example "What customers are using Project Beta?"
+uv run python -m core.example "What is the relationship between David Kumar and Sophia Lee?"
 ```
 
 ### Global Search Queries
 
 ```powershell
 # Organizational Overview
-poetry run python -m core.example "What are the main projects and teams at TechVenture Inc?" --type global
+uv run python -m core.example "What are the main projects and teams at TechVenture Inc?" --type global
 
 # Strategic Initiatives  
-poetry run python -m core.example "What are the key strategic initiatives?" --type global
+uv run python -m core.example "What are the key strategic initiatives?" --type global
 
 # Engineering & Incidents
-poetry run python -m core.example "What engineering processes does TechVenture use?" --type global
-poetry run python -m core.example "What major incidents has the organization experienced?" --type global
+uv run python -m core.example "What engineering processes does TechVenture use?" --type global
+uv run python -m core.example "What major incidents has the organization experienced?" --type global
 
 # Technology & Architecture
-poetry run python -m core.example "Describe the technology stack and architecture" --type global
-poetry run python -m core.example "What Azure services are used across the organization?" --type global
+uv run python -m core.example "Describe the technology stack and architecture" --type global
+uv run python -m core.example "What Azure services are used across the organization?" --type global
 ```
 
 ## Advanced Usage
@@ -209,3 +209,5 @@ await basic_search(query, data)        # Vector similarity only (no graph)
 **Issue**: Response is too broad
 - **Solution**: Use higher `--community-level` value (up to 2)
 - **Solution**: Make your query more specific
+
+

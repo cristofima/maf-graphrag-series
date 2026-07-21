@@ -5,10 +5,10 @@ This script demonstrates how to use the refactored core module
 to perform local and global searches against the knowledge graph.
 
 Usage:
-    poetry run python -m core.example "Your question here"
+    uv run python -m core.example "Your question here"
 
     # Or with search type:
-    poetry run python -m core.example --type global "What are the main themes?"
+    uv run python -m core.example --type global "What are the main themes?"
 """
 
 import argparse
@@ -82,7 +82,7 @@ async def run_search(query: str, search_type: str = "local", mode: str = "defaul
             data = load_all()
         except FileNotFoundError as e:
             console.print(f"[red]❌ Error:[/red] {e}")
-            console.print("\n[yellow]Run indexing first:[/yellow] poetry run python -m core.index")
+            console.print("\n[yellow]Run indexing first:[/yellow] uv run python -m core.index")
             sys.exit(1)
 
     # Show graph stats

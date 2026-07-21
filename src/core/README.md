@@ -8,11 +8,11 @@ Python API for GraphRAG 3.0.x knowledge graph operations.
 
 ```powershell
 # CLI (recommended)
-poetry run python -m core.index
+uv run python -m core.index
 
 # With options
-poetry run python -m core.index --resume          # Resume interrupted run
-poetry run python -m core.index --memory-profile  # Enable profiling
+uv run python -m core.index --resume          # Resume interrupted run
+uv run python -m core.index --memory-profile  # Enable profiling
 ```
 
 Or programmatically:
@@ -50,11 +50,11 @@ print(response)
 
 ```powershell
 # Build knowledge graph (run from project root)
-poetry run python -m core.index
+uv run python -m core.index
 
 # Query the knowledge graph
-poetry run python -m core.example "Who leads Project Alpha?"
-poetry run python -m core.example "What are the main projects?" --type global
+uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m core.example "What are the main projects?" --type global
 ```
 
 ## Module Structure
@@ -183,3 +183,4 @@ output/
 - pandas ^2.3.0, pyarrow ^22.0.0
 - rich ^14.0.0
 - Azure OpenAI credentials in `.env`
+

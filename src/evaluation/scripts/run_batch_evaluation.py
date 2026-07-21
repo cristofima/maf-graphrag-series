@@ -8,8 +8,8 @@ Uses Azure OpenAI as LLM-judge for built-in evaluators. Optionally
 logs results to Azure AI Foundry for dashboard visualization.
 
 Usage:
-    poetry run python -m evaluation.scripts.run_batch_evaluation
-    poetry run python -m evaluation.scripts.run_batch_evaluation --foundry  # log to Foundry
+    uv run python -m evaluation.scripts.run_batch_evaluation
+    uv run python -m evaluation.scripts.run_batch_evaluation --foundry  # log to Foundry
 """
 
 from __future__ import annotations

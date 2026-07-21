@@ -118,15 +118,15 @@ Router (classifies) → EntityExpert  (entity questions)
 
 ```bash
 # Prerequisites
-poetry run python run_mcp_server.py   # Terminal 1
+uv run python run_mcp_server.py   # Terminal 1
 
 # Run workflow demo CLI
-poetry run python run_workflow.py     # Terminal 2
+uv run python run_workflow.py     # Terminal 2
 
 # Or try a specific workflow
-poetry run python run_workflow.py sequential "What are the key projects?"
-poetry run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
-poetry run python run_workflow.py handoff    "What are the main strategic initiatives?"
+uv run python run_workflow.py sequential "What are the key projects?"
+uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
+uv run python run_workflow.py handoff    "What are the main strategic initiatives?"
 ```
 
 ## Programmatic Usage
@@ -203,7 +203,7 @@ class WorkflowStep:
 
 ## Live Output Examples
 
-### Handoff: `poetry run python run_workflow.py handoff "Who leads Project Alpha?"`
+### Handoff: `uv run python run_workflow.py handoff "Who leads Project Alpha?"`
 
 ```
 Step 1: Router — classifying query...
@@ -220,7 +220,7 @@ Step 2: EntityExpert completed (7.4s)
 Total: 8.8s · 2 steps
 ```
 
-### Sequential: `poetry run python run_workflow.py sequential "What are the key projects and their tech stack?"`
+### Sequential: `uv run python run_workflow.py sequential "What are the key projects and their tech stack?"`
 
 ```
 Step 1/3: QueryAnalyzer — decomposing query...     (1.9s)
@@ -237,7 +237,7 @@ Step 3/3: ReportWriter — synthesizing report...     (13.3s)
 Total: 83.7s · 3 steps
 ```
 
-### Concurrent: `poetry run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"`
+### Concurrent: `uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"`
 
 ```
 Steps 1+2: EntitySearcher + ThemesSearcher running in parallel... (103.9s)
@@ -277,3 +277,4 @@ Different workflow patterns use different MCP tool ownership strategies:
 | **Concurrent**           | Each agent owns its own MCP tool via `Agent` context manager + `tool_name_prefix` | Parallel agents need separate connections to avoid conflicts          |
 
 This follows Agent Framework rc5+ patterns: `Agent` as async context manager auto-manages MCP tool lifecycle. When a tool must be shared across agents, it’s managed externally to avoid premature disconnection.
+

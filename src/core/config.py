@@ -104,7 +104,7 @@ def validate_output_files(required: list[str] | None = None) -> bool:
     if missing:
         raise FileNotFoundError(
             f"Missing required output files: {', '.join(missing)}\n"
-            f"Please run indexing first: poetry run python -m core.index"
+            f"Please run indexing first: uv run python -m core.index"
         )
 
     return True

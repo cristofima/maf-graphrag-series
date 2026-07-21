@@ -94,7 +94,7 @@ async def run_indexing(resume: bool = False) -> None:
     console.print("  📁 output/lancedb/")
     console.print()
     console.print("[dim]You can now run queries:[/dim]")
-    console.print('  [cyan]poetry run python -m core.example "Your question"[/cyan]')
+    console.print('  [cyan]uv run python -m core.example "Your question"[/cyan]')
     console.print()
 
 

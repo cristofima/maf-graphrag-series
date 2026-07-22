@@ -41,6 +41,11 @@ infra/**/terraform.tfvars
 infra/**/backend.hcl
 infra/**/.terraform.lock.hcl
 
+# Testing
+.coverage
+coverage.xml
+htmlcov/
+
 # Jupyter
 .ipynb_checkpoints/
 

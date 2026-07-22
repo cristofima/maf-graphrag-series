@@ -73,7 +73,7 @@ package = false
 
 [tool.pytest.ini_options]
 minversion = "9.0"
-addopts = "-ra -q --strict-markers --cov=src/core --cov=src/agents --cov=src/mcp_server --cov=src/workflows --cov=src/evaluation --cov-report=term-missing"
+addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
@@ -120,13 +120,7 @@ ignore_missing_imports = true
 exclude = ["output", "cache", ".venv"]
 
 [tool.coverage.run]
-source = [
-    "src/core",
-    "src/agents",
-    "src/mcp_server",
-    "src/workflows",
-    "src/evaluation",
-]
+source = ["src"]
 omit = ["*/tests/*", "*/__init__.py"]
 
 [tool.coverage.report]

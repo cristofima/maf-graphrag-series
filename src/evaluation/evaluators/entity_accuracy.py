@@ -13,6 +13,8 @@ from typing import Any
 
 import pandas as pd
 
+from evaluation.evaluators._shared import coerce_response_text, resolve_entity_name_column
+
 
 class EntityAccuracyEvaluator:
     """Validate that entities in agent responses exist in the knowledge graph.
@@ -26,7 +28,7 @@ class EntityAccuracyEvaluator:
 
     def __init__(self, entities_parquet_path: str) -> None:
         entities_df = pd.read_parquet(entities_parquet_path)
-        entity_col = _resolve_entity_name_column(entities_df)
+        entity_col = resolve_entity_name_column(entities_df)
         self.valid_entities: set[str] = set(entities_df[entity_col].astype(str).str.lower().tolist())
 
     def __call__(self, *, response: object, **kwargs: object) -> dict[str, Any]:
@@ -39,7 +41,7 @@ class EntityAccuracyEvaluator:
             Dict with entity_accuracy score (0.0-1.0), valid/invalid entity lists,
             and total counts.
         """
-        response_text = _coerce_response_text(response)
+        response_text = coerce_response_text(response)
         mentioned = self._extract_entity_mentions(response_text)
 
         if not mentioned:
@@ -96,52 +98,3 @@ class EntityAccuracyEvaluator:
                 result.append(entity)
 
         return result
-
-
-def _resolve_entity_name_column(entities_df: pd.DataFrame) -> str:
-    """Resolve the entity text column across GraphRAG schema versions."""
-    if "name" in entities_df.columns:
-        return "name"
-    if "title" in entities_df.columns:
-        return "title"
-    raise ValueError("Entities parquet must contain either 'name' or 'title' column.")
-
-
-def _coerce_response_text(response: object) -> str:
-    """Convert evaluator response payloads into plain text."""
-    if isinstance(response, str):
-        return response
-    if isinstance(response, list):
-        return _extract_text_from_messages(response)
-    return str(response)
-
-
-def _extract_text_from_messages(messages: list[object]) -> str:
-    """Extract text from a list of message dicts, keeping only assistant turns."""
-    parts: list[str] = []
-    for item in messages:
-        if isinstance(item, dict) and item.get("role") == "assistant":
-            _collect_assistant_text(item, parts)
-    return "\n".join(parts)
-
-
-def _collect_assistant_text(item: dict[str, object], parts: list[str]) -> None:
-    """Append text from a single assistant message dict into parts."""
-    content = item.get("content")
-    if isinstance(content, str):
-        parts.append(content)
-    elif isinstance(content, list):
-        _collect_content_block_text(content, parts)
-
-
-def _collect_content_block_text(content: list[object], parts: list[str]) -> None:
-    """Append text from content blocks of recognised types into parts."""
-    _TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
-    for block in content:
-        if not isinstance(block, dict):
-            continue
-        if str(block.get("type", "")).lower() not in _TEXT_BLOCK_TYPES:
-            continue
-        text = block.get("text")
-        if isinstance(text, str) and text:
-            parts.append(text)

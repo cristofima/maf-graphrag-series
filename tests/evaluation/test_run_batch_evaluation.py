@@ -19,8 +19,10 @@ class TestResolveCliDataPath:
         assert resolved == (DATASETS_DIR / "eval_data.jsonl").resolve()
 
     def test_rejects_path_traversal_outside_datasets_dir(self):
+        invalid_path = Path("..") / ".." / "secrets.jsonl"
+
         with pytest.raises(ValueError, match="must stay within"):
-            _resolve_cli_data_path(Path("..") / ".." / "secrets.jsonl")
+            _resolve_cli_data_path(invalid_path)
 
     def test_rejects_non_jsonl_files(self):
         with pytest.raises(ValueError, match=r"must point to a \.jsonl file"):

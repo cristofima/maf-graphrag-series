@@ -1,5 +1,6 @@
 """Unit tests for custom GraphRAG evaluators — EntityAccuracy and RelationshipValidity."""
 
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -71,7 +72,7 @@ class TestEntityAccuracyEvaluator:
 
         result = evaluator(response="the company is doing well this quarter.")
 
-        assert result["entity_accuracy"] == pytest.approx(1.0)
+        assert math.isclose(result["entity_accuracy"], 1.0)
         assert result["total_mentioned"] == 0
 
     def test_all_invalid_entities(self, entities_parquet):
@@ -80,7 +81,7 @@ class TestEntityAccuracyEvaluator:
         result = evaluator(response="John Doe and Jane Smith are in the team. Bob Wilson helps too.")
 
         # None of these are in the knowledge graph
-        assert result["entity_accuracy"] == pytest.approx(0.0)
+        assert math.isclose(result["entity_accuracy"], 0.0)
         assert result["entity_accuracy_result"] == "fail"
 
     def test_case_insensitive_matching(self, entities_parquet):
@@ -118,7 +119,7 @@ class TestRelationshipValidityEvaluator:
 
         result = evaluator(response="Sarah Chen works at TechVenture Dynamics as the CEO.")
 
-        assert result["relationship_validity"] == 1.0
+        assert math.isclose(result["relationship_validity"], 1.0)
         assert result["relationship_validity_result"] == "pass"
 
     def test_no_entity_pairs_returns_perfect(self, relationships_parquet, entities_parquet):
@@ -126,7 +127,7 @@ class TestRelationshipValidityEvaluator:
 
         result = evaluator(response="the quarterly results are strong this year.")
 
-        assert result["relationship_validity"] == pytest.approx(1.0)
+        assert math.isclose(result["relationship_validity"], 1.0)
         assert result["total_pairs_checked"] == 0
 
     def test_bidirectional_matching(self, relationships_parquet, entities_parquet):
@@ -137,7 +138,7 @@ class TestRelationshipValidityEvaluator:
 
         # Should still match since relationships are loaded bidirectionally
         if result["total_pairs_checked"] > 0:
-            assert result["relationship_validity"] > pytest.approx(0.0)
+            assert result["relationship_validity"] > 0.0
 
     def test_result_structure(self, relationships_parquet, entities_parquet):
         evaluator = RelationshipValidityEvaluator(relationships_parquet, entities_parquet)

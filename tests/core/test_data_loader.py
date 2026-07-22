@@ -1,10 +1,14 @@
 """Unit tests for core/data_loader.py utility functions.
 
-These are pure-function tests using in-memory GraphData with mock DataFrames.
-No disk I/O — fully deterministic.
+Most tests here are pure-function tests using in-memory GraphData with mock
+DataFrames — no disk I/O. ``load_parquet``/``load_all`` tests use ``tmp_path``
+with real (tiny) Parquet files written via pandas — no Azure/GraphRAG calls.
 """
 
+from unittest.mock import MagicMock
+
 import pandas as pd
+import pytest
 
 from core.data_loader import (
     GraphData,
@@ -13,7 +17,23 @@ from core.data_loader import (
     get_relationship_count,
     list_entities,
     list_entity_types,
+    load_all,
+    load_parquet,
 )
+
+REQUIRED_FILES = (
+    "entities.parquet",
+    "relationships.parquet",
+    "communities.parquet",
+    "community_reports.parquet",
+    "text_units.parquet",
+)
+
+
+def _write_required_parquet_files(output_dir):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for name in REQUIRED_FILES:
+        pd.DataFrame({"id": [1, 2]}).to_parquet(output_dir / name)
 
 
 def _make_graph_data(
@@ -130,3 +150,91 @@ class TestGraphDataRepr:
         data = _make_graph_data()
         repr_str = repr(data)
         assert "entities=0 rows" in repr_str
+
+
+class TestLoadParquet:
+    def test_raises_when_file_missing(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="entities.parquet"):
+            load_parquet("entities.parquet", tmp_path)
+
+    def test_loads_dataframe_from_output_dir(self, tmp_path):
+        pd.DataFrame({"title": ["Alpha", "Beta"]}).to_parquet(tmp_path / "entities.parquet")
+
+        result = load_parquet("entities.parquet", tmp_path)
+
+        assert list(result["title"]) == ["Alpha", "Beta"]
+
+    def test_uses_get_output_dir_when_output_dir_not_given(self, monkeypatch, tmp_path):
+        pd.DataFrame({"title": ["Solo"]}).to_parquet(tmp_path / "entities.parquet")
+        monkeypatch.setattr("core.data_loader.get_output_dir", lambda: tmp_path)
+
+        result = load_parquet("entities.parquet")
+
+        assert list(result["title"]) == ["Solo"]
+
+
+class TestLoadAll:
+    def test_validate_true_calls_validate_output_files(self, monkeypatch, tmp_path):
+        _write_required_parquet_files(tmp_path)
+        mock_validate = MagicMock(return_value=True)
+        monkeypatch.setattr("core.data_loader.validate_output_files", mock_validate)
+
+        load_all(output_dir=tmp_path, validate=True)
+
+        mock_validate.assert_called_once()
+
+    def test_validate_false_skips_validation(self, monkeypatch, tmp_path):
+        _write_required_parquet_files(tmp_path)
+        mock_validate = MagicMock()
+        monkeypatch.setattr("core.data_loader.validate_output_files", mock_validate)
+
+        load_all(output_dir=tmp_path, validate=False)
+
+        mock_validate.assert_not_called()
+
+    def test_uses_get_output_dir_when_output_dir_not_given(self, monkeypatch, tmp_path):
+        _write_required_parquet_files(tmp_path)
+        monkeypatch.setattr("core.data_loader.get_output_dir", lambda: tmp_path)
+        monkeypatch.setattr("core.data_loader.validate_output_files", MagicMock())
+
+        data = load_all(validate=False)
+
+        assert len(data.entities) == 2
+
+    def test_loads_all_required_dataframes(self, tmp_path):
+        _write_required_parquet_files(tmp_path)
+
+        data = load_all(output_dir=tmp_path, validate=False)
+
+        assert isinstance(data, GraphData)
+        assert len(data.entities) == 2
+        assert len(data.relationships) == 2
+        assert len(data.communities) == 2
+        assert len(data.community_reports) == 2
+        assert len(data.text_units) == 2
+
+    def test_covariates_and_documents_default_to_none(self, tmp_path):
+        _write_required_parquet_files(tmp_path)
+
+        data = load_all(output_dir=tmp_path, validate=False)
+
+        assert data.covariates is None
+        assert data.documents is None
+
+    def test_loads_optional_covariates_when_present(self, tmp_path):
+        _write_required_parquet_files(tmp_path)
+        pd.DataFrame({"id": [1]}).to_parquet(tmp_path / "covariates.parquet")
+
+        data = load_all(output_dir=tmp_path, validate=False)
+
+        assert data.covariates is not None
+        assert len(data.covariates) == 1
+
+    def test_loads_optional_documents_when_present(self, tmp_path):
+        _write_required_parquet_files(tmp_path)
+        pd.DataFrame({"title": ["doc1.md"]}).to_parquet(tmp_path / "documents.parquet")
+
+        data = load_all(output_dir=tmp_path, validate=False)
+
+        assert data.documents is not None
+        assert list(data.documents["title"]) == ["doc1.md"]

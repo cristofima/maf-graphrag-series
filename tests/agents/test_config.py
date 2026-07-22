@@ -78,3 +78,13 @@ class TestAgentConfig:
         assert isinstance(config, AgentConfig)
         assert load_calls == [True]
         assert config.azure_endpoint == "https://test.openai.azure.com/"
+
+    def test_provider_api_key_returns_api_key_for_openai_host(self, monkeypatch):
+        monkeypatch.setenv("API_HOST", "openai")
+        monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+
+        config = AgentConfig()
+
+        assert config.provider_api_key == "openai-key"

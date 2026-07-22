@@ -6,7 +6,10 @@ from evaluation.evaluators.builtin import (
     GRAPHRAG_TOOL_DEFINITIONS,
     _extract_assistant_content,
     _extract_text,
+    _extract_text_from_content,
     convert_to_evaluator_messages,
+    create_quality_evaluators,
+    run_single_evaluation,
 )
 
 
@@ -228,24 +231,86 @@ class TestConvertToEvaluatorMessages:
         assert result[0]["role"] == "user"
 
 
+class TestExtractTextFromContent:
+    def test_string_content_passthrough(self):
+        assert _extract_text_from_content("plain text") == "plain text"
+
+    def test_list_of_string_items_joined(self):
+        assert _extract_text_from_content(["a", "b"]) == "a b"
+
+    def test_list_of_objects_with_text_attr(self):
+        item = MagicMock()
+        item.text = "from object"
+        assert _extract_text_from_content([item]) == "from object"
+
+    def test_empty_list_returns_empty_string(self):
+        assert _extract_text_from_content([]) == ""
+
+    def test_non_string_non_list_returns_empty_string(self):
+        assert _extract_text_from_content(123) == ""
+        assert _extract_text_from_content(None) == ""
+
+
 class TestCreateQualityEvaluators:
-    def test_returns_three_evaluators(self, monkeypatch):
-        """Verify the factory creates the right evaluator keys (mocking SDK imports)."""
-        mock_task = MagicMock()
-        mock_intent = MagicMock()
-        mock_tool = MagicMock()
+    def test_constructs_all_six_evaluators(self, monkeypatch):
+        """Exercises the real function body — patches the Azure SDK evaluator classes
+        it imports internally so no network/credentials are involved."""
+        mock_classes = {
+            name: MagicMock(name=name)
+            for name in (
+                "CoherenceEvaluator",
+                "IntentResolutionEvaluator",
+                "RelevanceEvaluator",
+                "ResponseCompletenessEvaluator",
+                "TaskAdherenceEvaluator",
+                "ToolCallAccuracyEvaluator",
+            )
+        }
+        import azure.ai.evaluation as azure_eval
 
-        import evaluation.evaluators.builtin as mod
+        for name, mock_cls in mock_classes.items():
+            monkeypatch.setattr(azure_eval, name, mock_cls)
 
-        monkeypatch.setattr(
-            mod,
-            "create_quality_evaluators",
-            lambda mc: {"task_adherence": mock_task, "intent_resolution": mock_intent, "tool_call_accuracy": mock_tool},
-        )
+        model_config = {"azure_endpoint": "x", "api_key": "y", "azure_deployment": "z"}
+        result = create_quality_evaluators(model_config)
 
-        result = mod.create_quality_evaluators({"azure_endpoint": "x", "api_key": "y", "azure_deployment": "z"})
+        assert set(result.keys()) == {
+            "task_adherence",
+            "intent_resolution",
+            "relevance",
+            "coherence",
+            "response_completeness",
+            "tool_call_accuracy",
+        }
+        mock_classes["TaskAdherenceEvaluator"].assert_called_once_with(model_config=model_config)
+        mock_classes["IntentResolutionEvaluator"].assert_called_once_with(model_config=model_config)
+        mock_classes["RelevanceEvaluator"].assert_called_once_with(model_config=model_config)
+        mock_classes["CoherenceEvaluator"].assert_called_once_with(model_config=model_config)
+        mock_classes["ResponseCompletenessEvaluator"].assert_called_once_with(model_config=model_config)
+        mock_classes["ToolCallAccuracyEvaluator"].assert_called_once_with(model_config=model_config)
+        assert result["task_adherence"] is mock_classes["TaskAdherenceEvaluator"].return_value
 
-        assert "task_adherence" in result
-        assert "intent_resolution" in result
-        assert "tool_call_accuracy" in result
-        assert len(result) == 3
+
+class TestRunSingleEvaluation:
+    def test_calls_evaluator_with_query_and_response(self):
+        mock_evaluator = MagicMock(return_value={"score": 5})
+
+        result = run_single_evaluation(mock_evaluator, query="Who is the CEO?", response="Sarah Chen")
+
+        assert result == {"score": 5}
+        mock_evaluator.assert_called_once_with(query="Who is the CEO?", response="Sarah Chen")
+
+    def test_includes_tool_definitions_when_provided(self):
+        mock_evaluator = MagicMock(return_value={"score": 4})
+        tool_defs = [{"name": "local_search"}]
+
+        run_single_evaluation(mock_evaluator, query="q", response="r", tool_definitions=tool_defs)
+
+        mock_evaluator.assert_called_once_with(query="q", response="r", tool_definitions=tool_defs)
+
+    def test_omits_tool_definitions_when_none(self):
+        mock_evaluator = MagicMock(return_value={"score": 3})
+
+        run_single_evaluation(mock_evaluator, query="q", response="r", tool_definitions=None)
+
+        mock_evaluator.assert_called_once_with(query="q", response="r")

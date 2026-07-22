@@ -217,7 +217,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ### What You'll Learn
 
-- Microsoft Agent Framework fundamentals (1.0.0rc5)
+- Microsoft Agent Framework fundamentals (1.11.x)
 - `MCPStreamableHTTPTool` for MCP server integration
 - `Agent` as async context manager for automatic MCP lifecycle management
 - System prompt-based tool routing (GPT-4o decides, no code router)
@@ -290,7 +290,7 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.0.0rc5
+### Microsoft Agent Framework 1.11.x
 
 Key patterns used:
 
@@ -378,13 +378,20 @@ maf-graphrag-series/
 │   │   ├── supervisor.py      # KnowledgeCaptainRunner, research delegate, MCP tool
 │   │   ├── tools.py           # Local @tool functions (format_as_table, extract_key_entities)
 │   │   └── README.md          # Agents documentation
-│   └── workflows/             # Part 4: Multi-agent orchestration
-│       ├── __init__.py        # Public API exports
-│       ├── base.py            # WorkflowResult, WorkflowStep, MCPWorkflowBase, factory functions
-│       ├── sequential.py      # Research Pipeline workflow
-│       ├── concurrent.py      # Parallel Search workflow
-│       ├── handoff.py         # Expert Routing workflow
-│       └── README.md          # Workflows documentation
+│   ├── workflows/             # Part 4: Multi-agent orchestration
+│   │   ├── __init__.py        # Public API exports
+│   │   ├── base.py            # WorkflowResult, WorkflowStep, MCPWorkflowBase, factory functions
+│   │   ├── sequential.py      # Research Pipeline workflow
+│   │   ├── concurrent.py      # Parallel Search workflow
+│   │   ├── handoff.py         # Expert Routing workflow
+│   │   └── README.md          # Workflows documentation
+│   └── evaluation/            # Part 5: Agent evaluation pipeline
+│       ├── __init__.py        # Package exports
+│       ├── config.py          # EvalConfig — Azure AI Evaluation SDK configuration
+│       ├── evaluators/        # Built-in (LLM-judge) + custom graph-based evaluators
+│       ├── monitoring/        # OpenTelemetry setup for Application Insights tracing
+│       ├── scripts/           # generate_eval_data, run_batch_evaluation, run_redteam
+│       └── README.md          # Evaluation documentation
 ├── tests/                     # Test suite
 ├── infra/                     # Terraform infrastructure
 ├── docs/                      # Technical documentation
@@ -599,9 +606,29 @@ For documentation clarity, use this split:
 | ------------------------ | -------------------------- | ---------------------------- |
 | **Azure OpenAI**         | Entity extraction, queries | GPT-4o                       |
 | **Azure OpenAI**         | Document embeddings        | text-embedding-3-small       |
-| **Agent Framework**      | Multi-agent orchestration  | 1.0.0rc5                     |
-| **Azure AI Evaluation**  | LLM-as-judge + red team    | `azure-ai-evaluation` 1.16.x |
-| **Application Insights** | Agent observability traces | via OpenTelemetry 1.40.x     |
+| **Agent Framework**      | Multi-agent orchestration  | 1.11.x                       |
+| **Azure AI Evaluation**  | LLM-as-judge + red team    | `azure-ai-evaluation` 1.18.x |
+| **Application Insights** | Agent observability traces | via OpenTelemetry 1.43.x     |
+
+## Testing
+
+The test suite mirrors `src/` under `tests/` (pytest + pytest-asyncio, `asyncio_mode = "auto"`). All Azure OpenAI calls are mocked — no credentials or live endpoints are required to run tests.
+
+```bash
+uv run pytest                     # Full suite with coverage report
+uv run pytest tests/agents/       # Run a single module
+uv run pytest --cov-report=html   # HTML coverage report (htmlcov/)
+```
+
+| Area                                                    | Coverage | Notes                                               |
+| ------------------------------------------------------- | -------- | --------------------------------------------------- |
+| `core`, `agents`, `mcp_server`                          | 100%     | `core/example.py` (standalone demo script) excluded |
+| `evaluation` — config, evaluators, monitoring, data gen | 100%     |                                                     |
+| `evaluation` — `run_batch_evaluation`, `run_redteam`    | 20-26%   | Long-running, interactive CLI scripts — deferred    |
+| `workflows`                                             | 75-100%  | Deep integration/error-handling branches deferred   |
+| **Overall**                                             | **75%**  |                                                     |
+
+Ruff (lint + format) and mypy run in CI alongside tests — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Key Files
 

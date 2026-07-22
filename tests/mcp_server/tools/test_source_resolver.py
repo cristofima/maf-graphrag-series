@@ -87,6 +87,17 @@ class TestResolveSources:
         assert not result[0]["text_preview"].endswith("...")
         assert len(result[0]["text_preview"]) == TEXT_PREVIEW_LENGTH
 
+    def test_non_numeric_id_resolves_to_unknown_document(self):
+        """Covers the except branch when int(src_id) raises ValueError."""
+        sources_df = pd.DataFrame({"id": ["abc"], "text": ["text"]})
+        text_units = pd.DataFrame({"human_readable_id": [0], "document_id": ["hash-a"]})
+        documents = pd.DataFrame({"id": ["hash-a"], "title": ["alpha.md"]})
+        data = _make_graph_data(text_units=text_units, documents=documents)
+
+        result = resolve_sources(sources_df, data)
+
+        assert result[0]["document"] == "unknown"
+
     def test_unknown_document_when_id_not_in_mapping(self):
         sources_df = pd.DataFrame({"id": ["99"], "text": ["text"]})
         text_units = pd.DataFrame({"human_readable_id": [0], "document_id": ["doc-hash-1"]})

@@ -409,3 +409,63 @@ class TestSummarizationMiddleware:
         call_next.assert_awaited_once()
         # Should have logged a warning about missing client
         mock_logger.warning.assert_called_once()
+
+    async def test_compact_history_noop_when_session_none(self):
+        """Direct call — covers the internal session-None guard in _compact_history."""
+        mw, token_counter = self._make_mw(total_tokens=200, threshold=100)
+        context = MagicMock()
+        context.session = None
+
+        await mw._compact_history(context)
+
+        assert token_counter.total_tokens == 200
+
+    async def test_compact_history_noop_when_state_not_dict(self):
+        """Covers the guard when session.state isn't a dict."""
+        mw, token_counter = self._make_mw(total_tokens=200, threshold=100)
+        session = MagicMock()
+        session.state = "not-a-dict"
+        context = MagicMock()
+        context.session = session
+
+        await mw._compact_history(context)
+
+        assert token_counter.total_tokens == 200
+
+    async def test_compact_history_noop_when_source_state_not_dict(self):
+        """Covers the guard when state[_DEFAULT_SOURCE_ID] isn't a dict."""
+        mw, token_counter = self._make_mw(total_tokens=200, threshold=100)
+        session = MagicMock()
+        session.state = {"default": "not-a-dict"}
+        context = MagicMock()
+        context.session = session
+
+        await mw._compact_history(context)
+
+        assert token_counter.total_tokens == 200
+
+    async def test_compact_history_falls_back_when_summarization_call_fails(self):
+        """Covers the exception branch around client.get_chat_response."""
+        mw, token_counter = self._make_mw(total_tokens=200, threshold=100)
+
+        msg1 = MagicMock(role="user", text="Hello")
+        msg2 = MagicMock(role="assistant", text="Hi there")
+        msg3 = MagicMock(role="user", text="Tell me about Alpha")
+
+        session = MagicMock()
+        session.state = {"default": {"messages": [msg1, msg2, msg3]}}
+        context = MagicMock()
+        context.session = session
+
+        mock_client = AsyncMock()
+        mock_client.get_chat_response.side_effect = RuntimeError("summarization failed")
+        context.agent = MagicMock()
+        context.agent.client = mock_client
+
+        with patch("agents.middleware.logger"):
+            await mw._compact_history(context)
+
+        messages = session.state["default"]["messages"]
+        assert len(messages) == 1
+        assert "Previous conversation summary unavailable." in messages[0].text
+        assert token_counter.total_tokens == 0

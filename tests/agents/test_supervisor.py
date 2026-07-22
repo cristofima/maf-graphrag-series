@@ -1,6 +1,9 @@
 """Unit tests for agents/supervisor.py — local_tools and create_research_delegate."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -363,3 +366,164 @@ class TestCreateMcpTool:
 
             _, kwargs = mock_cls.call_args
             assert kwargs["url"] == "http://custom:9000/mcp"
+
+
+# ===========================================================================
+# create_client — provider dispatch
+# ===========================================================================
+
+
+class TestCreateClient:
+    """Tests for ``create_client`` provider dispatch logic."""
+
+    def test_azure_host_uses_openai_chat_completion_client(self, monkeypatch):
+        _azure_env(monkeypatch)
+        monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
+        monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+
+        with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
+            from agents.supervisor import create_client
+
+            create_client()
+
+            _, kwargs = mock_cls.call_args
+            assert kwargs["model"] == "gpt-4o"
+            assert kwargs["api_key"] == "test-key"
+            assert kwargs["api_version"] == "2024-10-21"
+
+    def test_azure_host_uses_none_api_key_when_azure_cli(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+        monkeypatch.delenv("API_HOST", raising=False)
+        monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
+
+        with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
+            from agents.supervisor import create_client
+
+            create_client()
+
+            _, kwargs = mock_cls.call_args
+            assert kwargs["api_key"] is None
+
+    def test_non_azure_host_uses_openai_chat_client(self, monkeypatch):
+        monkeypatch.setenv("API_HOST", "github")
+        monkeypatch.setenv("GITHUB_TOKEN", "gh-token")
+        monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
+
+        with patch("agent_framework.openai.OpenAIChatClient") as mock_cls:
+            from agents.supervisor import create_client
+
+            create_client()
+
+            _, kwargs = mock_cls.call_args
+            assert kwargs["api_key"] == "gh-token"
+            assert kwargs["base_url"] == "https://models.github.ai/inference"
+
+
+# ===========================================================================
+# KnowledgeCaptainRunner — lifecycle and ask()
+# ===========================================================================
+
+
+class TestKnowledgeCaptainRunnerLifecycle:
+    """Tests for ``KnowledgeCaptainRunner``'s connection lifecycle and ``ask``."""
+
+    def _make_runner(self, monkeypatch, agent=None):
+        _azure_env(monkeypatch)
+        agent = agent or MagicMock()
+        with patch("agents.supervisor.create_knowledge_captain", return_value=agent):
+            from agents.supervisor import KnowledgeCaptainRunner
+
+            return KnowledgeCaptainRunner()
+
+    def test_token_counter_returns_none_without_middleware(self, monkeypatch):
+        agent = MagicMock(middleware=[])
+        runner = self._make_runner(monkeypatch, agent=agent)
+
+        assert runner.token_counter is None
+
+    def test_token_counter_finds_matching_middleware(self, monkeypatch):
+        from agents.middleware import TokenCountingChatMiddleware
+
+        token_mw = TokenCountingChatMiddleware()
+        agent = MagicMock(middleware=[MagicMock(), token_mw])
+        runner = self._make_runner(monkeypatch, agent=agent)
+
+        assert runner.token_counter is token_mw
+
+    async def test_aenter_connects_and_creates_session(self, monkeypatch):
+        agent = MagicMock()
+        agent.__aenter__ = AsyncMock(return_value=agent)
+        runner = self._make_runner(monkeypatch, agent=agent)
+
+        result = await runner.__aenter__()
+
+        assert result is runner
+        agent.__aenter__.assert_awaited_once()
+        assert runner._connected is True
+        assert runner._session is not None
+
+    async def test_aexit_disconnects_and_clears_session(self, monkeypatch):
+        agent = MagicMock()
+        agent.__aenter__ = AsyncMock(return_value=agent)
+        agent.__aexit__ = AsyncMock(return_value=False)
+        runner = self._make_runner(monkeypatch, agent=agent)
+        await runner.__aenter__()
+
+        await runner.__aexit__(None, None, None)
+
+        agent.__aexit__.assert_awaited_once_with(None, None, None)
+        assert runner._connected is False
+        assert runner._session is None
+
+    async def test_ask_raises_when_not_connected(self, monkeypatch):
+        runner = self._make_runner(monkeypatch)
+
+        with pytest.raises(RuntimeError, match="Not connected"):
+            await runner.ask("question")
+
+    async def test_ask_returns_response_with_token_count(self, monkeypatch):
+        from agents.middleware import TokenCountingChatMiddleware
+
+        token_mw = TokenCountingChatMiddleware()
+        token_mw._total_tokens = 42
+        agent = MagicMock(middleware=[token_mw])
+        agent.__aenter__ = AsyncMock(return_value=agent)
+        mock_result = MagicMock(text="The answer")
+        agent.run = AsyncMock(return_value=mock_result)
+        runner = self._make_runner(monkeypatch, agent=agent)
+        await runner.__aenter__()
+
+        response = await runner.ask("Who leads Alpha?")
+
+        assert response.text == "The answer"
+        assert response.token_count == 42
+        agent.run.assert_awaited_once_with("Who leads Alpha?", session=runner._session)
+
+    async def test_ask_returns_timeout_message_on_timeout(self, monkeypatch):
+        agent = MagicMock(middleware=[])
+        agent.__aenter__ = AsyncMock(return_value=agent)
+
+        async def _slow_run(*args, **kwargs):
+            await asyncio.sleep(0.05)
+            return MagicMock(text="too late")
+
+        agent.run = _slow_run
+        runner = self._make_runner(monkeypatch, agent=agent)
+        await runner.__aenter__()
+
+        real_timeout = asyncio.timeout
+        with patch("agents.supervisor.asyncio.timeout", lambda seconds: real_timeout(0)):
+            response = await runner.ask("question")
+
+        assert response.text == "Request timed out. Please try again."
+
+    def test_clear_history_resets_session(self, monkeypatch):
+        runner = self._make_runner(monkeypatch)
+        original_session = runner._session
+
+        runner.clear_history()
+
+        assert runner._session is not None
+        assert runner._session is not original_session

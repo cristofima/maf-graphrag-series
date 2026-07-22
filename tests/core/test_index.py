@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.index import run_indexing
+from core.index import main, run_indexing
 
 
 class TestRunIndexingValidation:
@@ -55,3 +55,47 @@ class TestRunIndexingHappyPath:
                 await run_indexing()
 
         assert exc_info.value.code == 1
+
+    async def test_prints_traceback_when_verbose_flag_set(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr("sys.argv", ["core.index", "--verbose"])
+        docs_dir = tmp_path / "input" / "documents"
+        docs_dir.mkdir(parents=True)
+        (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
+
+        with patch("core.index.build_index", AsyncMock(side_effect=RuntimeError("boom"))):
+            with patch("core.index.console.print_exception") as mock_print_exception:
+                with pytest.raises(SystemExit):
+                    await run_indexing()
+
+        mock_print_exception.assert_called_once()
+
+    async def test_reports_na_duration_when_result_has_no_runtime(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        docs_dir = tmp_path / "input" / "documents"
+        docs_dir.mkdir(parents=True)
+        (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
+
+        pipeline_result = MagicMock(spec=["workflow", "error"], workflow="create_final_documents", error=None)
+        with patch("core.index.build_index", AsyncMock(return_value=[pipeline_result])):
+            await run_indexing()
+
+
+class TestMain:
+    def test_parses_args_and_runs_indexing(self, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["core.index", "--resume"])
+        mock_asyncio_run = MagicMock()
+        monkeypatch.setattr("core.index.asyncio.run", mock_asyncio_run)
+
+        main()
+
+        mock_asyncio_run.assert_called_once()
+
+    def test_exits_130_on_keyboard_interrupt(self, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["core.index"])
+        monkeypatch.setattr("core.index.asyncio.run", MagicMock(side_effect=KeyboardInterrupt))
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 130

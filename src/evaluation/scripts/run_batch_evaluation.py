@@ -63,9 +63,7 @@ def _resolve_cli_data_path(path_value: str | Path) -> Path:
     try:
         resolved_candidate.relative_to(resolved_root)
     except ValueError as exc:
-        raise ValueError(
-            f"Evaluation data path must stay within {resolved_root}: {resolved_candidate}"
-        ) from exc
+        raise ValueError(f"Evaluation data path must stay within {resolved_root}: {resolved_candidate}") from exc
 
     if resolved_candidate.suffix.lower() != ".jsonl":
         raise ValueError(f"Evaluation data path must point to a .jsonl file: {resolved_candidate}")

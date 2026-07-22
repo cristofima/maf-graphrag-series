@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from workflows.base import WorkflowType
-from workflows.concurrent import ParallelSearchWorkflow
+from workflows.concurrent import ParallelSearchWorkflow, _create_parallel_agents
 
 
 def _agent_stub(text: str) -> MagicMock:
@@ -81,3 +81,89 @@ class TestParallelSearchWorkflowRun:
         prompt = workflow._answer_synthesizer.run.await_args.args[0]
         assert "entity findings XYZ" in prompt
         assert "theme findings ABC" in prompt
+
+
+class TestCreateParallelAgents:
+    def test_creates_three_agents_with_correct_names(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
+
+        _create_parallel_agents()
+
+        names = [call.kwargs["name"] for call in mock_agent_cls.call_args_list]
+        assert names == ["entity_searcher", "themes_searcher", "answer_synthesizer"]
+
+    def test_entity_and_themes_tools_get_distinct_prefixes(self, monkeypatch):
+        created_tools: list[MagicMock] = []
+
+        def _fake_create_mcp_tool(url):
+            tool = MagicMock()
+            created_tools.append(tool)
+            return tool
+
+        monkeypatch.setattr("agent_framework.Agent", MagicMock())
+        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", _fake_create_mcp_tool)
+
+        _create_parallel_agents()
+
+        assert created_tools[0].tool_name_prefix == "entity"
+        assert created_tools[1].tool_name_prefix == "themes"
+
+    def test_answer_synthesizer_has_no_tools(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
+
+        _create_parallel_agents()
+
+        synthesizer_call = mock_agent_cls.call_args_list[2]
+        assert synthesizer_call.kwargs["tools"] == []
+
+
+def _mock_context_agent() -> MagicMock:
+    agent = MagicMock()
+    agent.__aenter__ = AsyncMock(return_value=agent)
+    agent.__aexit__ = AsyncMock(return_value=False)
+    return agent
+
+
+class TestParallelSearchWorkflowLifecycle:
+    async def test_aenter_creates_agents_and_connects_both_searchers(self, monkeypatch):
+        entity_agent = _mock_context_agent()
+        themes_agent = _mock_context_agent()
+        synthesizer = MagicMock()
+        monkeypatch.setattr(
+            "workflows.concurrent._create_parallel_agents",
+            lambda mcp_url=None: (entity_agent, themes_agent, synthesizer),
+        )
+
+        workflow = ParallelSearchWorkflow()
+        result = await workflow.__aenter__()
+
+        entity_agent.__aenter__.assert_awaited_once()
+        themes_agent.__aenter__.assert_awaited_once()
+        assert result is workflow
+        assert workflow._answer_synthesizer is synthesizer
+
+    async def test_aexit_closes_both_searcher_connections(self, monkeypatch):
+        entity_agent = _mock_context_agent()
+        themes_agent = _mock_context_agent()
+        monkeypatch.setattr(
+            "workflows.concurrent._create_parallel_agents",
+            lambda mcp_url=None: (entity_agent, themes_agent, MagicMock()),
+        )
+
+        workflow = ParallelSearchWorkflow()
+        await workflow.__aenter__()
+        await workflow.__aexit__(None, None, None)
+
+        entity_agent.__aexit__.assert_awaited_once()
+        themes_agent.__aexit__.assert_awaited_once()
+
+    async def test_aexit_without_prior_aenter_is_a_no_op(self):
+        workflow = ParallelSearchWorkflow()
+        await workflow.__aexit__(None, None, None)

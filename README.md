@@ -8,6 +8,7 @@ Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 [![Technical Debt](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=sqale_index)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=coverage)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 
 ## Series Overview
 
@@ -622,11 +623,11 @@ uv run pytest --cov-report=html   # HTML coverage report (htmlcov/)
 
 | Area                                                    | Coverage | Notes                                               |
 | ------------------------------------------------------- | -------- | --------------------------------------------------- |
-| `core`, `agents`, `mcp_server`                          | 100%     | `core/example.py` (standalone demo script) excluded |
+| `core`, `agents`, `mcp_server`, `workflows`             | 100%     | `core/example.py` (standalone demo script) excluded |
 | `evaluation` — config, evaluators, monitoring, data gen | 100%     |                                                     |
-| `evaluation` — `run_batch_evaluation`, `run_redteam`    | 20-26%   | Long-running, interactive CLI scripts — deferred    |
-| `workflows`                                             | 75-100%  | Deep integration/error-handling branches deferred   |
-| **Overall**                                             | **75%**  |                                                     |
+| `evaluation` — `run_batch_evaluation`, `run_redteam`    | Low      | Long-running, interactive CLI scripts — deferred    |
+
+The overall percentage moves as the suite grows — see the live **Coverage** badge above or [SonarCloud](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series) for the current number rather than a number pinned here.
 
 Ruff (lint + format) and mypy run in CI alongside tests — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 

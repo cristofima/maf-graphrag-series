@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from workflows.base import WorkflowType
-from workflows.sequential import ResearchPipelineWorkflow
+from workflows.sequential import ResearchPipelineWorkflow, _create_sequential_agents
 
 
 def _agent_stub(text: str) -> MagicMock:
@@ -76,3 +76,41 @@ class TestResearchPipelineWorkflowRun:
 
         prompt = workflow._report_writer.run.await_args.args[0]
         assert "raw findings ABC" in prompt
+
+
+class TestCreateSequentialAgents:
+    def test_creates_three_agents_with_correct_names(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.sequential.create_azure_client", MagicMock(return_value="client"))
+
+        _create_sequential_agents(MagicMock())
+
+        names = [call.kwargs["name"] for call in mock_agent_cls.call_args_list]
+        assert names == ["query_analyzer", "knowledge_searcher", "report_writer"]
+
+    def test_only_knowledge_searcher_receives_the_mcp_tool(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.sequential.create_azure_client", MagicMock(return_value="client"))
+        mcp_tool = MagicMock()
+
+        _create_sequential_agents(mcp_tool)
+
+        analyzer_call, searcher_call, writer_call = mock_agent_cls.call_args_list
+        assert analyzer_call.kwargs["tools"] == []
+        assert searcher_call.kwargs["tools"] == [mcp_tool]
+        assert writer_call.kwargs["tools"] == []
+
+
+class TestResearchPipelineWorkflowCreateAgents:
+    def test_delegates_to_create_sequential_agents(self, monkeypatch):
+        stub_agents = (MagicMock(), MagicMock(), MagicMock())
+        monkeypatch.setattr("workflows.sequential._create_sequential_agents", lambda mcp_tool: stub_agents)
+
+        workflow = ResearchPipelineWorkflow()
+        workflow._create_agents(MagicMock())
+
+        assert workflow._query_analyzer is stub_agents[0]
+        assert workflow._knowledge_searcher is stub_agents[1]
+        assert workflow._report_writer is stub_agents[2]

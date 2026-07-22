@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from workflows.base import WorkflowType
-from workflows.handoff import ExpertHandoffWorkflow, _parse_route
+from workflows.handoff import ExpertHandoffWorkflow, _create_router_and_experts, _parse_route
 
 
 class TestParseRoute:
@@ -98,3 +98,41 @@ class TestExpertHandoffWorkflowRun:
         router_step = result.steps[0]
         assert router_step.agent_name == "Router"
         assert router_step.metadata == {"route": "entity"}
+
+
+class TestCreateRouterAndExperts:
+    def test_creates_three_agents_with_correct_names(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.handoff.create_azure_client", MagicMock(return_value="client"))
+
+        _create_router_and_experts(MagicMock())
+
+        names = [call.kwargs["name"] for call in mock_agent_cls.call_args_list]
+        assert names == ["router", "entity_expert", "themes_expert"]
+
+    def test_router_has_no_tools_experts_share_the_mcp_tool(self, monkeypatch):
+        mock_agent_cls = MagicMock()
+        monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
+        monkeypatch.setattr("workflows.handoff.create_azure_client", MagicMock(return_value="client"))
+        mcp_tool = MagicMock()
+
+        _create_router_and_experts(mcp_tool)
+
+        router_call, entity_call, themes_call = mock_agent_cls.call_args_list
+        assert router_call.kwargs["tools"] == []
+        assert entity_call.kwargs["tools"] == [mcp_tool]
+        assert themes_call.kwargs["tools"] == [mcp_tool]
+
+
+class TestExpertHandoffWorkflowCreateAgents:
+    def test_delegates_to_create_router_and_experts(self, monkeypatch):
+        stub_agents = (MagicMock(), MagicMock(), MagicMock())
+        monkeypatch.setattr("workflows.handoff._create_router_and_experts", lambda mcp_tool: stub_agents)
+
+        workflow = ExpertHandoffWorkflow()
+        workflow._create_agents(MagicMock())
+
+        assert workflow._router is stub_agents[0]
+        assert workflow._entity_expert is stub_agents[1]
+        assert workflow._themes_expert is stub_agents[2]

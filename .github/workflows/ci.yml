@@ -45,30 +45,30 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
         with:
           enable-cache: true
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --dev --frozen
+        run: uv sync --dev --frozen --no-build
 
       - name: Format check (ruff format)
-        run: uv run python -m ruff format src/ tests/ --check
+        run: uv run --frozen --no-sync --no-build python -m ruff format src/ tests/ --check
 
       - name: Lint — critical errors
-        run: uv run python -m ruff check . --select E9,F63,F7,F82 --output-format github
+        run: uv run --frozen --no-sync --no-build python -m ruff check . --select E9,F63,F7,F82 --output-format github
 
       - name: Lint — full rule set
-        run: uv run python -m ruff check . --output-format github
+        run: uv run --frozen --no-sync --no-build python -m ruff check . --output-format github
 
   # ── Stage 1b: Static type checking (runs in parallel with lint) ─────
   typecheck:
@@ -78,25 +78,25 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
         with:
           enable-cache: true
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --dev --frozen
+        run: uv sync --dev --frozen --no-build
 
       - name: Type check with mypy
         run: |
-          uv run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ \
+          uv run --frozen --no-sync --no-build python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ \
             --ignore-missing-imports \
             --no-error-summary
 
@@ -109,21 +109,21 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
         with:
           enable-cache: true
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --dev --frozen
+        run: uv sync --dev --frozen --no-build
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run --frozen --no-sync --no-build pytest

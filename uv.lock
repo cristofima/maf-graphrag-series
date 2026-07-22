@@ -2391,7 +2391,7 @@ dependencies = [
     { name = "agent-framework-core" },
     { name = "agent-framework-openai" },
     { name = "agent-framework-orchestrations" },
-    { name = "azure-ai-evaluation", extra = ["redteam"] },
+    { name = "azure-ai-evaluation" },
     { name = "azure-identity" },
     { name = "azure-monitor-opentelemetry-exporter" },
     { name = "fastmcp" },
@@ -2419,13 +2419,16 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+redteam = [
+    { name = "azure-ai-evaluation", extra = ["redteam"] },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "agent-framework-core", specifier = ">=1.11.0,<2.0.0" },
     { name = "agent-framework-openai", specifier = ">=1.10.1,<2.0.0" },
     { name = "agent-framework-orchestrations", specifier = ">=1.0.0,<2.0.0" },
-    { name = "azure-ai-evaluation", extras = ["redteam"], specifier = ">=1.18.1" },
+    { name = "azure-ai-evaluation", specifier = ">=1.18.1" },
     { name = "azure-identity", specifier = ">=1.25.3,<2.0.0" },
     { name = "azure-monitor-opentelemetry-exporter", specifier = ">=1.0.0b55,<1.1.0" },
     { name = "fastmcp", specifier = ">=3.4.4,<4.0.0" },
@@ -2453,6 +2456,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1.0,<8.0.0" },
     { name = "ruff", specifier = ">=0.15.22,<0.16.0" },
 ]
+redteam = [{ name = "azure-ai-evaluation", extras = ["redteam"], specifier = ">=1.18.1" }]
 
 [[package]]
 name = "magika"

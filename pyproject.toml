@@ -120,7 +120,13 @@ ignore_missing_imports = true
 exclude = ["output", "cache", ".venv"]
 
 [tool.coverage.run]
-source = ["src/core", "src/agents", "src/mcp_server", "src/workflows"]
+source = [
+    "src/core",
+    "src/agents",
+    "src/mcp_server",
+    "src/workflows",
+    "src/evaluation",
+]
 omit = ["*/tests/*", "*/__init__.py"]
 
 [tool.coverage.report]

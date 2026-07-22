@@ -51,6 +51,28 @@ ITEM_TOOL_DEFINITIONS_TEMPLATE = "{{item.tool_definitions}}"
 ITEM_TOOL_CALLS_TEMPLATE = "{{item.tool_calls}}"
 
 
+def _resolve_cli_data_path(path_value: str | Path) -> Path:
+    """Resolve a CLI-provided dataset path inside the datasets directory."""
+    candidate = Path(path_value).expanduser()
+    if not candidate.is_absolute():
+        candidate = DATASETS_DIR / candidate
+
+    resolved_candidate = candidate.resolve(strict=False)
+    resolved_root = DATASETS_DIR.resolve()
+
+    try:
+        resolved_candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Evaluation data path must stay within {resolved_root}: {resolved_candidate}"
+        ) from exc
+
+    if resolved_candidate.suffix.lower() != ".jsonl":
+        raise ValueError(f"Evaluation data path must point to a .jsonl file: {resolved_candidate}")
+
+    return resolved_candidate
+
+
 def _coerce_metrics(result: Mapping[str, object]) -> dict[str, object]:
     """Return a metrics dictionary from a loosely typed evaluation result."""
     metrics = result.get("metrics")
@@ -83,7 +105,7 @@ def run_batch_evaluation(
     from evaluation.evaluators.builtin import create_quality_evaluators
 
     config = EvalConfig.from_env()
-    data_path = Path(data_path)
+    data_path = _resolve_cli_data_path(data_path)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -642,7 +664,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     result = run_batch_evaluation(
-        data_path=args.data,
+        data_path=_resolve_cli_data_path(args.data),
         use_foundry=args.foundry,
         include_custom=not args.no_custom,
     )

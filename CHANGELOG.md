@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-07-22
+
+### ⚠️ Breaking
+
+- **Dependency management**: Replaced Poetry with uv across tooling and docs; follow the updated workflow in [pyproject.toml](pyproject.toml), [docs/uv-guide.md](docs/uv-guide.md), and [uv.lock](uv.lock) when installing or running commands. ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c))
+
+### Added
+
+- **Evaluation toolkit**: Introduced a dedicated evaluation package with custom GraphRAG validators, Azure AI Evaluation scripts, OpenTelemetry monitoring hooks, and seed datasets in [src/evaluation/README.md](src/evaluation/README.md), [src/evaluation/scripts/run_batch_evaluation.py](src/evaluation/scripts/run_batch_evaluation.py), and [src/evaluation/monitoring/otel_setup.py](src/evaluation/monitoring/otel_setup.py). ([aa56389](https://github.com/cristofima/maf-graphrag-series/commit/aa56389))
+- **Quality metrics**: Added relevance, coherence, and response completeness evaluators plus conditional tool-call gating in [src/evaluation/evaluators/builtin.py](src/evaluation/evaluators/builtin.py) and supporting logic in [src/evaluation/scripts/run_batch_evaluation.py](src/evaluation/scripts/run_batch_evaluation.py). ([7c6af20](https://github.com/cristofima/maf-graphrag-series/commit/7c6af20))
+- **Testing coverage**: Expanded regression suites for agents, evaluation, MCP server, and workflows to exercise new configuration paths under [tests](tests). ([6ab5554](https://github.com/cristofima/maf-graphrag-series/commit/6ab5554), [2a6b543](https://github.com/cristofima/maf-graphrag-series/commit/2a6b543), [8482906](https://github.com/cristofima/maf-graphrag-series/commit/8482906))
+
+### Fixed
+
+- **Dataset path safety**: `_resolve_cli_data_path` now constrains batch evaluations to repository datasets and validates file extensions in [src/evaluation/scripts/run_batch_evaluation.py](src/evaluation/scripts/run_batch_evaluation.py). ([9c575b6](https://github.com/cristofima/maf-graphrag-series/commit/9c575b6))
+- **Runtime alignment**: Normalized agent and evaluation configuration defaults to keep provider credentials and deployments consistent in [src/agents/config.py](src/agents/config.py) and [src/evaluation/config.py](src/evaluation/config.py). ([bc20a56](https://github.com/cristofima/maf-graphrag-series/commit/bc20a56))
+- **Module entrypoints**: Added shim packages and sitecustomize support so `uv run python -m …` works from the repository root via [agents/**init**.py](agents/__init__.py), [core/**init**.py](core/__init__.py), [evaluation/**init**.py](evaluation/__init__.py), [mcp_server/**init**.py](mcp_server/__init__.py), and [sitecustomize.py](sitecustomize.py). ([b0fc39a](https://github.com/cristofima/maf-graphrag-series/commit/b0fc39a))
+
+### Changed
+
+- **Infrastructure**: Terraform now provisions Azure AI Services with Application Insights integration and Foundry project management toggles in [infra/main.tf](infra/main.tf) and companion variables files. ([4bcd1dc](https://github.com/cristofima/maf-graphrag-series/commit/4bcd1dc))
+- **Dependency stack**: Added telemetry and evaluation packages plus refreshed agent framework version bounds in [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). ([101d2fb](https://github.com/cristofima/maf-graphrag-series/commit/101d2fb))
+- **Evaluation helpers**: Reduced duplication and streamlined evaluator wiring in [src/evaluation/evaluators/builtin.py](src/evaluation/evaluators/builtin.py) and [src/evaluation/evaluators/relationship_validity.py](src/evaluation/evaluators/relationship_validity.py). ([c87f376](https://github.com/cristofima/maf-graphrag-series/commit/c87f376), [05bb126](https://github.com/cristofima/maf-graphrag-series/commit/05bb126))
+- **CI pipeline**: Hardened dependency installation and added SonarQube coverage publishing in [.github/workflows/ci.yml](.github/workflows/ci.yml) and [sonar-project.properties](sonar-project.properties). ([e880e56](https://github.com/cristofima/maf-graphrag-series/commit/e880e56), [456b4ca](https://github.com/cristofima/maf-graphrag-series/commit/456b4ca), [e667561](https://github.com/cristofima/maf-graphrag-series/commit/e667561))
+
+### Documentation
+
+- Refreshed developer guides with uv instructions and expanded evaluation coverage notes in [README.md](README.md), [docs/part5-implementation-notes.md](docs/part5-implementation-notes.md), and [docs/uv-guide.md](docs/uv-guide.md). ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c), [29a368c](https://github.com/cristofima/maf-graphrag-series/commit/29a368c))
+
 ## [3.2.0] - 2026-03-22
 
 ### Added

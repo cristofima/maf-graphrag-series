@@ -9,6 +9,7 @@ Workflow Patterns:
     sequential  - Research Pipeline: QueryAnalyzer → KnowledgeSearcher → ReportWriter
     concurrent  - Parallel Search:   EntitySearcher + ThemesSearcher → Synthesis
     handoff     - Expert Routing:    Router → EntityExpert | ThemesExpert
+    router      - Workflow Router:   Foundry model router → Selected workflow
 
 Prerequisites:
     1. Knowledge graph built:   uv run python -m core.index
@@ -19,6 +20,7 @@ Usage:
     uv run python run_workflow.py
 
     # Direct mode
+    uv run python run_workflow.py router     "Summarize the major initiatives for TechVenture"
     uv run python run_workflow.py sequential "What are the key projects and their tech stack?"
     uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"
     uv run python run_workflow.py handoff    "Who leads Project Alpha?"
@@ -28,6 +30,9 @@ Environment Variables:
     AZURE_OPENAI_API_KEY          - Azure OpenAI API key
     AZURE_OPENAI_CHAT_DEPLOYMENT  - Deployment name (default: gpt-4o)
     MCP_SERVER_URL                - MCP server URL (default: http://127.0.0.1:8011/mcp)
+    APP_LOG_MAX_BYTES             - Rotation size in bytes (default: 10485760)
+    APP_LOG_BACKUP_COUNT          - Number of rotated backups (default: 5)
+    WORKFLOW_STEP_LOGS            - Enable per-step workflow logs (true/false, default: false)
 """
 
 import asyncio
@@ -41,26 +46,18 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from core.logging_config import LoggingConfig, configure_app_logging
+
 # Add src/ to path for package imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-# Configure logging so workflow progress messages are visible
-logging.basicConfig(level=logging.INFO, format="%(message)s")
-# Suppress noisy libraries — set to ERROR so harmless WARNINGs are hidden
-for _logger_name in (
-    "litellm",
-    "httpx",
-    "httpcore",
-    "openai",
-    "azure",
-    "mcp",
-    "agent_framework._mcp",  # cancel-scope cleanup + "Failed to set log level" warnings
-    "agent_framework",  # catch-all for any agent_framework sub-loggers
-    "graphrag.query",  # "Reached token limit" + "Error decoding faulty json" warnings
-):
-    logging.getLogger(_logger_name).setLevel(logging.ERROR)
-# Suppress the harmless Windows ProactorEventLoop pipe-close errors
-logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+# Configure logging so workflow progress messages are visible while noisy
+# dependencies remain controlled.
+_logging_config = LoggingConfig.from_env(default_app_log_level="INFO", default_noisy_log_level="WARNING")
+configure_app_logging(
+    config=_logging_config,
+    asyncio_level=logging.CRITICAL,
+)
 
 console = Console()
 
@@ -69,6 +66,11 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 EXAMPLE_QUERIES = {
+    "router": [
+        "Who leads Project Alpha and how does it support TechVenture's strategy?",
+        "Summarize the major initiatives and name the teams delivering them.",
+        "Give me both entity details and overarching themes for Project Beta.",
+    ],
     "sequential": [
         "What are the leadership structure, technology choices, and strategic goals of Project Alpha?",
         "Give me a comprehensive overview of TechVenture Inc's engineering practices and team structure.",
@@ -87,6 +89,7 @@ EXAMPLE_QUERIES = {
 }
 
 WORKFLOW_DESCRIPTIONS = {
+    "router": "Workflow Router — Classify, then delegate to the best pattern",
     "sequential": "Research Pipeline — 3-step chain: Analyze → Search → Write",
     "concurrent": "Parallel Search — Entity + Themes in parallel, then Synthesize",
     "handoff": "Expert Routing — Router classifies, then hands off to specialist",
@@ -136,6 +139,13 @@ async def run_handoff(query: str) -> None:
     from workflows.handoff import ExpertHandoffWorkflow
 
     await _run_workflow(ExpertHandoffWorkflow, "Handoff Expert Router", query)
+
+
+async def run_router(query: str) -> None:
+    """Run the Workflow Router (SLM classifier + delegate)."""
+    from workflows.router import RouterWorkflow
+
+    await _run_workflow(RouterWorkflow, "Workflow Router", query)
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +204,12 @@ def _print_workflow_menu() -> None:
     table.add_column("Best For")
 
     table.add_row(
+        "router",
+        "Workflow Router",
+        "Classify → Delegate",
+        "Auto-selecting the best pattern",
+    )
+    table.add_row(
         "sequential",
         "Research Pipeline",
         "Analyze → Search → Write",
@@ -227,6 +243,7 @@ def _print_workflow_menu() -> None:
 
 
 WORKFLOW_RUNNERS = {
+    "router": run_router,
     "sequential": run_sequential,
     "concurrent": run_concurrent,
     "handoff": run_handoff,
@@ -248,13 +265,13 @@ async def run_interactive() -> None:
     """Run interactive workflow selection mode."""
     _print_workflow_menu()
     console.print()
-    console.print("[dim]Type a workflow name (sequential / concurrent / handoff) or 'exit' to quit.[/dim]\n")
+    console.print("[dim]Type a workflow name (router / sequential / concurrent / handoff) or 'exit' to quit.[/dim]\n")
 
     while True:
         workflow_choice = Prompt.ask(
             "[bold cyan]Workflow[/bold cyan]",
-            choices=["sequential", "concurrent", "handoff", "exit"],
-            default="handoff",
+            choices=["router", "sequential", "concurrent", "handoff", "exit"],
+            default="router",
         )
 
         if workflow_choice == "exit":
@@ -287,6 +304,7 @@ async def run_interactive() -> None:
 async def run_single(workflow_type: str, query: str) -> None:
     """Run a single query with the specified workflow type."""
     runners = {
+        "router": run_router,
         "sequential": run_sequential,
         "concurrent": run_concurrent,
         "handoff": run_handoff,
@@ -295,7 +313,7 @@ async def run_single(workflow_type: str, query: str) -> None:
     runner = runners.get(workflow_type.lower())
     if runner is None:
         console.print(f"[red]Unknown workflow type:[/red] {workflow_type}")
-        console.print("Available: sequential, concurrent, handoff")
+        console.print("Available: router, sequential, concurrent, handoff")
         sys.exit(1)
 
     try:
@@ -323,10 +341,10 @@ def main() -> None:
     elif len(args) == 1:
         # Usage error — need both workflow type and query
         workflow_type = args[0].lower()
-        if workflow_type in ("sequential", "concurrent", "handoff"):
+        if workflow_type in ("router", "sequential", "concurrent", "handoff"):
             console.print(f'[yellow]Usage:[/yellow] uv run python run_workflow.py {workflow_type} "your query"')
         else:
-            console.print('[red]Usage:[/red] uv run python run_workflow.py [sequential|concurrent|handoff] "query"')
+            console.print('[red]Usage:[/red] uv run python run_workflow.py [router|sequential|concurrent|handoff] "query"')
         sys.exit(1)
     else:
         # Non-interactive: workflow_type + query

@@ -1,4 +1,4 @@
-"""Unit tests for mcp_server/config.py — MCPConfig dataclass."""
+"""Unit tests for mcp_server/config.py — MCPConfig Pydantic model."""
 
 from pathlib import Path
 
@@ -33,8 +33,8 @@ class TestMCPConfig:
 
         assert config.host == "127.0.0.1"
         assert config.port == 8011
-        assert config.graphrag_root == Path(".")
-        assert config.output_dir == Path("./output")
+        assert config.graphrag_root == Path(".").resolve()
+        assert config.output_dir == (config.graphrag_root / "output")
 
     def test_from_env_custom_values(self, monkeypatch):
         monkeypatch.setenv("MCP_HOST", "0.0.0.0")
@@ -45,8 +45,8 @@ class TestMCPConfig:
 
         assert config.host == "0.0.0.0"
         assert config.port == 9000
-        assert config.graphrag_root == Path("/tmp/graphrag")
-        assert config.output_dir == Path("/tmp/graphrag/output")
+        assert config.graphrag_root == Path("/tmp/graphrag").resolve()
+        assert config.output_dir == Path("/tmp/graphrag/output").resolve()
 
     def test_port_is_integer(self, monkeypatch):
         monkeypatch.setenv("MCP_PORT", "8080")

@@ -22,18 +22,17 @@ _MOD_MIDDLEWARE = "agents.middleware"
 _MOD_PROMPTS = "agents.prompts"
 _MOD_SUPERVISOR = "agents.supervisor"
 _MOD_TOOLS = "agents.tools"
+_MOD_ROUTER_CLASSIFIER = "agents.router_classifier"
 
 _SYMBOL_TO_MODULE = {
     # Configuration
     "AgentConfig": _MOD_CONFIG,
     "get_agent_config": _MOD_CONFIG,
-    "is_azure": _MOD_CONFIG,
     # Middleware
     "TimingAgentMiddleware": _MOD_MIDDLEWARE,
     "TokenCountingChatMiddleware": _MOD_MIDDLEWARE,
     "LoggingFunctionMiddleware": _MOD_MIDDLEWARE,
     "QueryRewritingChatMiddleware": _MOD_MIDDLEWARE,
-    "SummarizationMiddleware": _MOD_MIDDLEWARE,
     # Prompts
     "KNOWLEDGE_CAPTAIN_PROMPT": _MOD_PROMPTS,
     "SIMPLE_ASSISTANT_PROMPT": _MOD_PROMPTS,
@@ -49,17 +48,19 @@ _SYMBOL_TO_MODULE = {
     # Local tools
     "format_as_table": _MOD_TOOLS,
     "extract_key_entities": _MOD_TOOLS,
+    # Router classifier
+    "RouterClassifier": _MOD_ROUTER_CLASSIFIER,
+    "RouterClassifierError": _MOD_ROUTER_CLASSIFIER,
+    "RouterClassification": _MOD_ROUTER_CLASSIFIER,
 }
 
 __all__ = [
     "AgentConfig",
     "get_agent_config",
-    "is_azure",
     "TimingAgentMiddleware",
     "TokenCountingChatMiddleware",
     "LoggingFunctionMiddleware",
     "QueryRewritingChatMiddleware",
-    "SummarizationMiddleware",
     "KNOWLEDGE_CAPTAIN_PROMPT",
     "SIMPLE_ASSISTANT_PROMPT",
     "RESEARCH_DELEGATE_PROMPT",
@@ -72,6 +73,9 @@ __all__ = [
     "AgentResponse",
     "format_as_table",
     "extract_key_entities",
+    "RouterClassifier",
+    "RouterClassifierError",
+    "RouterClassification",
 ]
 
 

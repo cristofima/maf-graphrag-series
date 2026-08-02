@@ -1,14 +1,12 @@
-"""
-Configuration loader for GraphRAG.
-
-Loads settings from settings.yaml and environment variables.
-"""
+"""Configuration loader for GraphRAG with Pydantic-backed validation."""
 
 import os
 from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field, FieldValidationInfo, ValidationError, field_validator
+
 from graphrag.config.load_config import load_config
 from graphrag.config.models.graph_rag_config import GraphRagConfig
 
@@ -29,38 +27,44 @@ def get_root_dir() -> Path:
     raise FileNotFoundError("Could not find settings.yaml. Make sure you're running from the project root directory.")
 
 
+class CoreEnvConfig(BaseModel):
+    """Environment-backed configuration required for GraphRAG."""
+
+    api_key: str = Field(..., description="Azure OpenAI API key")
+    endpoint: str = Field(..., description="Azure OpenAI endpoint")
+    chat_deployment: str = Field(..., description="Primary chat deployment name")
+    embedding_deployment: str = Field(..., description="Embedding deployment name")
+
+    @field_validator("api_key", "endpoint", "chat_deployment", "embedding_deployment")
+    @classmethod
+    def _ensure_non_empty(cls, value: str, info: FieldValidationInfo) -> str:
+        if not value or not value.strip():
+            raise ValueError(f"{info.field_name.replace('_', ' ').upper()} must be set in the environment")
+        return value.strip()
+
+    @classmethod
+    def from_env(cls) -> "CoreEnvConfig":
+        """Load configuration from environment variables."""
+
+        load_dotenv()
+        data = {
+            "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+            "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "chat_deployment": os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+            "embedding_deployment": os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+        }
+        try:
+            return cls(**data)
+        except ValidationError as exc:  # pragma: no cover - defensive guard
+            raise OSError(f"Invalid environment configuration: {exc}") from exc
+
+
 @lru_cache(maxsize=1)
 def get_config() -> GraphRagConfig:
-    """
-    Load GraphRAG configuration from settings.yaml.
+    """Load GraphRAG configuration from settings.yaml after validating environment variables."""
 
-    Returns:
-        GraphRagConfig: The loaded configuration object.
-
-    Raises:
-        FileNotFoundError: If settings.yaml is not found.
-
-    Note:
-        This function is cached - subsequent calls return the same config.
-        Environment variables are loaded from .env file automatically.
-    """
-    # Load environment variables
-    load_dotenv()
-
-    # Verify required environment variables
-    required_vars = [
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_CHAT_DEPLOYMENT",
-        "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
-    ]
-
-    missing = [var for var in required_vars if not os.getenv(var)]
-    if missing:
-        raise OSError(f"Missing required environment variables: {', '.join(missing)}\nPlease check your .env file.")
-
+    CoreEnvConfig.from_env()
     root_dir = get_root_dir()
-
     return load_config(root_dir=root_dir)
 
 

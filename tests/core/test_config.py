@@ -60,7 +60,7 @@ class TestGetConfig:
             monkeypatch.delenv(var, raising=False)
         monkeypatch.setattr("core.config.load_dotenv", MagicMock())
 
-        with pytest.raises(OSError, match="Missing required environment variables"):
+        with pytest.raises(OSError, match="Invalid environment configuration"):
             get_config()
 
     def test_error_message_lists_missing_vars(self, monkeypatch):
@@ -71,7 +71,7 @@ class TestGetConfig:
         monkeypatch.setenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-large")
         monkeypatch.setattr("core.config.load_dotenv", MagicMock())
 
-        with pytest.raises(OSError, match="AZURE_OPENAI_API_KEY"):
+        with pytest.raises(OSError, match="api_key"):
             get_config()
 
     def test_returns_loaded_config_when_env_vars_present(self, monkeypatch):

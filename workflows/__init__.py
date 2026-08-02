@@ -21,6 +21,7 @@ _MOD_BASE = "workflows.base"
 _MOD_SEQUENTIAL = "workflows.sequential"
 _MOD_CONCURRENT = "workflows.concurrent"
 _MOD_HANDOFF = "workflows.handoff"
+_MOD_ROUTER = "workflows.router"
 
 _SYMBOL_TO_MODULE = {
     # Base types
@@ -31,19 +32,23 @@ _SYMBOL_TO_MODULE = {
     "ResearchPipelineWorkflow": _MOD_SEQUENTIAL,
     "ParallelSearchWorkflow": _MOD_CONCURRENT,
     "ExpertHandoffWorkflow": _MOD_HANDOFF,
+    "RouterWorkflow": _MOD_ROUTER,
     # Factory functions
     "create_sequential_workflow": _MOD_BASE,
     "create_concurrent_workflow": _MOD_BASE,
     "create_handoff_workflow": _MOD_BASE,
+    "create_router_workflow": _MOD_BASE,
 }
 
 __all__ = [
     "WorkflowResult",
     "WorkflowStep",
     "WorkflowType",
+    "RouterWorkflow",
     "ResearchPipelineWorkflow",
     "ParallelSearchWorkflow",
     "ExpertHandoffWorkflow",
+    "create_router_workflow",
     "create_sequential_workflow",
     "create_concurrent_workflow",
     "create_handoff_workflow",

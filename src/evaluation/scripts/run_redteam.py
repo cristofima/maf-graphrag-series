@@ -118,7 +118,7 @@ def _build_cloud_model_target(config: EvalConfig) -> dict[str, str]:
         Model target dictionary accepted by ``RedTeam.scan(target=...)``.
     """
     return {
-        "azure_endpoint": config.azure_endpoint,
+        "azure_endpoint": str(config.azure_endpoint),
         "api_key": config.api_key,
         "azure_deployment": config.chat_deployment,
         "api_version": config.api_version,

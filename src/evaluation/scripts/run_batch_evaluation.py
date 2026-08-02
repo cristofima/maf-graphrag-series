@@ -111,7 +111,7 @@ def run_batch_evaluation(
         raise FileNotFoundError(f"Evaluation data not found: {data_path}. Run generate_eval_data.py first.")
 
     # Built-in quality evaluators (Azure OpenAI as LLM-judge)
-    evaluators: dict[str, object] = create_quality_evaluators(config.model_config)
+    evaluators: dict[str, object] = create_quality_evaluators(config.azure_model_config)
 
     _, has_structured_tool_calls = _load_new_foundry_rows(data_path)
     if "tool_call_accuracy" in evaluators and not has_structured_tool_calls:

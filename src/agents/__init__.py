@@ -5,11 +5,9 @@ MAF + GraphRAG Series - Agents Module
 Part 3: Supervisor Agent Pattern (Microsoft Agent Framework)
 
 This module provides the Knowledge Captain agent that queries GraphRAG
-via MCP. The agent uses GPT-4o with a system prompt to decide which
-GraphRAG tool to call - no complex routing logic needed.
-
-Supports multiple LLM providers (Azure OpenAI, GitHub Models, OpenAI,
-Ollama) via the ``API_HOST`` environment variable.
+via MCP. The agent uses a Microsoft Foundry model router deployment with
+a system prompt to decide which GraphRAG tool to call — no separate
+routing logic is required in code.
 
 See README.md for architecture diagrams and detailed documentation.
 
@@ -39,11 +37,10 @@ Usage:
     uv run python run_agent.py
 """
 
-from agents.config import AgentConfig, get_agent_config, is_azure
+from agents.config import AgentConfig, get_agent_config
 from agents.middleware import (
     LoggingFunctionMiddleware,
     QueryRewritingChatMiddleware,
-    SummarizationMiddleware,
     TimingAgentMiddleware,
     TokenCountingChatMiddleware,
 )
@@ -63,13 +60,11 @@ __all__ = [
     # Configuration
     "AgentConfig",
     "get_agent_config",
-    "is_azure",
     # Middleware
     "TimingAgentMiddleware",
     "TokenCountingChatMiddleware",
     "LoggingFunctionMiddleware",
     "QueryRewritingChatMiddleware",
-    "SummarizationMiddleware",
     # Prompts
     "KNOWLEDGE_CAPTAIN_PROMPT",
     "SIMPLE_ASSISTANT_PROMPT",

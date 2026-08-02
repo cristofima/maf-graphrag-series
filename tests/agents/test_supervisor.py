@@ -15,7 +15,7 @@ def _azure_env(monkeypatch):
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
-    monkeypatch.delenv("API_HOST", raising=False)
+    monkeypatch.setenv("AZURE_OPENAI_ROUTER_DEPLOYMENT", "router-efficient")
 
 
 def _mock_mcp_tool():
@@ -374,12 +374,12 @@ class TestCreateMcpTool:
 
 
 class TestCreateClient:
-    """Tests for ``create_client`` provider dispatch logic."""
+    """Tests for ``create_client`` Foundry integration."""
 
-    def test_azure_host_uses_openai_chat_completion_client(self, monkeypatch):
+    def test_client_uses_foundry_base_url(self, monkeypatch):
         _azure_env(monkeypatch)
         monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
-        monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+        monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2025-11-18")
 
         with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
             from agents.supervisor import create_client
@@ -389,13 +389,14 @@ class TestCreateClient:
             _, kwargs = mock_cls.call_args
             assert kwargs["model"] == "gpt-4o"
             assert kwargs["api_key"] == "test-key"
-            assert kwargs["api_version"] == "2024-10-21"
+            assert kwargs["api_version"] == "2025-11-18"
+            assert kwargs["base_url"] == "https://test.openai.azure.com/openai/v1/"
 
-    def test_azure_host_uses_none_api_key_when_azure_cli(self, monkeypatch):
+    def test_client_uses_azure_cli_when_key_missing(self, monkeypatch):
         monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
-        monkeypatch.delenv("API_HOST", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_ROUTER_DEPLOYMENT", "router-efficient")
         monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
 
         with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
@@ -405,20 +406,6 @@ class TestCreateClient:
 
             _, kwargs = mock_cls.call_args
             assert kwargs["api_key"] is None
-
-    def test_non_azure_host_uses_openai_chat_client(self, monkeypatch):
-        monkeypatch.setenv("API_HOST", "github")
-        monkeypatch.setenv("GITHUB_TOKEN", "gh-token")
-        monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
-
-        with patch("agent_framework.openai.OpenAIChatClient") as mock_cls:
-            from agents.supervisor import create_client
-
-            create_client()
-
-            _, kwargs = mock_cls.call_args
-            assert kwargs["api_key"] == "gh-token"
-            assert kwargs["base_url"] == "https://models.github.ai/inference"
 
 
 # ===========================================================================

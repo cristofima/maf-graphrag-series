@@ -5,36 +5,25 @@ OpenTelemetry tracing, and optional red team safety scanning.
 
 ## Architecture
 
-```
-golden_questions.jsonl
-         │
-         ▼
-  generate_eval_data.py      ← Runs agent on each question, writes eval_data.jsonl
-         │
-         ▼
-   eval_data.jsonl
-         │
-         ▼
- run_batch_evaluation.py     ← Runs LLM-judge evaluators + custom graph evaluators
-         │
-         ├── TaskAdherenceEvaluator        (Azure OpenAI as judge)
-         ├── IntentResolutionEvaluator     (Azure OpenAI as judge)
-         ├── RelevanceEvaluator            (Azure OpenAI as judge)
-         ├── CoherenceEvaluator            (Azure OpenAI as judge)
-         ├── ResponseCompletenessEvaluator (Azure OpenAI as judge)
-         ├── ToolCallAccuracyEvaluator     (Azure OpenAI as judge, conditional)
-         ├── EntityAccuracyEvaluator       (graph Parquet, no LLM)
-         └── RelationshipValidityEvaluator (graph Parquet, no LLM)
-         │
-         ▼
-    results/
-     ├── evaluation_results.json
-     └── evaluation_report.md
+```mermaid
+flowchart TD
+    G["golden_questions.jsonl"] --> D["generate_eval_data.py\nrun agent and write eval_data.jsonl"]
+    D --> E["eval_data.jsonl"]
+    E --> B["run_batch_evaluation.py\nLLM-judge + custom evaluators"]
+    B --> R1["results/evaluation_results.json"]
+    B --> R2["results/evaluation_report.md"]
 
-  run_redteam.py             ← Optional safety scan (requires Azure AI Foundry)
-         │
-         ▼
-    results/redteam_results.json
+    B --> TA["TaskAdherenceEvaluator"]
+    B --> IR["IntentResolutionEvaluator"]
+    B --> RE["RelevanceEvaluator"]
+    B --> CO["CoherenceEvaluator"]
+    B --> RC["ResponseCompletenessEvaluator"]
+    B --> TC["ToolCallAccuracyEvaluator (conditional)"]
+    B --> EA["EntityAccuracyEvaluator"]
+    B --> RV["RelationshipValidityEvaluator"]
+
+    E --> RT["run_redteam.py\noptional safety scan"]
+    RT --> R3["results/redteam_results.json"]
 ```
 
 ## Prerequisites
@@ -318,4 +307,3 @@ src/evaluation/
     ├── run_batch_evaluation.py # Step 3: batch evaluate with SDK
     └── run_redteam.py          # Step 4: safety scan (Foundry required)
 ```
-

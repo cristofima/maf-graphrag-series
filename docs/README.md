@@ -10,10 +10,11 @@ This directory contains detailed documentation, lessons learned, and reference m
 | ---- | ---------------------------------------------------------------- | --------------------------------------------------- |
 | 1    | [part1-implementation-notes.md](./part1-implementation-notes.md) | GraphRAG setup, Azure config, version fixes         |
 | 2    | [part2-implementation-notes.md](./part2-implementation-notes.md) | MCP Server integration with FastMCP                 |
-| 3    | [part3-implementation-notes.md](./part3-implementation-notes.md) | Supervisor Agent Pattern                            |
+| 3    | [part3-implementation-notes.md](./part3-implementation-notes.md) | Supervisor Agent Pattern (historical reference)     |
 | 4    | [part4-implementation-notes.md](./part4-implementation-notes.md) | Workflow Patterns (Sequential, Concurrent, Handoff) |
 | 5    | [part5-implementation-notes.md](./part5-implementation-notes.md) | Monitoring, Evaluation & Safety                     |
-| 6+   | _Coming soon_                                                    | Human-in-the-Loop, Tool Registry, Production        |
+| 6    | [part6-implementation-notes.md](./part6-implementation-notes.md) | Production Router Integration                       |
+| 7+   | _Coming soon_                                                    | Human-in-the-Loop, Tool Registry, Production        |
 
 ### Reference Documents
 
@@ -36,9 +37,8 @@ These documents serve as:
 
 ## Contributing
 
-As this series progresses through Part 6-8, additional documentation will be added:
+As this series progresses through Part 7-8, additional documentation will be added:
 
-- Part 6: Human-in-the-Loop
 - Part 7: Tool Registry
 - Part 8: Production Deployment
 
@@ -51,5 +51,5 @@ As this series progresses through Part 6-8, additional documentation will be add
 ---
 
 **Series**: GraphRAG + Azure OpenAI (8-Part Series)
-**Parts**: 1-5 complete (GraphRAG Fundamentals, MCP Server, Supervisor Agent, Workflow Patterns, Agent Evaluation)
+**Parts**: 1-6 complete (GraphRAG Fundamentals, MCP Server, Supervisor Agent, Workflow Patterns, Agent Evaluation, Router Integration)
 **Author**: Cristopher Coronado

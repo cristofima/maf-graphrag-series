@@ -10,6 +10,8 @@ This document captures key insights, challenges, and solutions encountered durin
 4. **Multi-agent workflow patterns** — performance and concurrency (Challenges 14-16)
 5. **Agent evaluation (Part 5)** — monitoring, quality, safety, and Foundry integration (Challenges 17-21)
 
+Historical note: some challenge sections describe migration steps and interim APIs. For current runtime behavior, use module docs under `src/*/README.md` and [part6-implementation-notes.md](./part6-implementation-notes.md).
+
 ---
 
 ## Challenge 1: Azure Storage Account SKU Validation
@@ -647,7 +649,7 @@ To:
 
 ```python
 # After: Streamable HTTP transport
-app = mcp.streamable_http_app()
+app = mcp.http_app(...)
 ```
 
 Also updated the endpoint from `/sse` to `/mcp` for clarity.
@@ -657,7 +659,7 @@ Also updated the endpoint from `/sse` to `/mcp` for clarity.
 When integrating MCP servers with different clients:
 
 - **MCP Inspector / Browsers**: Use `sse_app()` on `/sse`
-- **Agent Framework / Code clients**: Use `streamable_http_app()` on `/mcp`
+- **Agent Framework / Code clients**: Use Streamable HTTP app endpoints such as `/mcp`
 - Production servers may need to expose both transports on different endpoints
 
 ---

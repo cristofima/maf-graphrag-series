@@ -178,8 +178,10 @@ npx @modelcontextprotocol/inspector   # Opens browser UI at http://localhost:627
 
 ### Architecture
 
-```
-MCP Inspector / Client → Streamable HTTP (/mcp) → MCP Server (FastMCP) → GraphRAG (core/)
+```mermaid
+flowchart LR
+    I["MCP Inspector / Client"] -->|"Streamable HTTP /mcp"| M["MCP Server (FastMCP)"]
+    M --> C["GraphRAG core"]
 ```
 
 ### MCP Tools Exposed
@@ -221,8 +223,8 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 - Microsoft Agent Framework fundamentals (1.11.x)
 - `MCPStreamableHTTPTool` for MCP server integration
 - `Agent` as async context manager for automatic MCP lifecycle management
-- System prompt-based tool routing (GPT-4o decides, no code router)
-- Multi-provider LLM support (Azure OpenAI, GitHub Models, OpenAI, Ollama)
+- System prompt-based tool routing (GPT-4o decides which MCP tool to call)
+- Foundry Model Router integration (Azure OpenAI deployments only)
 - Three-layer middleware pipeline (timing, token counting, logging, query rewriting)
 - Local `@tool` functions and research delegate sub-agent
 - `AgentSession` for conversation memory across multiple turns
@@ -300,7 +302,7 @@ Key patterns used:
 | `Agent` as async context manager | `async with agent:` auto-manages MCP tool connect/close lifecycle      |
 | `MCPStreamableHTTPTool`          | Connect to MCP servers via Streamable HTTP                             |
 | `tool_name_prefix`               | Avoids duplicate tool names when multiple agents share the same server |
-| Multi-provider `create_client()` | Azure OpenAI, GitHub Models, OpenAI, Ollama via `API_HOST` env var     |
+| Foundry router `create_client()` | Targets Azure OpenAI deployments and captures router metadata          |
 | Middleware pipeline              | `TimingAgent`, `TokenCounting`, `LoggingFunction`, `QueryRewriting`    |
 | Local `@tool` functions          | `format_as_table`, `extract_key_entities` — no MCP round-trip          |
 | `create_research_delegate()`     | Context-isolated sub-agent for deep knowledge graph searches           |
@@ -373,9 +375,10 @@ maf-graphrag-series/
 │   │   └── README.md          # MCP documentation
 │   ├── agents/                # Part 3: Conversational Agent
 │   │   ├── __init__.py        # Public API re-exports
-│   │   ├── config.py          # Multi-provider LLM configuration
+│   │   ├── config.py          # Foundry router configuration and metadata helpers
 │   │   ├── middleware.py      # Three-layer observability middleware pipeline
 │   │   ├── prompts.py         # Knowledge Captain & Research Delegate prompts
+│   │   ├── router_classifier.py # Router classifier used by Router workflow
 │   │   ├── supervisor.py      # KnowledgeCaptainRunner, research delegate, MCP tool
 │   │   ├── tools.py           # Local @tool functions (format_as_table, extract_key_entities)
 │   │   └── README.md          # Agents documentation
@@ -385,6 +388,7 @@ maf-graphrag-series/
 │   │   ├── sequential.py      # Research Pipeline workflow
 │   │   ├── concurrent.py      # Parallel Search workflow
 │   │   ├── handoff.py         # Expert Routing workflow
+│   │   ├── router.py          # Production router workflow
 │   │   └── README.md          # Workflows documentation
 │   └── evaluation/            # Part 5: Agent evaluation pipeline
 │       ├── __init__.py        # Package exports
@@ -441,6 +445,7 @@ Extend the single Knowledge Captain agent with multi-agent workflow patterns tha
 
 ### What You'll Learn
 
+- **Router Workflow** — production entry point: Foundry classifier delegates to the best pattern
 - **Sequential Workflow** — chain agents in a research pipeline (Analyze → Search → Write)
 - **Concurrent Workflow** — run local + global search in parallel via `asyncio.gather`, then synthesize
 - **Handoff Workflow** — explicit Router agent routes queries to EntityExpert or ThemesExpert
@@ -449,11 +454,12 @@ Extend the single Knowledge Captain agent with multi-agent workflow patterns tha
 
 ### Workflow Patterns
 
-| Pattern    | Agents                                      | Best For                     |
-| ---------- | ------------------------------------------- | ---------------------------- |
-| Sequential | QueryAnalyzer → KnowledgeSearcher → Writer  | Complex multi-part research  |
-| Concurrent | EntitySearcher ∥ ThemesSearcher → Synthesis | Dual-perspective questions   |
-| Handoff    | Router → EntityExpert \| ThemesExpert       | Auditable specialist routing |
+| Pattern    | Agents/Steps                                  | Best For                          |
+| ---------- | --------------------------------------------- | --------------------------------- |
+| Router     | Foundry RouterClassifier → delegated workflow | Production chatbot/API entrypoint |
+| Sequential | QueryAnalyzer → KnowledgeSearcher → Writer    | Complex multi-part research       |
+| Concurrent | EntitySearcher ∥ ThemesSearcher → Synthesis   | Dual-perspective questions        |
+| Handoff    | Router → EntityExpert \| ThemesExpert         | Auditable specialist routing      |
 
 ### Quick Start
 
@@ -465,6 +471,7 @@ uv run python run_mcp_server.py          # Terminal 1
 uv run python run_workflow.py            # Terminal 2
 
 # Direct single-query mode
+uv run python run_workflow.py router     "Summarize the major initiatives for TechVenture"
 uv run python run_workflow.py sequential "What are the key projects and their tech stack?"
 uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
 uv run python run_workflow.py handoff    "Who leads Project Alpha?"
@@ -472,23 +479,20 @@ uv run python run_workflow.py handoff    "Who leads Project Alpha?"
 
 ### Architecture
 
-```
-                         User Query
-                              │
-                ┌─────────────┼─────────────┐
-                │             │             │
-                ▼             ▼             ▼
-         Sequential      Concurrent      Handoff
-         Pipeline        Search          Router
-                │             │             │
-         Analyze         local + global   Classify
-         Search          (parallel)    │
-         Write                │         ├─ EntityExpert
-                │         Synthesize   └─ ThemesExpert
-                │             │
-                └─────────────┴──────── WorkflowResult
-                                         .answer
-                                         .steps     ← full trace
+```mermaid
+flowchart TD
+    Q["User Query"] --> R["Router Workflow"]
+    R --> S["Sequential Pipeline"]
+    R --> C["Concurrent Search"]
+    R --> H["Handoff Experts"]
+
+    S --> SA["Analyze -> Search -> Write"]
+    C --> CA["local + global parallel -> Synthesize"]
+    H --> HA["EntityExpert or ThemesExpert"]
+
+    SA --> O["WorkflowResult.answer + WorkflowResult.steps"]
+    CA --> O
+    HA --> O
 ```
 
 ### Usage Example

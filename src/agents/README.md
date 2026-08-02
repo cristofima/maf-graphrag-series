@@ -1,53 +1,41 @@
-# Agents Module
+# Agents Module — Knowledge Captain
 
-Supervisor Agent Pattern with Microsoft Agent Framework
+Supervisor Agent pattern built on Microsoft Agent Framework with GraphRAG tooling over MCP.
 
 ## Overview
 
-This module implements the **Knowledge Captain** agent that queries GraphRAG via MCP. The agent uses GPT-4o with a system prompt to decide which tool to call—no complex routing logic needed.
+The module provides the **Knowledge Captain**, a supervisor agent that talks to the GraphRAG MCP server. It runs exclusively on **Azure OpenAI / Foundry Model Router** deployments and relies on a system prompt to pick the right MCP tool for each query. Routing beyond that prompt lives in the workflow layer; this agent stays focused on fetching high-quality context.
 
 **Features:**
 
-- Multi-provider LLM support (Azure OpenAI, GitHub Models, OpenAI, Ollama)
-- System prompt-based tool routing (no code router)
-- Three-layer middleware pipeline (timing, token counting, logging, query rewriting, summarization)
-- Local `@tool` functions for formatting and extraction (no MCP round-trip)
+- Foundry-only configuration (Azure OpenAI endpoint, router metadata capture)
+- System prompt-controlled tool selection (no embedded code router)
+- Lightweight observability middleware (timing, token counting, query rewriting, logging)
+- Local `@tool` helpers for formatting or extraction without leaving the process
 - Research delegate sub-agent for context-isolated deep dives
-- Conversation memory for follow-up questions
-- Single MCP connection to GraphRAG server
+- Conversation memory for follow-up questions across a session
+- Single MCP connection managed as an async context manager
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Knowledge Captain (GPT-4o / GitHub Models / OpenAI / Ollama)       │
-│  ┌────────────────────────────────────────────────────────────────┐ │
-│  │ System Prompt guides tool selection:                           │ │
-│  │ - local_search → entity questions                              │ │
-│  │ - global_search → thematic questions                           │ │
-│  └────────────────────────────────────────────────────────────────┘ │
-│                                                                     │
-│  Middleware Pipeline (configurable):                                │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────────────┐               │
-│  │ Timing   │→ │ TokenCounting│→ │ LoggingFunction  │               │
-│  │ (Agent)  │  │ (Chat)       │  │ (Function)       │               │
-│  └──────────┘  └──────────────┘  └──────────────────┘               │
-│                                                                     │
-│  Tools:                                                             │
-│  ┌─────────────────────┐  ┌───────────────┐  ┌────────────────────┐ │
-│  │ MCPStreamableHTTP   │  │format_as_table│  │extract_key_entities│ │
-│  │ (remote — MCP)      │  │(local @tool)  │  │(local @tool)       │ │
-│  └──────────┬──────────┘  └───────────────┘  └────────────────────┘ │
-└─────────────┼───────────────────────────────────────────────────────┘
-              │ Streamable HTTP (/mcp)
-              ▼
-┌─────────────────────────────────────────────────────────┐
-│  MCP Server (port 8011)                                 │
-│  ├── local_search    (entity-focused)                   │
-│  ├── global_search   (thematic)                         │
-│  ├── list_entities   (browse)                           │
-│  └── get_entity      (details)                          │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    U["User Query"] --> K
+
+    subgraph K["Knowledge Captain (Azure OpenAI / Foundry Model Router)"]
+        SP["System Prompt\nlocal_search for entity questions\nglobal_search for thematic questions"]
+        MW["Middleware Pipeline\nTimingAgent -> QueryRewritingChat -> TokenCountingChat -> LoggingFunction"]
+        T1["MCPStreamableHTTPTool\nremote MCP"]
+        T2["format_as_table\nlocal @tool"]
+        T3["extract_key_entities\nlocal @tool"]
+        SP --> MW
+        MW --> T1
+        MW --> T2
+        MW --> T3
+    end
+
+    T1 -->|"Streamable HTTP /mcp"| MCP
+    MCP["MCP Server (8011)\nlocal_search\nglobal_search\nlist_entities\nget_entity"]
 ```
 
 ## Key Insight: System Prompt as Router
@@ -66,9 +54,10 @@ The agent doesn't need complex routing logic. The system prompt tells GPT-4o whe
 ```
 agents/
 ├── __init__.py      # Re-exports (all public API)
-├── config.py        # Multi-provider LLM configuration (Azure, GitHub, OpenAI, Ollama)
-├── middleware.py     # Three-layer observability middleware pipeline
+├── config.py        # Foundry-only configuration, router metadata helpers
+├── middleware.py    # Three-layer observability middleware pipeline
 ├── prompts.py       # System prompts (Knowledge Captain, Research Delegate)
+├── router_classifier.py # Router classifier used by RouterWorkflow
 ├── supervisor.py    # Knowledge Captain agent, runner, research delegate, MCP tool
 ├── tools.py         # Local @tool functions (format_as_table, extract_key_entities)
 └── README.md        # This file
@@ -85,20 +74,16 @@ agents/
 ### Environment Variables
 
 ```bash
-# Required (Azure — default provider)
+# Required (Azure OpenAI / Foundry)
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_API_KEY=your-api-key
 AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o
-
-# Alternative providers (set API_HOST to switch)
-API_HOST=azure          # azure | github | openai | ollama
-GITHUB_TOKEN=ghp_...    # When API_HOST=github
-GITHUB_MODEL=openai/gpt-4.1-mini
-OPENAI_API_KEY=sk-...   # When API_HOST=openai
-OPENAI_MODEL=gpt-4o
-OLLAMA_MODEL=llama3.2   # When API_HOST=ollama
+AZURE_OPENAI_ROUTER_DEPLOYMENT=router-deployment-name
 
 # Optional
+AZURE_OPENAI_API_VERSION=2024-11-20
+AZURE_OPENAI_ROUTER_ENDPOINT=https://your-router-resource.openai.azure.com/
+AZURE_OPENAI_ROUTER_SUBSET=default
 MCP_SERVER_URL=http://127.0.0.1:8011/mcp
 ```
 
@@ -162,25 +147,29 @@ async with KnowledgeCaptainRunner(system_prompt=SIMPLE_ASSISTANT_PROMPT) as runn
     response = await runner.ask("What technologies are used?")
 ```
 
-## Multi-Provider LLM Support
+## Foundry Model Router Configuration
 
-The agent supports multiple LLM backends via the `API_HOST` environment variable:
+The Knowledge Captain is locked to Azure OpenAI deployments managed by the Foundry Model Router. `AgentConfig`
+expects these environment variables:
 
-| Provider       | `API_HOST` | Model Config Var               | Default Model         |
-| -------------- | ---------- | ------------------------------ | --------------------- |
-| Azure OpenAI   | `azure`    | `AZURE_OPENAI_CHAT_DEPLOYMENT` | `gpt-4o`              |
-| GitHub Models  | `github`   | `GITHUB_MODEL`                 | `openai/gpt-4.1-mini` |
-| OpenAI         | `openai`   | `OPENAI_MODEL`                 | `gpt-4o`              |
-| Ollama (local) | `ollama`   | `OLLAMA_MODEL`                 | `llama3.2`            |
+| Variable                         | Purpose                                                        |
+| -------------------------------- | -------------------------------------------------------------- |
+| `AZURE_OPENAI_ENDPOINT`          | Base endpoint URL (for example `https://foo.openai.azure.com`) |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT`   | Default chat deployment used by the supervisor agent           |
+| `AZURE_OPENAI_ROUTER_DEPLOYMENT` | Router deployment dedicated to the workflow classifier         |
+| `AZURE_OPENAI_ROUTER_SUBSET`     | Optional comma-separated subset label                          |
 
 ```python
-# Switch provider via environment variable
 import os
-os.environ["API_HOST"] = "github"
-os.environ["GITHUB_TOKEN"] = "ghp_..."
+
+os.environ["AZURE_OPENAI_ENDPOINT"] = "https://myproj.eastus2.openai.azure.com"
+os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"] = "knowledge-captain"
+os.environ["AZURE_OPENAI_ROUTER_DEPLOYMENT"] = "router-production"
+os.environ["AZURE_OPENAI_ROUTER_SUBSET"] = "fallback-a"
 
 from agents import create_client
-client = create_client()  # Returns OpenAIChatClient pointing to GitHub Models
+
+client = create_client()  # Targets the Foundry deployment above
 ```
 
 ## Middleware Pipeline
@@ -190,15 +179,14 @@ The agent supports a three-layer middleware pipeline for observability and conte
 | Layer        | Middleware Class               | Purpose                                   |
 | ------------ | ------------------------------ | ----------------------------------------- |
 | **Agent**    | `TimingAgentMiddleware`        | Measures total agent execution time       |
-| **Agent**    | `SummarizationMiddleware`      | Auto-summarizes long responses            |
-| **Chat**     | `TokenCountingChatMiddleware`  | Tracks prompt/completion token usage      |
 | **Chat**     | `QueryRewritingChatMiddleware` | Rewrites vague queries for better results |
+| **Chat**     | `TokenCountingChatMiddleware`  | Tracks prompt/completion token usage      |
 | **Function** | `LoggingFunctionMiddleware`    | Logs MCP tool calls with arguments        |
 
-Default stack (injected automatically): `TimingAgentMiddleware` → `TokenCountingChatMiddleware` → `LoggingFunctionMiddleware`.
+Default stack (injected automatically): `TimingAgentMiddleware` → `QueryRewritingChatMiddleware` → `TokenCountingChatMiddleware` → `LoggingFunctionMiddleware`.
 
 ```python
-from agents import KnowledgeCaptainRunner, QueryRewritingChatMiddleware, SummarizationMiddleware
+from agents import KnowledgeCaptainRunner, QueryRewritingChatMiddleware
 from agents.middleware import TimingAgentMiddleware, TokenCountingChatMiddleware, LoggingFunctionMiddleware
 
 # Custom middleware stack with query rewriting
@@ -267,13 +255,17 @@ This module uses the **Streamable HTTP** transport (`/mcp` endpoint) instead of 
 
 The MCP Server exposes both endpoints, but agents always connect via `/mcp`.
 
+## Router Metadata Hand-off
+
+`AgentConfig` captures Foundry router metadata (mode, subset) so downstream workflows can log or audit how production traffic is partitioned. The agent exposes this metadata through `create_client()` and `KnowledgeCaptainRunner`, enabling the router workflow to embed it in each `WorkflowResult` step.
+
 ## Architecture Benefits
 
-- **Multi-provider** — Switch LLM backend via `API_HOST` env var (Azure, GitHub, OpenAI, Ollama)
+- **Foundry-only** — Configuration and validation assume Azure OpenAI deployments and Foundry router usage
 - **Agent owns its MCP tool** — `async with agent:` connects on enter, closes on exit
 - **Single source of truth** — All GraphRAG tools live in `mcp_server/`
 - **System prompt routing** — GPT-4o decides which tool to call (no code router)
-- **Middleware pipeline** — Pluggable observability (timing, tokens, logging, query rewriting)
+- **Middleware pipeline** — Pluggable observability (timing, tokens, logging, optional rewriting)
 - **Local + remote tools** — `@tool` functions complement MCP tools without round-trips
 - **Context isolation** — Research delegate encapsulates sub-agent conversations
 
@@ -282,4 +274,3 @@ The MCP Server exposes both endpoints, but agents always connect via `/mcp`.
 - [Microsoft Agent Framework Documentation](https://learn.microsoft.com/agent-framework/)
 - [MCP Protocol Specification](https://modelcontextprotocol.io/)
 - [GraphRAG Documentation](https://microsoft.github.io/graphrag/)
-

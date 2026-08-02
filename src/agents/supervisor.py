@@ -30,7 +30,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from agents.config import get_agent_config
-from agents.middleware import LoggingFunctionMiddleware, QueryRewritingChatMiddleware, TimingAgentMiddleware, TokenCountingChatMiddleware
+from agents.middleware import (
+    LoggingFunctionMiddleware,
+    QueryRewritingChatMiddleware,
+    TimingAgentMiddleware,
+    TokenCountingChatMiddleware,
+)
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT, RESEARCH_DELEGATE_PROMPT
 
 if TYPE_CHECKING:

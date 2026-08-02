@@ -250,8 +250,3 @@ class QueryRewritingChatMiddleware(ChatMiddleware):
         """Check whether *text* likely contains unresolved references."""
         lowered = text.lower()
         return any(token in lowered for token in self._ANAPHORA_TOKENS)
-
-
-
-
-

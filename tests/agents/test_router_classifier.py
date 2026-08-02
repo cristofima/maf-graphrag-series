@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
@@ -24,11 +25,7 @@ class _ErrorResponse:
 
 class _RouterAPIError(Exception):
     def __init__(self, status: int, body: Mapping[str, Any]) -> None:
-        message = (
-            body.get("error", {}).get("message")
-            if isinstance(body.get("error"), Mapping)
-            else body.get("error")
-        )
+        message = body.get("error", {}).get("message") if isinstance(body.get("error"), Mapping) else body.get("error")
         super().__init__(message or "router error")
         self.status_code = status
         self.response = _ErrorResponse(status, body)
@@ -175,7 +172,9 @@ class TestRouterClassifier:
         classifier = RouterClassifier(config=foundry_config, client=client)
 
         async with classifier:
-            with pytest.raises(RouterClassifierError, match=r"Router classification via chat failed: router HTTP error 500"):
+            with pytest.raises(
+                RouterClassifierError, match=r"Router classification via chat failed: router HTTP error 500"
+            ):
                 await classifier.classify("Who leads Project Alpha?")
 
     async def test_raises_error_when_router_reports_version_issue(self, foundry_config: AgentConfig) -> None:

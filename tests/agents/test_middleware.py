@@ -295,4 +295,3 @@ class TestQueryRewritingChatMiddleware:
 
         call_next.assert_awaited_once()
         assert len(context.messages) == 3  # no injection on empty
-

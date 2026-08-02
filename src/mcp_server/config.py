@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-
 DEFAULT_CORS_ORIGINS = ["http://127.0.0.1:8011"]
 DEFAULT_CORS_METHODS = ["GET", "POST", "DELETE", "OPTIONS"]
 DEFAULT_CORS_HEADERS = ["Content-Type", "Authorization"]
@@ -47,13 +46,13 @@ class MCPConfig(BaseModel):
         return Path(".").resolve()
 
     @model_validator(mode="after")
-    def _align_output_dir(self) -> "MCPConfig":
+    def _align_output_dir(self) -> MCPConfig:
         if not self.output_dir.is_absolute():
             self.output_dir = (self.graphrag_root / self.output_dir).resolve()
         return self
 
     @classmethod
-    def from_env(cls) -> "MCPConfig":
+    def from_env(cls) -> MCPConfig:
         """Create configuration from environment variables with validation."""
 
         data = {
@@ -64,7 +63,7 @@ class MCPConfig(BaseModel):
         }
 
         try:
-            return cls(**data)
+            return cls.model_validate(data)
         except ValidationError as exc:  # pragma: no cover - defensive guard
             raise ValueError(str(exc)) from exc
 

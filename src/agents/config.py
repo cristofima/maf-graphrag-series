@@ -5,11 +5,19 @@ from __future__ import annotations
 import os
 from datetime import date
 
-from pydantic import AnyHttpUrl, BaseModel, Field, FieldValidationInfo, ValidationError, field_validator, model_validator
-
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 DEFAULT_API_VERSION = "2024-11-20"
 """Default REST API version aligned with the current deployment guidance."""
+
 
 class AgentConfig(BaseModel):
     """Agent configuration backed by Pydantic validation.
@@ -25,7 +33,7 @@ class AgentConfig(BaseModel):
     router_deployment: str = Field(..., description="Dedicated router deployment name")
     api_key: str | None = Field(default=None, description="API key for Foundry access")
     api_version: str = Field(default=DEFAULT_API_VERSION, description="REST API version for primary deployment")
-    mcp_server_url: AnyHttpUrl = Field(default="http://127.0.0.1:8011/mcp", description="GraphRAG MCP server URL")
+    mcp_server_url: str = Field(default="http://127.0.0.1:8011/mcp", description="GraphRAG MCP server URL")
     router_subset: str | None = Field(default=None, description="Optional router subset identifier")
     router_endpoint: AnyHttpUrl | None = Field(
         default=None,
@@ -34,23 +42,25 @@ class AgentConfig(BaseModel):
 
     @field_validator("deployment_name", "router_deployment")
     @classmethod
-    def _ensure_non_empty(cls, value: str, info: FieldValidationInfo) -> str:
+    def _ensure_non_empty(cls, value: str, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
         if not value or not value.strip():
-            raise ValueError(f"{info.field_name.upper()} must be provided")
+            raise ValueError(f"{field_name.upper()} must be provided")
         return value.strip()
 
     @field_validator("api_version")
     @classmethod
-    def _validate_version(cls, value: str, info: FieldValidationInfo) -> str:
+    def _validate_version(cls, value: str, info: ValidationInfo) -> str:
+        field_name = info.field_name or "field"
         stripped = value.strip()
         try:
             date.fromisoformat(stripped)
         except ValueError as exc:  # pragma: no cover - defensive guard for env typos
-            raise ValueError(f"{info.field_name.upper()} must use YYYY-MM-DD format") from exc
+            raise ValueError(f"{field_name.upper()} must use YYYY-MM-DD format") from exc
         return stripped
 
     @model_validator(mode="after")
-    def _apply_router_defaults(self) -> "AgentConfig":
+    def _apply_router_defaults(self) -> AgentConfig:
         if self.router_endpoint is None:
             self.router_endpoint = self.azure_endpoint
         return self
@@ -62,7 +72,7 @@ class AgentConfig(BaseModel):
         return str(self.router_endpoint).rstrip("/")  # type: ignore[arg-type]
 
     @classmethod
-    def from_env(cls) -> "AgentConfig":
+    def from_env(cls) -> AgentConfig:
         """Create configuration from environment variables with strict validation."""
 
         from dotenv import load_dotenv
@@ -98,7 +108,7 @@ class AgentConfig(BaseModel):
         }
 
         try:
-            return cls(**data)
+            return cls.model_validate(data)
         except ValidationError as exc:  # pragma: no cover - defensive guard
             raise ValueError(str(exc)) from exc
 
@@ -130,4 +140,3 @@ def get_agent_config() -> AgentConfig:
     """Get validated agent configuration from environment."""
 
     return AgentConfig.from_env()
-

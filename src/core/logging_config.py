@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from functools import lru_cache
 import logging
-from logging.handlers import RotatingFileHandler
 import os
-from pathlib import Path
 import sys
 from collections.abc import Sequence
+from datetime import datetime
+from functools import lru_cache
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -60,7 +60,7 @@ class LoggingConfig(BaseModel):
         default_app_log_level: str = "INFO",
         default_noisy_log_level: str = "WARNING",
         default_asyncio_log_level: str = "CRITICAL",
-    ) -> "LoggingConfig":
+    ) -> LoggingConfig:
         """Build logging config from environment variables with validation."""
 
         data = {
@@ -76,7 +76,7 @@ class LoggingConfig(BaseModel):
             "log_backup_count": os.getenv("APP_LOG_BACKUP_COUNT", "5"),
         }
         try:
-            return cls(**data)
+            return cls.model_validate(data)
         except ValidationError as exc:  # pragma: no cover - defensive guard
             raise ValueError(str(exc)) from exc
 

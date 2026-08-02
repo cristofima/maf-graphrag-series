@@ -18,7 +18,7 @@ from contextlib import AsyncExitStack
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, cast
 
 from agent_framework import Executor, WorkflowEvent
 from typing_extensions import Self
@@ -93,14 +93,7 @@ class WorkflowResult:
             f"Workflow: {self.workflow_type.value} ({self.total_elapsed_seconds:.1f}s total)",
         ]
         for index, step in enumerate(self.steps, 1):
-            lines.append(
-                "  Step {index} [{agent}] ({elapsed:.1f}s): {summary}".format(
-                    index=index,
-                    agent=step.agent_name,
-                    elapsed=step.elapsed_seconds,
-                    summary=step.input_summary,
-                )
-            )
+            lines.append(f"  Step {index} [{step.agent_name}] ({step.elapsed_seconds:.1f}s): {step.input_summary}")
         return "\n".join(lines)
 
 
@@ -132,7 +125,8 @@ class WorkflowGraphSupport:
     def _record_step(self, telemetry: StepTelemetry) -> None:
         self._step_telemetry.append(telemetry)
         if _STEP_LOGS_ENABLED:
-            step_logger_name = _STEP_LOGGER_BY_WORKFLOW.get(self._workflow_type, __name__)
+            workflow_type = self._workflow_type or WorkflowType.SEQUENTIAL
+            step_logger_name = _STEP_LOGGER_BY_WORKFLOW.get(workflow_type, __name__)
             logging.getLogger(step_logger_name).info(
                 "Workflow step [%s] %.2fs | %s",
                 telemetry.agent_name,
@@ -181,7 +175,7 @@ class WorkflowGraphSupport:
             raise RuntimeError("Workflow not built. Did you enter the context manager?")
 
         run_started = time.perf_counter()
-        stream = self._workflow.run(normalized_query, stream=True, include_status_events=True)
+        stream = self._workflow.run(normalized_query, stream=True)
 
         async def finalize() -> WorkflowResult:
             run_result = await stream.get_final_response()
@@ -219,7 +213,7 @@ class WorkflowGraphSupport:
             except Exception:  # pragma: no cover - defensive guard
                 outputs = []
         elif hasattr(run_result, "outputs"):
-            candidate = getattr(run_result, "outputs")
+            candidate = run_result.outputs
             outputs = list(candidate if isinstance(candidate, list) else [candidate])
 
         answer = ensure_text(outputs[-1]) if outputs else (steps[-1].output if steps else "")
@@ -508,7 +502,7 @@ def build_workflow_blueprint(
     edges = WORKFLOW_EDGE_BLUEPRINTS.get(workflow_type, [])
     start_executor = WORKFLOW_START_EXECUTOR.get(workflow_type) or next(iter(executor_details), "Executor")
 
-    blueprint = {
+    blueprint: dict[str, Any] = {
         "name": name,
         "id": f"maf-workflow-{workflow_type.value}",
         "start_executor_id": start_executor,
@@ -526,7 +520,7 @@ def build_workflow_blueprint(
             "type": "SingleEdgeGroup",
             "edges": [edge],
         }
-        blueprint["edge_groups"].append(group)
+        cast(list[dict[str, Any]], blueprint["edge_groups"]).append(group)
 
     blueprint_executors: dict[str, dict[str, Any]] = {}
     for executor_id, details in executor_details.items():
@@ -541,7 +535,7 @@ class MCPWorkflowRunner:
 
     def __init__(
         self,
-        factory: Callable[[str | None], MCPWorkflowBase],
+        factory: Callable[[str | None], Any],
         *,
         workflow_type: WorkflowType,
         mcp_url: str | None = None,
@@ -586,7 +580,7 @@ class MCPWorkflowRunner:
                 try:
                     await event_queue.put(
                         WorkflowEvent(
-                            type="progress",
+                            type=cast(Any, "progress"),
                             data={
                                 "stage": "workflow_runner_started",
                                 "workflow_type": self._workflow_type.value,
@@ -595,19 +589,19 @@ class MCPWorkflowRunner:
                     )
                     async with self._factory(self._mcp_url) as workflow:
                         normalized_query = workflow.prepare_run(normalized_message)
-                        result = workflow.create_stream(normalized_query)
-                        if inspect.isawaitable(result):
-                            stream_obj, finalize = await result
+                        stream_result = workflow.create_stream(normalized_query)
+                        if inspect.isawaitable(stream_result):
+                            stream_obj, finalize = await stream_result
                         else:
-                            stream_obj, finalize = result
+                            stream_obj, finalize = stream_result
                         async for event in stream_obj:
                             await event_queue.put(event)
-                        result = await finalize()
+                        final_result = await finalize()
                         if not result_future.done():
-                            result_future.set_result(result)
+                            result_future.set_result(final_result)
                         await event_queue.put(
                             WorkflowEvent(
-                                type="progress",
+                                type=cast(Any, "progress"),
                                 data={
                                     "stage": "workflow_runner_completed",
                                     "workflow_type": self._workflow_type.value,
@@ -640,7 +634,7 @@ class MCPWorkflowRunner:
 
     async def _execute_workflow(self, message: str) -> WorkflowResult:
         async with self._factory(self._mcp_url) as workflow:
-            return await workflow.run(message)
+            return cast(WorkflowResult, await workflow.run(message))
 
     def to_dict(self) -> dict[str, Any]:
         if self._blueprint_cache is not None:

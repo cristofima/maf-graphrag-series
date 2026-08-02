@@ -17,7 +17,7 @@ class StubClassifier:
         self.entered = False
         self.calls: list[str] = []
 
-    async def __aenter__(self) -> "StubClassifier":
+    async def __aenter__(self) -> StubClassifier:
         self.entered = True
         return self
 
@@ -49,7 +49,7 @@ class StubWorkflow:
         self.entered = False
         self.run_queries: list[str] = []
 
-    async def __aenter__(self) -> "StubWorkflow":
+    async def __aenter__(self) -> StubWorkflow:
         self.entered = True
         return self
 
@@ -86,7 +86,7 @@ def _make_result(workflow_type: WorkflowType, answer: str) -> WorkflowResult:
 async def test_router_delegates_to_selected_workflow() -> None:
     classification = RouterClassification(
         workflow=WorkflowType.CONCURRENT,
-        raw_response="{\"workflow\": \"concurrent\"}",
+        raw_response='{"workflow": "concurrent"}',
         reason="Needs both perspectives",
         confidence_score=95,
         elapsed_seconds=0.1,
@@ -191,15 +191,17 @@ async def test_router_retries_transient_classifier_error_then_succeeds(
 ) -> None:
     classification = RouterClassification(
         workflow=WorkflowType.HANDOFF,
-        raw_response="{\"workflow\": \"handoff\"}",
+        raw_response='{"workflow": "handoff"}',
         reason="Direct specialist route.",
         confidence_score=82,
         model_name="router-mini",
     )
-    classifier = StubClassifier([
-        TimeoutError("temporary timeout"),
-        classification,
-    ])
+    classifier = StubClassifier(
+        [
+            TimeoutError("temporary timeout"),
+            classification,
+        ]
+    )
 
     inner_result = _make_result(WorkflowType.HANDOFF, "Handoff answer")
 

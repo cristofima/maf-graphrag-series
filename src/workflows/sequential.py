@@ -35,8 +35,9 @@ Contrast with Single-Agent (Part 3):
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from agent_framework import WorkflowBuilder, WorkflowContext, handler
 
@@ -177,6 +178,7 @@ class _ReportWriterExecutor(_InstrumentedAgentExecutor):
         )
 
         await ctx.yield_output(report)
+
 
 # ---------------------------------------------------------------------------
 # System Prompts
@@ -365,16 +367,20 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
     async def run(self, query: str) -> WorkflowResult:
         """Execute the workflow graph and return structured telemetry."""
 
-        if self._workflow is None:
+        workflow = self._workflow
+        if workflow is None:
             if not all((self._query_analyzer, self._knowledge_searcher, self._report_writer)):
                 raise RuntimeError("Workflow not connected. Use 'async with ResearchPipelineWorkflow()'")
             self._initialize_workflow()
+            workflow = self._workflow
+        if workflow is None:
+            raise RuntimeError("Workflow graph initialization failed")
 
         normalized_query = self.prepare_run(query)
         logger.info("Executing sequential workflow via WorkflowBuilder graph")
 
         run_started = time.perf_counter()
-        run_result = await self._workflow.run(normalized_query, include_status_events=True)
+        run_result = await workflow.run(normalized_query, include_status_events=True)
         total_elapsed = time.perf_counter() - run_started
         return self.build_workflow_result(
             normalized_query=normalized_query,

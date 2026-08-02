@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import ast
+import asyncio
 import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Awaitable
+from typing import Any, cast
 
 from agent_framework import WorkflowEvent
 
@@ -21,7 +21,6 @@ except Exception:  # pragma: no cover - fallback when otel isn't installed
     trace = None  # type: ignore[assignment]
 
 from workflows.base import (
-    MCPWorkflowBase,
     WorkflowResult,
     WorkflowStep,
     WorkflowType,
@@ -40,7 +39,7 @@ except Exception:  # pragma: no cover - fallback for documentation builds
     RouterClassifier = None  # type: ignore
     RouterClassification = None  # type: ignore
 
-WorkflowFactory = Callable[[str | None], MCPWorkflowBase]
+WorkflowFactory = Callable[[str | None], Any]
 
 _DEFAULT_FACTORIES: dict[WorkflowType, WorkflowFactory] = {
     WorkflowType.SEQUENTIAL: create_sequential_workflow,
@@ -87,7 +86,7 @@ class RouterWorkflow:
         self._entered = False
         self._last_query: str | None = None
 
-    async def __aenter__(self) -> "RouterWorkflow":
+    async def __aenter__(self) -> RouterWorkflow:
         await self._classifier.__aenter__()
         self._entered = True
         return self
@@ -164,15 +163,17 @@ class RouterWorkflow:
     def _span_set_if_present(span: object | None, key: str, value: object | None) -> None:
         if span is None or value is None:
             return
+        typed_span = cast(Any, span)
         if isinstance(value, (str, bool, int, float)):
-            span.set_attribute(key, value)
+            typed_span.set_attribute(key, value)
             return
-        span.set_attribute(key, RouterWorkflow._clip(str(value)))
+        typed_span.set_attribute(key, RouterWorkflow._clip(str(value)))
 
     @staticmethod
     def _span_add_event(span: object | None, name: str, attributes: dict[str, object]) -> None:
         if span is None:
             return
+        typed_span = cast(Any, span)
         safe_attributes: dict[str, object] = {}
         for key, value in attributes.items():
             if value is None:
@@ -181,7 +182,7 @@ class RouterWorkflow:
                 safe_attributes[key] = value
             else:
                 safe_attributes[key] = RouterWorkflow._clip(str(value))
-        span.add_event(name, attributes=safe_attributes)
+        typed_span.add_event(name, attributes=safe_attributes)
 
     def _emit_routing_span(
         self,
@@ -205,7 +206,9 @@ class RouterWorkflow:
             self._span_set_if_present(span, "router.reason", router_outcome.classification.reason)
             self._span_set_if_present(span, "router.fallback_reason", router_outcome.fallback_reason)
             self._span_set_if_present(span, "router.classifier_error", router_outcome.classifier_error)
-            self._span_set_if_present(span, "router.classification_raw", self._clip(router_outcome.classification.raw_response))
+            self._span_set_if_present(
+                span, "router.classification_raw", self._clip(router_outcome.classification.raw_response)
+            )
             self._span_add_event(
                 span,
                 "router.workflow.decision",
@@ -251,7 +254,7 @@ class RouterWorkflow:
         }
 
         async def stream_with_router_progress() -> AsyncIterator[Any]:
-            yield WorkflowEvent(type="progress", data=progress_payload)
+            yield WorkflowEvent(type=cast(Any, "progress"), data=progress_payload)
             async for event in stream:
                 yield event
 

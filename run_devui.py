@@ -20,6 +20,7 @@ Environment Variables:
 
 from __future__ import annotations
 
+# ruff: noqa: E402
 import logging
 import os
 import sys
@@ -89,7 +90,7 @@ class DevUIConfig:
     auth_token: str | None = None
 
     @classmethod
-    def from_env(cls) -> "DevUIConfig":
+    def from_env(cls) -> DevUIConfig:
         """Build configuration from environment variables."""
         port_value = os.getenv("DEVUI_PORT", "8080")
         try:
@@ -195,8 +196,7 @@ def main() -> None:
         if "unexpected keyword" not in str(exc):
             raise
         console.print(
-            "\n[yellow]DevUI backend rejected one or more optional parameters;"
-            " retrying with defaults.[/yellow]"
+            "\n[yellow]DevUI backend rejected one or more optional parameters; retrying with defaults.[/yellow]"
         )
         minimal_kwargs = {
             "entities": entities,

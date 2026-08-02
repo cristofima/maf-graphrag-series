@@ -7,7 +7,6 @@ from pathlib import Path
 
 from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError, field_validator
 
-
 DEFAULT_EVAL_API_VERSION = "2025-04-01-preview"
 
 
@@ -59,7 +58,7 @@ class EvalConfig(BaseModel):
         return value.strip()
 
     @classmethod
-    def from_env(cls) -> "EvalConfig":
+    def from_env(cls) -> EvalConfig:
         """Create configuration from environment variables with strict validation."""
 
         data = {
@@ -71,9 +70,7 @@ class EvalConfig(BaseModel):
             "app_insights_connection_string": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"),
             "otel_tracing_endpoint": os.getenv("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
             "api_version": os.getenv("AZURE_OPENAI_EVAL_API_VERSION", DEFAULT_EVAL_API_VERSION),
-            "entities_parquet_path": os.getenv(
-                "ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"
-            ),
+            "entities_parquet_path": os.getenv("ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"),
             "relationships_parquet_path": os.getenv(
                 "RELATIONSHIPS_PARQUET_PATH", "output/create_final_relationships.parquet"
             ),

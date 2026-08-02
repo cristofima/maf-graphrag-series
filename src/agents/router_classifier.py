@@ -7,8 +7,9 @@ import json
 import logging
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping, NoReturn
+from typing import Any, NoReturn, cast
 
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
@@ -48,6 +49,7 @@ Do not include additional text or formatting outside the JSON object."""
 def _span_add_event(span: object | None, name: str, attributes: dict[str, object]) -> None:
     if span is None:
         return
+    typed_span = cast(Any, span)
     safe_attributes: dict[str, object] = {}
     for key, value in attributes.items():
         if value is None:
@@ -56,7 +58,8 @@ def _span_add_event(span: object | None, name: str, attributes: dict[str, object
             safe_attributes[key] = value
         else:
             safe_attributes[key] = _clip(str(value))
-    span.add_event(name, attributes=safe_attributes)
+    typed_span.add_event(name, attributes=safe_attributes)
+
 
 _CLASSIFIER_TIMEOUT_SECONDS = 45.0
 
@@ -173,6 +176,7 @@ def _is_version_not_supported(error: Exception) -> bool:
         return False
     return "api version not supported" in detail.lower() or "unsupported api version" in detail.lower()
 
+
 def _extract_router_metadata(
     result: object | None,
     default_model: str,
@@ -260,7 +264,7 @@ class RouterClassifier:
         self._owns_client = client is None
         self._entered = False
 
-    async def __aenter__(self) -> "RouterClassifier":
+    async def __aenter__(self) -> RouterClassifier:
         self._entered = True
         return self
 
@@ -271,7 +275,7 @@ class RouterClassifier:
         exc_tb: object,
     ) -> None:
         if self._owns_client and hasattr(self._client, "close"):
-            close_callable = getattr(self._client, "close")
+            close_callable = self._client.close
             result = close_callable()
             if hasattr(result, "__await__"):
                 await result
@@ -414,8 +418,8 @@ class RouterClassifier:
 
         try:
             async with asyncio.timeout(_CLASSIFIER_TIMEOUT_SECONDS):
-                response = await self._client.get_response(messages=messages, options=options)
-        except asyncio.TimeoutError as exc:
+                response = await cast(Any, self._client).get_response(messages=messages, options=options)
+        except TimeoutError as exc:
             raise TimeoutError("Router chat request timed out") from exc
 
         usage_payload: dict[str, int] | None = None
@@ -436,11 +440,7 @@ class RouterClassifier:
         metadata_payload: dict[str, Any] | None = None
         additional_properties = getattr(response, "additional_properties", None)
         if isinstance(additional_properties, Mapping):
-            metadata_payload = {
-                key: value
-                for key, value in additional_properties.items()
-                if value is not None
-            }
+            metadata_payload = {key: value for key, value in additional_properties.items() if value is not None}
         response_model = getattr(response, "model", None)
         if isinstance(response_model, str) and response_model:
             if metadata_payload is None:
@@ -569,9 +569,10 @@ def _span_set_if_present(span: object | None, key: str, value: object | None) ->
 
     if span is None or value is None:
         return
+    typed_span = cast(Any, span)
 
     if isinstance(value, (str, bool, int, float)):
-        span.set_attribute(key, value)
+        typed_span.set_attribute(key, value)
         return
 
-    span.set_attribute(key, _clip(str(value)))
+    typed_span.set_attribute(key, _clip(str(value)))

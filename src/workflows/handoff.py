@@ -3,8 +3,9 @@
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from agent_framework import WorkflowBuilder, WorkflowContext, handler
 
@@ -316,6 +317,7 @@ class _EntityExpertExecutor(InstrumentedAgentExecutor):
     async def process(self, stage: RouteDecisionStage, ctx: WorkflowContext[ExpertFindingStage]) -> None:
         should_run = stage.decision in ("entity", "both")
         tool_names = collect_tool_names(self._agent)
+        metadata: dict[str, Any]
 
         if should_run:
             start = time.perf_counter()
@@ -368,6 +370,7 @@ class _ThemesExpertExecutor(InstrumentedAgentExecutor):
     async def process(self, stage: RouteDecisionStage, ctx: WorkflowContext[ExpertFindingStage]) -> None:
         should_run = stage.decision in ("themes", "both")
         tool_names = collect_tool_names(self._agent)
+        metadata: dict[str, Any]
 
         if should_run:
             start = time.perf_counter()
@@ -416,7 +419,9 @@ class _HandoffComposerExecutor(InstrumentedAgentExecutor):
         super().__init__(executor_id="HandoffComposer", display_name="AnswerComposer", record_step=record_step)
 
     @handler
-    async def process(self, payloads: list[ExpertFindingStage], ctx: WorkflowContext[list[ExpertFindingStage], str]) -> None:
+    async def process(
+        self, payloads: list[ExpertFindingStage], ctx: WorkflowContext[list[ExpertFindingStage], str]
+    ) -> None:
         decision = payloads[0].decision if payloads else "both"
         entity_payload = next((p for p in payloads if p.expert_type == "entity"), None)
         themes_payload = next((p for p in payloads if p.expert_type == "themes"), None)
@@ -455,12 +460,7 @@ class _HandoffComposerExecutor(InstrumentedAgentExecutor):
             return entity_content
         if decision == "themes":
             return themes_content
-        return (
-            "## Entity Details\n\n"
-            + entity_content
-            + "\n\n## Organizational Themes\n\n"
-            + themes_content
-        )
+        return "## Entity Details\n\n" + entity_content + "\n\n## Organizational Themes\n\n" + themes_content
 
 
 class ExpertHandoffWorkflow(MCPWorkflowBase):
@@ -529,16 +529,20 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
     async def run(self, query: object) -> WorkflowResult:
         """Execute the WorkflowBuilder graph and return routed telemetry."""
 
-        if self._workflow is None:
+        workflow = self._workflow
+        if workflow is None:
             if not all((self._router, self._entity_expert, self._themes_expert)):
                 raise RuntimeError("Workflow not connected. Use 'async with ExpertHandoffWorkflow()'")
             self._initialize_workflow()
+            workflow = self._workflow
+        if workflow is None:
+            raise RuntimeError("Workflow graph initialization failed")
 
         normalized_query = self.prepare_run(_normalize_query_text(query))
         logger.info("Executing handoff workflow via WorkflowBuilder graph")
 
         run_started = time.perf_counter()
-        run_result = await self._workflow.run(normalized_query, include_status_events=True)
+        run_result = await workflow.run(normalized_query, include_status_events=True)
         total_elapsed = time.perf_counter() - run_started
         return self.build_workflow_result(
             normalized_query=normalized_query,

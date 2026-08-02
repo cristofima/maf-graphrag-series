@@ -2,9 +2,10 @@
 
 import logging
 import time
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from agent_framework import Executor, WorkflowBuilder, WorkflowContext, handler
 
@@ -239,11 +240,14 @@ class _AnswerSynthesizerExecutor(InstrumentedAgentExecutor):
         self._agent = agent
 
     @handler
-    async def process(self, payloads: list[SearchResultStage], ctx: WorkflowContext[list[SearchResultStage], str]) -> None:
+    async def process(
+        self, payloads: list[SearchResultStage], ctx: WorkflowContext[list[SearchResultStage], str]
+    ) -> None:
         entity_payload = next((p for p in payloads if p.result_type == "entity"), None)
         themes_payload = next((p for p in payloads if p.result_type == "themes"), None)
 
-        query = (entity_payload or themes_payload).query if (entity_payload or themes_payload) else ""
+        query_payload = entity_payload if entity_payload is not None else themes_payload
+        query = query_payload.query if query_payload is not None else ""
         entity_findings = entity_payload.findings if entity_payload else "No entity findings."
         themes_findings = themes_payload.findings if themes_payload else "No thematic findings."
 
@@ -327,16 +331,20 @@ class ParallelSearchWorkflow(WorkflowGraphSupport):
         self._set_workflow(workflow, [broadcast, entity_executor, themes_executor, synth_executor])
 
     async def run(self, query: str) -> WorkflowResult:
-        if self._workflow is None:
+        workflow = self._workflow
+        if workflow is None:
             if not all((self._entity_searcher, self._themes_searcher, self._answer_synthesizer)):
                 raise RuntimeError("Workflow not connected. Use 'async with ParallelSearchWorkflow()'")
             self._initialize_workflow()
+            workflow = self._workflow
+        if workflow is None:
+            raise RuntimeError("Workflow graph initialization failed")
 
         normalized_query = self.prepare_run(query)
         logger.info("Executing concurrent workflow via WorkflowBuilder graph")
 
         run_started = time.perf_counter()
-        run_result = await self._workflow.run(normalized_query, include_status_events=True)
+        run_result = await workflow.run(normalized_query, include_status_events=True)
         total_elapsed = time.perf_counter() - run_started
         return self.build_workflow_result(
             normalized_query=normalized_query,

@@ -10,6 +10,8 @@ Part 6 migrates the tutorial series to a production-ready routing posture by rel
 - Standardize classifier traffic on the Agent Framework OpenAI client path.
 - Surface router metadata (mode, subset, model) for observability and debugging.
 - Keep the router workflow as the only production surface while sequential/concurrent remain internal patterns.
+- Add explicit `out_of_context` handling so unsupported queries do not consume retrieval workflow paths.
+- Gate expensive evaluation runs by stage: PRs run local checks, `main` runs Foundry publishing + red-team.
 
 ---
 
@@ -66,6 +68,39 @@ The classifier returns a `RouterClassification` dataclass consumed by [src/workf
 ## Workflow Surface Alignment
 
 `uv run python run_devui.py` is the interactive runtime surface. Router remains the production default workflow, while sequential and concurrent patterns are retained for debugging and targeted validation.
+
+For Teams/Agents Playground compatibility, `run_router_chatbot.py` exposes a connector-oriented endpoint at `/api/messages` backed by `RouterWorkflow`.
+
+---
+
+## Router Output Contract (Current)
+
+`RouterWorkflow` now preserves both classification intent and executed path in step metadata:
+
+- `classified_workflow`: raw classifier label
+- `routed_workflow`: final executed workflow after policy/fallback
+- `classifier_status`: classifier outcome state
+- `classifier_attempts`: retry count
+- `fallback_reason`: deterministic explanation when fallback occurs
+
+The `out_of_context` route is handled as a first-class label. When selected, the router returns a direct safe response path and avoids in-context retrieval fan-out.
+
+---
+
+## Evaluation and CI Governance
+
+Router evaluation now follows a staged policy:
+
+- **PR path:** local-only router batch checks for merge gating.
+- **Main path:** full router batch plus Foundry publish and red-team checks when relevant files changed.
+
+Workflow split:
+
+- `.github/workflows/ci.yml`: core lint/type/test pipeline; triggers full router evaluation only on `main` with relevant diffs.
+- `.github/workflows/router-evaluation.yml`: reusable evaluator workflow (local, Foundry, optional red-team toggles).
+- `.github/workflows/router-pr-merge-gate.yml`: pre-merge PR gate (label or approval-triggered) that runs local router eval and reports deterministic pass/fail.
+
+This prevents per-commit evaluation spend during PR iteration while preserving merge-time quality enforcement.
 
 ---
 

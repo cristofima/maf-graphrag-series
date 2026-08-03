@@ -97,6 +97,18 @@ Step 2 is independent from Foundry/New Foundry. If you already have `eval_data.j
 uv run python -m evaluation.scripts.generate_eval_data
 ```
 
+Router-focused variant (includes `out_of_context` routing checks and writes `eval_router_data.jsonl`):
+
+```powershell
+uv run python -m evaluation.scripts.generate_router_eval_data
+```
+
+Router dataset rule for edge cases:
+
+- `expected_routed_workflow` remains the coarse label used in reports (`in_context` / `out_of_context`).
+- `accepted_routed_workflows` can list multiple valid concrete routes for a prompt (for example `handoff` and `sequential`).
+- `route_match` is computed against that accepted set, so ambiguity does not create false negatives.
+
 Output:
 
 ```
@@ -120,6 +132,9 @@ To avoid the skip, set `AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT` to a compatible deplo
 ```powershell
 # Standard evaluation (results saved locally)
 uv run python -m evaluation.scripts.run_batch_evaluation
+
+# Router-focused dataset evaluation
+uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl
 
 # Skip custom graph evaluators (no Parquet needed)
 uv run python -m evaluation.scripts.run_batch_evaluation --no-custom

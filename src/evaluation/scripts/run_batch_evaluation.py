@@ -164,6 +164,10 @@ def run_batch_evaluation(
     )
     result: dict[str, object] = dict(raw_result)
 
+    route_summary = _compute_route_summary(data_path)
+    if route_summary is not None:
+        result["route_summary"] = route_summary
+
     if new_foundry_run:
         result["new_foundry"] = new_foundry_run
         report_url = new_foundry_run.get("report_url")
@@ -203,6 +207,7 @@ def _write_report(result: dict[str, object], output_path: Path) -> None:
     """Write a Markdown evaluation report."""
     metrics = _coerce_metrics(result)
     studio_url = result.get("studio_url", "")
+    route_summary = result.get("route_summary")
 
     lines = [
         "# Evaluation Report",
@@ -217,6 +222,48 @@ def _write_report(result: dict[str, object], output_path: Path) -> None:
         lines.append(f"| {name} | {value} |")
 
     lines.append("")
+
+    if isinstance(route_summary, dict):
+        lines.append("## Router Route Accuracy")
+        lines.append("")
+
+        total_cases = route_summary.get("total_cases")
+        decided_cases = route_summary.get("decided_cases")
+        matched_cases = route_summary.get("matched_cases")
+        route_accuracy = route_summary.get("route_accuracy")
+        flexible_cases = route_summary.get("flexible_cases")
+        flexible_matched_cases = route_summary.get("flexible_matched_cases")
+        flexible_accuracy = route_summary.get("flexible_accuracy")
+
+        lines.append(f"- Total cases: {total_cases}")
+        lines.append(f"- Decided cases: {decided_cases}")
+        lines.append(f"- Matched routes: {matched_cases}")
+        if isinstance(route_accuracy, (int, float)):
+            lines.append(f"- Route accuracy: {route_accuracy:.3f} ({route_accuracy * 100:.1f}%)")
+        if isinstance(flexible_cases, int):
+            lines.append(f"- Flexible cases (multi-valid route): {flexible_cases}")
+        if isinstance(flexible_matched_cases, int):
+            lines.append(f"- Flexible matched cases: {flexible_matched_cases}")
+        if isinstance(flexible_accuracy, (int, float)):
+            lines.append(f"- Flexible accuracy: {flexible_accuracy:.3f} ({flexible_accuracy * 100:.1f}%)")
+        lines.append("")
+
+        by_expected = route_summary.get("by_expected_route")
+        if isinstance(by_expected, dict) and by_expected:
+            lines.append("| Expected Route | Cases | Matched | Accuracy |")
+            lines.append("|----------------|-------|---------|----------|")
+            for expected_route, stats in sorted(by_expected.items()):
+                if not isinstance(stats, dict):
+                    continue
+                cases = stats.get("cases", 0)
+                matched = stats.get("matched", 0)
+                accuracy = stats.get("accuracy")
+                if isinstance(accuracy, (int, float)):
+                    accuracy_text = f"{accuracy:.3f}"
+                else:
+                    accuracy_text = "n/a"
+                lines.append(f"| {expected_route} | {cases} | {matched} | {accuracy_text} |")
+            lines.append("")
 
     if studio_url:
         lines.append("## Azure AI Foundry Dashboard")
@@ -486,7 +533,7 @@ def _publish_new_foundry_batch_run(
         logger.warning(
             "Skipping New Foundry tool_call_accuracy: no structured tool_call items were found in eval_data response payloads."
         )
-    base_url = f"{config.azure_ai_project.rstrip('/')}/openai/v1"
+    base_url = f"{str(config.azure_ai_project).rstrip('/')}/openai/v1"
     eval_name = f"graphrag-batch-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
 
     credential = DefaultAzureCredential()
@@ -574,7 +621,7 @@ def _supports_legacy_max_tokens(config: EvalConfig) -> bool:
     from openai import AzureOpenAI
 
     client = AzureOpenAI(
-        azure_endpoint=config.azure_endpoint,
+        azure_endpoint=str(config.azure_endpoint),
         api_key=config.api_key,
         api_version=config.api_version,
     )
@@ -650,6 +697,87 @@ def _resolve_parquet_path(preferred_path: Path, *, fallback_name: str) -> Path:
 
     logger.warning("Parquet path not found: %s", preferred_path)
     return preferred_path
+
+
+def _compute_route_summary(data_path: Path) -> dict[str, object] | None:
+    """Compute router route-accuracy summary when route fields are present.
+
+    This is optional and only applies to datasets that include router labels,
+    such as eval_router_data.jsonl.
+    """
+    total_cases = 0
+    decided_cases = 0
+    matched_cases = 0
+    flexible_cases = 0
+    flexible_matched_cases = 0
+    by_expected_route: dict[str, dict[str, int]] = {}
+
+    with data_path.open(encoding="utf-8") as file_handle:
+        for line in file_handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            row = json.loads(stripped)
+            if not isinstance(row, dict):
+                continue
+
+            if "route_match" not in row:
+                continue
+
+            route_match = row.get("route_match")
+            expected_route = row.get("expected_routed_workflow")
+            accepted_routes = row.get("accepted_routed_workflows")
+
+            total_cases += 1
+
+            if isinstance(route_match, bool):
+                decided_cases += 1
+                if route_match:
+                    matched_cases += 1
+
+            if isinstance(accepted_routes, list):
+                normalized_accepted_routes = [
+                    value for value in accepted_routes if isinstance(value, str) and value.strip()
+                ]
+                if len(normalized_accepted_routes) > 1:
+                    flexible_cases += 1
+                    if route_match is True:
+                        flexible_matched_cases += 1
+
+            if isinstance(expected_route, str) and expected_route.strip():
+                key = expected_route.strip().lower()
+                stats = by_expected_route.setdefault(key, {"cases": 0, "matched": 0})
+                stats["cases"] += 1
+                if route_match is True:
+                    stats["matched"] += 1
+
+    if total_cases == 0:
+        return None
+
+    summary: dict[str, object] = {
+        "total_cases": total_cases,
+        "decided_cases": decided_cases,
+        "matched_cases": matched_cases,
+        "route_accuracy": (matched_cases / decided_cases) if decided_cases else None,
+        "flexible_cases": flexible_cases,
+        "flexible_matched_cases": flexible_matched_cases,
+        "flexible_accuracy": (flexible_matched_cases / flexible_cases) if flexible_cases else None,
+    }
+
+    if by_expected_route:
+        by_route: dict[str, dict[str, object]] = {}
+        for route, stats in by_expected_route.items():
+            cases = stats["cases"]
+            matched = stats["matched"]
+            by_route[route] = {
+                "cases": cases,
+                "matched": matched,
+                "accuracy": (matched / cases) if cases else None,
+            }
+        summary["by_expected_route"] = by_route
+
+    return summary
 
 
 if __name__ == "__main__":

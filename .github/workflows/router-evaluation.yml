@@ -1,0 +1,163 @@
+name: Router Evaluation
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch, tag, or SHA to evaluate (optional)."
+        required: false
+        type: string
+        default: ""
+      regenerate_data:
+        description: "Regenerate eval_router_data.jsonl before evaluation (requires MCP data availability)."
+        required: false
+        default: true
+        type: boolean
+      run_batch_eval:
+        description: "Run Azure AI batch evaluators (uses model tokens)."
+        required: false
+        default: true
+        type: boolean
+      publish_foundry:
+        description: "Publish batch evaluation run to Azure AI Foundry."
+        required: false
+        default: false
+        type: boolean
+      run_redteam:
+        description: "Run red-team safety scan (higher latency/cost)."
+        required: false
+        default: false
+        type: boolean
+      redteam_flow:
+        description: "Red-team flow: cloud-model or local-agent."
+        required: false
+        default: "cloud-model"
+        type: string
+      min_route_accuracy:
+        description: "Minimum required route accuracy in [0,1]."
+        required: false
+        default: "0.95"
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or SHA to evaluate (optional)."
+        required: false
+        type: string
+      regenerate_data:
+        description: "Regenerate eval_router_data.jsonl before evaluation (requires MCP data availability)."
+        required: false
+        default: false
+        type: boolean
+      run_batch_eval:
+        description: "Run Azure AI batch evaluators (uses model tokens)."
+        required: false
+        default: true
+        type: boolean
+      publish_foundry:
+        description: "Publish batch evaluation run to Azure AI Foundry."
+        required: false
+        default: false
+        type: boolean
+      run_redteam:
+        description: "Run red-team safety scan (higher latency/cost)."
+        required: false
+        default: false
+        type: boolean
+      redteam_flow:
+        description: "Red-team flow: cloud-model or local-agent."
+        required: false
+        default: "cloud-model"
+        type: string
+      min_route_accuracy:
+        description: "Minimum required route accuracy in [0,1]."
+        required: false
+        default: "0.95"
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  evaluate:
+    name: "Router Evaluation"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      AZURE_OPENAI_API_VERSION: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+      AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_ROUTER_DEPLOYMENT: ${{ secrets.AZURE_OPENAI_ROUTER_DEPLOYMENT }}
+      AZURE_AI_PROJECT: ${{ secrets.AZURE_AI_PROJECT }}
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref != '' && inputs.ref || github.sha }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+        with:
+          enable-cache: true
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --dev --frozen --no-build
+
+      - name: Regenerate router eval data
+        if: ${{ inputs.regenerate_data }}
+        run: |
+          uv run python run_mcp_server.py > mcp-server.log 2>&1 &
+          MCP_PID=$!
+          echo "MCP_PID=$MCP_PID" >> "$GITHUB_ENV"
+          sleep 10
+          uv run python -m evaluation.scripts.generate_router_eval_data
+
+      - name: Stop MCP server
+        if: ${{ always() && env.MCP_PID != '' }}
+        run: kill "$MCP_PID"
+
+      - name: Enforce route-accuracy gate
+        env:
+          MIN_ROUTE_ACCURACY: ${{ inputs.min_route_accuracy || '0.95' }}
+        run: |
+          uv run python -c "import json, pathlib, sys, os; p=pathlib.Path('src/evaluation/datasets/eval_router_data.jsonl'); rows=[json.loads(l) for l in p.read_text(encoding='utf-8').splitlines() if l.strip()]; decided=[r.get('route_match') for r in rows if isinstance(r.get('route_match'), bool)]; ok=sum(1 for v in decided if v); acc=(ok/len(decided)) if decided else 0.0; threshold=float(os.environ['MIN_ROUTE_ACCURACY']); print(f'route_match={ok}/{len(decided)} accuracy={acc:.4f} threshold={threshold:.4f}'); sys.exit(0 if acc>=threshold else 1)"
+
+      - name: Run router batch evaluation
+        if: ${{ inputs.run_batch_eval && !inputs.publish_foundry }}
+        run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
+
+      - name: Run router batch evaluation and publish to Foundry
+        if: ${{ inputs.run_batch_eval && inputs.publish_foundry }}
+        run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
+
+      - name: Run red-team safety scan
+        if: ${{ inputs.run_redteam }}
+        run: uv run python -m evaluation.scripts.run_redteam --flow "${{ inputs.redteam_flow }}"
+
+      - name: Upload evaluation artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: router-evaluation-results
+          path: |
+            src/evaluation/datasets/eval_router_data.jsonl
+            src/evaluation/results/evaluation_results.json
+            src/evaluation/results/evaluation_report.md
+            src/evaluation/results/redteam_results.json
+            mcp-server.log
+          retention-days: 14
+          if-no-files-found: warn

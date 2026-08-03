@@ -80,7 +80,7 @@ class EvalConfig(BaseModel):
             data["eval_chat_deployment"] = data["chat_deployment"]
 
         try:
-            return cls(**data)
+            return cls.model_validate(data)
         except ValidationError as exc:  # pragma: no cover - defensive guard
             raise ValueError(str(exc)) from exc
 

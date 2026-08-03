@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agents.router_classifier import RouterClassification
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.base import WorkflowResult, WorkflowStep, WorkflowType, create_router_workflow_runner
 from workflows.router import RouterWorkflow
 
 
@@ -329,3 +329,105 @@ async def test_router_normalizes_dict_query_payload() -> None:
 
     assert captured_query == ["What are the key projects and their tech stack?"]
     assert result.query == "What are the key projects and their tech stack?"
+
+
+@pytest.mark.asyncio
+async def test_router_out_of_context_skips_workflow_after_classifier_decision() -> None:
+    classification = RouterClassification(
+        workflow=WorkflowType.SEQUENTIAL,
+        workflow_label="out_of_context",
+        raw_response='{"workflow": "out_of_context", "confidence_score": 98}',
+        reason="Greeting detected",
+        confidence_score=98,
+        elapsed_seconds=0.02,
+        model_name="router-mini",
+    )
+    classifier = StubClassifier([classification])
+    created: list[StubWorkflow] = []
+
+    def sequential_factory(_mcp_url: str | None) -> StubWorkflow:
+        workflow = StubWorkflow(_make_result(WorkflowType.SEQUENTIAL, "should not run"))
+        created.append(workflow)
+        return workflow
+
+    workflow = RouterWorkflow(
+        classifier=classifier,
+        workflow_factories={WorkflowType.SEQUENTIAL: sequential_factory},
+    )
+
+    async with workflow:
+        result = await workflow.run("Hi there")
+
+    assert classifier.calls == ["Hi there"]
+    assert created == []
+    assert result.workflow_type == WorkflowType.ROUTER
+    assert result.steps[0].metadata["routed_workflow"] == "out_of_context"
+    assert result.steps[0].metadata["classifier_status"] == "success"
+    assert result.steps[0].metadata["classifier_attempts"] == 1
+    assert result.steps[0].metadata["fallback_reason"] == "out_of_context"
+    assert result.steps[1].agent_name == "OutOfContextResponder"
+    assert "indexed knowledge base" in result.answer
+
+
+@pytest.mark.asyncio
+async def test_router_out_of_context_streaming_after_classifier_decision() -> None:
+    classification = RouterClassification(
+        workflow=WorkflowType.SEQUENTIAL,
+        workflow_label="out_of_context",
+        raw_response='{"workflow": "out_of_context", "confidence_score": 99}',
+        reason="Conversation meta request",
+        confidence_score=99,
+        elapsed_seconds=0.01,
+        model_name="router-mini",
+    )
+    classifier = StubClassifier([classification])
+    workflow = RouterWorkflow(classifier=classifier)
+
+    async with workflow:
+        stream, finalize = await workflow.create_stream("hello")
+        events = [event async for event in stream]
+        result = await finalize()
+
+    assert classifier.calls == ["hello"]
+    assert events[0].type == "progress"
+    assert events[0].data["routed_workflow"] == "out_of_context"
+    assert events[0].data["classifier_status"] == "success"
+    assert events[0].data["classifier_attempts"] == 1
+
+    output_events = [event for event in events if getattr(event, "type", None) == "output"]
+    assert len(output_events) == 1
+    assert getattr(output_events[0], "executor_id", None) == "OutOfContextResponder"
+    assert "indexed knowledge base" in output_events[0].data
+
+    responder_progress = [
+        event
+        for event in events
+        if getattr(event, "type", None) == "progress"
+        and isinstance(getattr(event, "data", None), dict)
+        and event.data.get("stage") == "out_of_context_response"
+    ]
+    assert len(responder_progress) == 1
+    assert responder_progress[0].data["executor"] == "OutOfContextResponder"
+    assert result.steps[0].metadata["fallback_reason"] == "out_of_context"
+    assert result.steps[0].metadata["status"] == "completed"
+    assert result.steps[1].agent_name == "OutOfContextResponder"
+    assert result.steps[1].metadata["status"] == "completed"
+
+
+def test_router_runner_blueprint_includes_out_of_context_path() -> None:
+    runner = create_router_workflow_runner()
+    blueprint = runner.to_dict()
+
+    executors = blueprint["executors"]
+    assert "OutOfContextResponder" in executors
+
+    has_out_of_context_edge = any(
+        any(
+            edge.get("source_id") == "WorkflowRouter"
+            and edge.get("target_id") == "OutOfContextResponder"
+            and edge.get("condition_name") == "out_of_context"
+            for edge in group.get("edges", [])
+        )
+        for group in blueprint["edge_groups"]
+    )
+    assert has_out_of_context_edge

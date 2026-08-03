@@ -139,6 +139,21 @@ class TestRouterClassifier:
 
         assert client.calls[0]["options"]["model"] == "router-deployment"
 
+    async def test_classify_parses_out_of_context_label(self, foundry_config: AgentConfig) -> None:
+        af_response = _StubAFResponse(
+            text='{"workflow": "out_of_context", "confidence_score": 97, "reason": "Greeting and meta chat request."}',
+            model="router-deployment",
+        )
+        client = _StubAFClient([af_response])
+        classifier = RouterClassifier(config=foundry_config, client=client)
+
+        async with classifier:
+            classification = await classifier.classify("Hello, who are you?")
+
+        assert classification.workflow is WorkflowType.SEQUENTIAL
+        assert classification.workflow_label == "out_of_context"
+        assert classification.confidence_score == 97
+
     async def test_classify_with_agent_framework_client(self, foundry_config: AgentConfig) -> None:
         af_response = _StubAFResponse(
             text='{"workflow": "concurrent", "confidence_score": 88, "reason": "Need parallel entity and theme signals."}',

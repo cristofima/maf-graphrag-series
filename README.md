@@ -334,6 +334,7 @@ maf-graphrag-series/
 ├── .env.example
 ├── run_devui.py               # DevUI entry point (interactive exploration)
 ├── run_mcp_server.py          # Start MCP server (Part 2)
+├── run_router_chatbot.py      # Router-only chatbot endpoint (/api/messages)
 ├── input/
 │   ├── README.md              # Document descriptions
 │   └── documents/             # 10 sample interconnected documents

@@ -29,6 +29,7 @@ _TRACER = trace.get_tracer(__name__) if trace is not None else None
 # Regex helpers for stripping markdown code fences
 _JSON_FENCE = re.compile(r"```json(.*?)```", re.DOTALL | re.IGNORECASE)
 _GENERIC_FENCE = re.compile(r"```(.*?)```", re.DOTALL)
+_OUT_OF_CONTEXT_WORKFLOW_LABEL = "out_of_context"
 
 _ROUTER_SYSTEM_PROMPT = """You are a workflow router for the GraphRAG tutorial series.
 Classify each question into the workflow that will produce the most
@@ -38,10 +39,11 @@ Workflows:
 - sequential: Decompose complex questions, run a research plan, then write a structured report.
 - concurrent: Run entity and thematic searches in parallel before synthesizing the answer.
 - handoff: Route to a specialist (entity or themes) when the query is straightforward.
+- out_of_context: The question is unrelated to the indexed knowledge base (e.g. greetings, chit-chat, meta chat requests).
 
 Return a compact JSON object with these fields:
 {
-  "workflow": "sequential" | "concurrent" | "handoff",
+    "workflow": "sequential" | "concurrent" | "handoff" | "out_of_context",
     "confidence_score": integer from 0 to 100,
   "reason": "short explanation (<=40 words)"
 }
@@ -76,6 +78,7 @@ class RouterClassification:
 
     workflow: WorkflowType
     raw_response: str
+    workflow_label: str = ""
     reason: str | None = None
     confidence_score: int | None = None
     elapsed_seconds: float = 0.0
@@ -103,8 +106,22 @@ def _parse_workflow(value: Any) -> WorkflowType:
         "sequential": WorkflowType.SEQUENTIAL,
         "concurrent": WorkflowType.CONCURRENT,
         "handoff": WorkflowType.HANDOFF,
+        _OUT_OF_CONTEXT_WORKFLOW_LABEL: WorkflowType.SEQUENTIAL,
     }
     return workflow_map.get(value.strip().lower(), WorkflowType.SEQUENTIAL)
+
+
+def _parse_workflow_label(value: Any) -> str:
+    if not isinstance(value, str):
+        return WorkflowType.SEQUENTIAL.value
+    normalized = value.strip().lower()
+    allowed = {
+        WorkflowType.SEQUENTIAL.value,
+        WorkflowType.CONCURRENT.value,
+        WorkflowType.HANDOFF.value,
+        _OUT_OF_CONTEXT_WORKFLOW_LABEL,
+    }
+    return normalized if normalized in allowed else WorkflowType.SEQUENTIAL.value
 
 
 def _map_http_error_reason(status: int | None) -> str:
@@ -350,7 +367,7 @@ class RouterClassifier:
 
         elapsed = time.perf_counter() - start
         logger.info("Router classifier received response in %.2fs", elapsed)
-        workflow, reason, confidence_score = _parse_router_payload(raw_text)
+        workflow, workflow_label, reason, confidence_score = _parse_router_payload(raw_text)
 
         model_name, router_mode, router_subset = _extract_router_metadata(
             metadata_source,
@@ -361,6 +378,7 @@ class RouterClassifier:
 
         return RouterClassification(
             workflow=workflow,
+            workflow_label=workflow_label,
             raw_response=raw_text,
             reason=reason,
             confidence_score=confidence_score,
@@ -552,8 +570,9 @@ def _safe_response_body_text(response: object) -> str | None:
     return None
 
 
-def _parse_router_payload(raw_text: str) -> tuple[WorkflowType, str | None, int | None]:
+def _parse_router_payload(raw_text: str) -> tuple[WorkflowType, str, str | None, int | None]:
     workflow = WorkflowType.SEQUENTIAL
+    workflow_label = WorkflowType.SEQUENTIAL.value
     reason: str | None = None
     confidence_score: int | None = None
     payload = _strip_fences(raw_text)
@@ -562,16 +581,17 @@ def _parse_router_payload(raw_text: str) -> tuple[WorkflowType, str | None, int 
         parsed = json.loads(payload)
     except json.JSONDecodeError:  # pragma: no cover - tolerate malformed JSON
         logger.debug("Router classifier returned unparseable payload: %s", raw_text)
-        return workflow, reason, confidence_score
+        return workflow, workflow_label, reason, confidence_score
 
     if isinstance(parsed, Mapping):
-        workflow = _parse_workflow(parsed.get("workflow"))
+        workflow_label = _parse_workflow_label(parsed.get("workflow"))
+        workflow = _parse_workflow(workflow_label)
         reason = _normalize_optional_reason(parsed.get("reason"))
         confidence_score = normalize_confidence_score(parsed.get("confidence_score"))
         if confidence_score is None:
             confidence_score = normalize_confidence_score(parsed.get("confidence"))
 
-    return workflow, reason, confidence_score
+    return workflow, workflow_label, reason, confidence_score
 
 
 def _normalize_optional_reason(value: object) -> str | None:

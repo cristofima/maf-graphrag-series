@@ -50,6 +50,11 @@ _CLASSIFIER_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 _ROUTER_HTTP_STATUS = re.compile(r"router HTTP error\s+(\d{3})", re.IGNORECASE)
 _LOW_CONFIDENCE_FALLBACK = WorkflowType.SEQUENTIAL
 _MIN_ROUTING_CONFIDENCE_SCORE = 80
+_OUT_OF_CONTEXT_ROUTE = "out_of_context"
+_OUT_OF_CONTEXT_MESSAGE = (
+    "I can help with questions about the indexed knowledge base (people, projects, teams, technologies, "
+    "and relationships). Please ask a query related to that context."
+)
 
 
 def _supports_keyword_argument(callable_obj: Callable[..., Any], keyword: str) -> bool:
@@ -207,17 +212,20 @@ class RouterWorkflow:
         *,
         query: str,
         router_outcome: RouterOutcome,
-        decision: WorkflowType,
+        routed_workflow: str,
+        response_output: str | None = None,
     ) -> None:
         """Emit explicit routing span attributes for observability dashboards."""
 
         if _TRACER is None:
             return
 
+        classified_workflow = router_outcome.classification.workflow_label or router_outcome.classification.workflow.value
+
         with _TRACER.start_as_current_span("router.workflow.select") as span:
             self._span_set_if_present(span, "router.query", self._clip(query))
-            self._span_set_if_present(span, "router.classified_workflow", router_outcome.classification.workflow.value)
-            self._span_set_if_present(span, "router.routed_workflow", decision.value)
+            self._span_set_if_present(span, "router.classified_workflow", classified_workflow)
+            self._span_set_if_present(span, "router.routed_workflow", routed_workflow)
             self._span_set_if_present(span, "router.classifier_status", router_outcome.classifier_status)
             self._span_set_if_present(span, "router.classifier_attempts", router_outcome.classifier_attempts)
             self._span_set_if_present(span, "router.confidence_score", router_outcome.classification.confidence_score)
@@ -225,19 +233,33 @@ class RouterWorkflow:
             self._span_set_if_present(span, "router.fallback_reason", router_outcome.fallback_reason)
             self._span_set_if_present(span, "router.classifier_error", router_outcome.classifier_error)
             self._span_set_if_present(
+                span,
+                "router.response_preview",
+                self._clip(response_output) if response_output is not None else None,
+            )
+            self._span_set_if_present(
                 span, "router.classification_raw", self._clip(router_outcome.classification.raw_response)
             )
             self._span_add_event(
                 span,
                 "router.workflow.decision",
                 {
-                    "router.classified_workflow": router_outcome.classification.workflow.value,
-                    "router.routed_workflow": decision.value,
+                    "router.classified_workflow": classified_workflow,
+                    "router.routed_workflow": routed_workflow,
                     "router.confidence_score": router_outcome.classification.confidence_score,
                     "router.fallback_reason": router_outcome.fallback_reason,
                     "router.classifier_status": router_outcome.classifier_status,
                 },
             )
+            if response_output:
+                self._span_add_event(
+                    span,
+                    "router.output.generated",
+                    {
+                        "router.routed_workflow": routed_workflow,
+                        "router.response_preview": self._clip(response_output),
+                    },
+                )
 
     async def create_stream(
         self,
@@ -252,8 +274,63 @@ class RouterWorkflow:
             raise RuntimeError("WorkflowRouter must be used inside an async context manager")
 
         router_outcome = await self._classify(normalized_query)
+        if self._is_out_of_context_route(router_outcome.classification):
+            self._emit_routing_span(
+                query=normalized_query,
+                router_outcome=router_outcome,
+                routed_workflow=_OUT_OF_CONTEXT_ROUTE,
+                response_output=_OUT_OF_CONTEXT_MESSAGE,
+            )
+            progress_payload = {
+                "stage": "router_delegation",
+                "classified_workflow": router_outcome.classification.workflow_label,
+                "routed_workflow": _OUT_OF_CONTEXT_ROUTE,
+                "confidence_score": router_outcome.classification.confidence_score,
+                "classifier_status": router_outcome.classifier_status,
+                "classifier_attempts": router_outcome.classifier_attempts,
+                "fallback_reason": "out_of_context",
+            }
+            response_payload = {
+                "stage": "out_of_context_response",
+                "executor": "OutOfContextResponder",
+                "response_type": "out_of_context",
+                "output": _OUT_OF_CONTEXT_MESSAGE,
+            }
+
+            async def _stream_out_of_context() -> AsyncIterator[Any]:
+                yield WorkflowEvent(type=cast(Any, "progress"), data=progress_payload)
+                yield WorkflowEvent(
+                    type=cast(Any, "executor_invoked"),
+                    executor_id="OutOfContextResponder",
+                    data={"response_type": "out_of_context"},
+                )
+                yield WorkflowEvent(
+                    type=cast(Any, "output"),
+                    executor_id="OutOfContextResponder",
+                    data=_OUT_OF_CONTEXT_MESSAGE,
+                )
+                yield WorkflowEvent(
+                    type=cast(Any, "executor_completed"),
+                    executor_id="OutOfContextResponder",
+                    data={"response_type": "out_of_context"},
+                )
+                yield WorkflowEvent(type=cast(Any, "progress"), data=response_payload)
+
+            async def _finalize_out_of_context() -> WorkflowResult:
+                return self._build_out_of_context_result(
+                    normalized_query,
+                    router_outcome,
+                    include_status_events=include_status_events,
+                )
+
+            return _stream_out_of_context(), _finalize_out_of_context
+
         decision = self._resolve_workflow_decision(router_outcome)
-        self._emit_routing_span(query=normalized_query, router_outcome=router_outcome, decision=decision)
+        self._emit_routing_span(
+            query=normalized_query,
+            router_outcome=router_outcome,
+            routed_workflow=decision.value,
+        )
         factory = self._workflow_factories.get(decision) or create_sequential_workflow
 
         logger.info("Router selected '%s' workflow", decision.value)
@@ -308,8 +385,25 @@ class RouterWorkflow:
 
         normalized_query = self.prepare_run(query)
         router_outcome = await self._classify(normalized_query)
+        if self._is_out_of_context_route(router_outcome.classification):
+            self._emit_routing_span(
+                query=normalized_query,
+                router_outcome=router_outcome,
+                routed_workflow=_OUT_OF_CONTEXT_ROUTE,
+                response_output=_OUT_OF_CONTEXT_MESSAGE,
+            )
+            return self._build_out_of_context_result(
+                normalized_query,
+                router_outcome,
+                include_status_events=include_status_events,
+            )
+
         decision = self._resolve_workflow_decision(router_outcome)
-        self._emit_routing_span(query=normalized_query, router_outcome=router_outcome, decision=decision)
+        self._emit_routing_span(
+            query=normalized_query,
+            router_outcome=router_outcome,
+            routed_workflow=decision.value,
+        )
         factory = self._workflow_factories.get(decision) or create_sequential_workflow
 
         logger.info("Router selected '%s' workflow", decision.value)
@@ -443,9 +537,10 @@ class RouterWorkflow:
 
     @staticmethod
     def _build_metadata(decision: WorkflowType, classification: RouterClassification) -> dict[str, object]:
+        classified_workflow = classification.workflow_label or classification.workflow.value
         metadata: dict[str, object] = {
             "routed_workflow": decision.value,
-            "classified_workflow": classification.workflow.value,
+            "classified_workflow": classified_workflow,
             "router_model": classification.model_name,
         }
         if classification.confidence_score is not None:
@@ -489,6 +584,50 @@ class RouterWorkflow:
             total_elapsed_seconds=total_elapsed,
             query=inner_result.query or normalized_query or self._last_query or "",
         )
+
+    def _build_out_of_context_result(
+        self,
+        normalized_query: str,
+        router_outcome: RouterOutcome,
+        *,
+        include_status_events: bool,
+    ) -> WorkflowResult:
+        classification = router_outcome.classification
+        router_step = WorkflowStep(
+            agent_name="WorkflowRouter",
+            input_summary="Classify query",
+            output=self._format_router_output(classification),
+            elapsed_seconds=router_outcome.elapsed_seconds,
+            metadata=self._build_metadata(WorkflowType.SEQUENTIAL, classification),
+        )
+        router_step.metadata["routed_workflow"] = _OUT_OF_CONTEXT_ROUTE
+        router_step.metadata["classifier_status"] = router_outcome.classifier_status
+        router_step.metadata["classifier_attempts"] = router_outcome.classifier_attempts
+        router_step.metadata["fallback_reason"] = "out_of_context"
+        if include_status_events:
+            router_step.metadata["status"] = "completed"
+
+        responder_step = WorkflowStep(
+            agent_name="OutOfContextResponder",
+            input_summary="Return guidance for out-of-context query",
+            output=_OUT_OF_CONTEXT_MESSAGE,
+            elapsed_seconds=0.0,
+            metadata={"response_type": "out_of_context"},
+        )
+        if include_status_events:
+            responder_step.metadata["status"] = "completed"
+
+        return WorkflowResult(
+            answer=_OUT_OF_CONTEXT_MESSAGE,
+            workflow_type=WorkflowType.ROUTER,
+            steps=[router_step, responder_step],
+            total_elapsed_seconds=router_outcome.elapsed_seconds,
+            query=normalized_query,
+        )
+
+    @staticmethod
+    def _is_out_of_context_route(classification: RouterClassification) -> bool:
+        return classification.workflow_label == _OUT_OF_CONTEXT_ROUTE
 
 
 def create_router_workflow(mcp_url: str | None = None) -> RouterWorkflow:

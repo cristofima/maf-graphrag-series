@@ -453,6 +453,7 @@ WORKFLOW_EXECUTOR_DETAILS: dict[WorkflowType, dict[str, dict[str, str]] | None] 
     },
     WorkflowType.ROUTER: {
         "WorkflowRouter": {"type": "Router", "display_name": "WorkflowRouter"},
+        "OutOfContextResponder": {"type": "AgentExecutor", "display_name": "OutOfContextResponder"},
         "SequentialWorkflow": {"type": "WorkflowRunner", "display_name": "SequentialWorkflow"},
         "QueryAnalyzer": {"type": "AgentExecutor", "display_name": "QueryAnalyzer"},
         "KnowledgeSearcher": {"type": "AgentExecutor", "display_name": "KnowledgeSearcher"},
@@ -488,6 +489,7 @@ WORKFLOW_EDGE_BLUEPRINTS: dict[WorkflowType, list[dict[str, str]]] = {
         {"source_id": "ThemesExpert", "target_id": "HandoffComposer"},
     ],
     WorkflowType.ROUTER: [
+        {"source_id": "WorkflowRouter", "target_id": "OutOfContextResponder", "condition_name": "out_of_context"},
         {"source_id": "WorkflowRouter", "target_id": "SequentialWorkflow", "condition_name": "sequential"},
         {"source_id": "SequentialWorkflow", "target_id": "QueryAnalyzer"},
         {"source_id": "QueryAnalyzer", "target_id": "KnowledgeSearcher"},
@@ -513,6 +515,7 @@ DEFAULT_EXECUTORS: dict[WorkflowType, list[str]] = {
     WorkflowType.HANDOFF: ["Router", "EntityExpert", "ThemesExpert", "HandoffComposer"],
     WorkflowType.ROUTER: [
         "WorkflowRouter",
+        "OutOfContextResponder",
         "SequentialWorkflow",
         "QueryAnalyzer",
         "KnowledgeSearcher",
@@ -866,5 +869,5 @@ def create_router_workflow_runner(mcp_url: str | None = None) -> MCPWorkflowRunn
         workflow_type=WorkflowType.ROUTER,
         mcp_url=mcp_url,
         name="Router Workflow",
-        description="Model router selects sequential, concurrent, or handoff execution per query.",
+        description="Model router selects sequential, concurrent, handoff, or out_of_context execution per query.",
     )

@@ -195,6 +195,33 @@ uv run python run_mcp_server.py   # Terminal 1
 uv run python run_devui.py
 ```
 
+## Microsoft 365 Agents Playground (Single Router Endpoint)
+
+If you want a chatbot endpoint for Microsoft 365 Agents Playground, run the
+router-backed endpoint and point Playground to `/api/messages`.
+
+```bash
+# Terminal 1: GraphRAG MCP server
+uv run python run_mcp_server.py
+
+# Terminal 2: Router chatbot endpoint (single entrypoint)
+uv run python run_router_chatbot.py
+
+# Terminal 3: Agents Playground
+agentsplayground -e http://localhost:3978/api/messages -c msteams
+```
+
+Notes based on Microsoft Learn guidance:
+
+- Keep this endpoint local-only; it accepts unauthenticated local requests for playground testing.
+- Expose only the Router workflow for chat surfaces; sequential/concurrent/handoff remain internal specializations.
+- Use `skipAuth` only for local development if you migrate to Microsoft 365 Agents SDK app scaffolds.
+
+Reference docs:
+
+- [Agents Playground overview](https://learn.microsoft.com/en-us/microsoftteams/platform/teams-sdk/developer-tools/agents-playground/overview?tabs=typescript%2Ccsharp%2Cpython)
+- [Test your agent locally in Microsoft 365 Agents Playground](https://learn.microsoft.com/en-us/microsoft-365/agents-sdk/test-with-toolkit-project)
+
 ## Prompt Bank (kept from retired workflow CLI)
 
 ### Router prompts

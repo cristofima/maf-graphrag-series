@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from functools import lru_cache
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -44,6 +45,7 @@ class LoggingConfig(BaseModel):
     log_file_mode: str = Field(default="a")
     log_max_bytes: int = Field(default=10_485_760)
     log_backup_count: int = Field(default=5)
+    log_file_json: bool = Field(default=True)
 
     @field_validator("app_log_level", "noisy_log_level", "asyncio_log_level")
     @classmethod
@@ -74,11 +76,38 @@ class LoggingConfig(BaseModel):
             "log_file_mode": "a",
             "log_max_bytes": os.getenv("APP_LOG_MAX_BYTES", "10485760"),
             "log_backup_count": os.getenv("APP_LOG_BACKUP_COUNT", "5"),
+            "log_file_json": os.getenv("APP_FILE_JSON_LOGS", "true"),
         }
         try:
             return cls.model_validate(data)
         except ValidationError as exc:  # pragma: no cover - defensive guard
             raise ValueError(str(exc)) from exc
+
+
+class JsonLineFormatter(logging.Formatter):
+    """Render each log line as a JSON object for provider-friendly ingestion."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = record.getMessage()
+
+        payload: dict[str, object]
+        try:
+            parsed = json.loads(message)
+            payload = parsed if isinstance(parsed, dict) else {"message": message}
+        except json.JSONDecodeError:
+            payload = {"message": message}
+
+        payload.setdefault(
+            "timestamp",
+            datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        )
+        payload.setdefault("level", record.levelname)
+        payload.setdefault("logger", record.name)
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
 
 
 @lru_cache(maxsize=1)
@@ -112,6 +141,7 @@ def configure_app_logging(
     datefmt: str | None = None,
     file_name: str | None = None,
     file_mode: str = "a",
+    file_json: bool | None = None,
 ) -> None:
     """Configure app logging with separate noisy-library controls.
 
@@ -130,8 +160,13 @@ def configure_app_logging(
     effective_file_dir = resolved.log_dir
     effective_file_name = file_name
     effective_file_mode = file_mode or resolved.log_file_mode
+    effective_file_json = resolved.log_file_json if file_json is None else file_json
 
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = []
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter(effective_format, effective_date_format))
+    handlers.append(console_handler)
+
     if effective_file_name is None or not str(effective_file_name).strip():
         effective_file_name = f"{Path(sys.argv[0]).stem}_{datetime.now().strftime('%Y%m%d')}.log"
 
@@ -139,23 +174,24 @@ def configure_app_logging(
     log_dir_path.mkdir(parents=True, exist_ok=True)
     log_file_path = log_dir_path / Path(effective_file_name).name
 
-    handlers.append(
-        RotatingFileHandler(
-            log_file_path,
-            mode=effective_file_mode,
-            maxBytes=resolved.log_max_bytes,
-            backupCount=resolved.log_backup_count,
-            encoding="utf-8",
-        )
+    file_handler = RotatingFileHandler(
+        log_file_path,
+        mode=effective_file_mode,
+        maxBytes=resolved.log_max_bytes,
+        backupCount=resolved.log_backup_count,
+        encoding="utf-8",
     )
+    if effective_file_json:
+        file_handler.setFormatter(JsonLineFormatter())
+    else:
+        file_handler.setFormatter(logging.Formatter(effective_format, effective_date_format))
+    handlers.append(file_handler)
 
-    logging.basicConfig(
-        level=effective_app_level,
-        format=effective_format,
-        datefmt=effective_date_format,
-        handlers=handlers,
-        force=True,
-    )
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(effective_app_level)
+    for handler in handlers:
+        root_logger.addHandler(handler)
 
     logger_names = tuple(noisy_loggers) if noisy_loggers is not None else DEFAULT_NOISY_LOGGERS
     for name in logger_names:

@@ -119,7 +119,7 @@ def _map_http_error_reason(status: int | None) -> str:
     return "classification error"
 
 
-def _is_version_not_supported(error: Exception) -> bool:
+def _is_version_not_supported(error: BaseException) -> bool:
     """Return True when the router rejected the request due to API version."""
 
     message = str(error) if error else ""
@@ -370,7 +370,7 @@ class RouterClassifier:
             router_subset=router_subset,
         )
 
-    def _handle_chat_error(self, chat_error: Exception) -> NoReturn:
+    def _handle_chat_error(self, chat_error: BaseException) -> NoReturn:
         provider_error = _unwrap_inner_exception(chat_error)
         if _is_version_not_supported(provider_error):
             snippet = _get_error_body_snippet(provider_error)
@@ -447,7 +447,7 @@ class RouterClassifier:
             payload["metadata"] = metadata_payload
         return payload
 
-    def _raise_classifier_error(self, stage: str, error: Exception) -> NoReturn:
+    def _raise_classifier_error(self, stage: str, error: BaseException) -> NoReturn:
         status = _get_status_code(error)
         reason = _map_http_error_reason(status)
         detail = str(error).strip()
@@ -455,7 +455,7 @@ class RouterClassifier:
             reason = f"{reason}: {detail}"
         raise RouterClassifierError(f"Router classification via {stage} failed: {reason}") from error
 
-    def _log_api_error(self, stage: str, error: Exception) -> None:
+    def _log_api_error(self, stage: str, error: BaseException) -> None:
         status = _get_status_code(error)
         body_snippet = _get_error_body_snippet(error)
         if body_snippet:
@@ -504,18 +504,18 @@ def _extract_choice_content(choice: Mapping[str, Any]) -> str | None:
     return None
 
 
-def _unwrap_inner_exception(error: Exception) -> Exception:
+def _unwrap_inner_exception(error: BaseException) -> BaseException:
     """Return the deepest provider exception exposed by wrapper clients."""
 
-    current: Exception = error
+    current: BaseException = error
     while True:
         candidate = getattr(current, "inner_exception", None)
-        if not isinstance(candidate, Exception):
+        if not isinstance(candidate, BaseException):
             return current
         current = candidate
 
 
-def _get_status_code(error: Exception) -> int | None:
+def _get_status_code(error: BaseException) -> int | None:
     status = getattr(error, "status_code", None)
     if isinstance(status, int):
         return status
@@ -527,7 +527,7 @@ def _get_status_code(error: Exception) -> int | None:
     return None
 
 
-def _get_error_body_snippet(error: Exception) -> str:
+def _get_error_body_snippet(error: BaseException) -> str:
     response = getattr(error, "response", None)
     if response is None:
         return ""

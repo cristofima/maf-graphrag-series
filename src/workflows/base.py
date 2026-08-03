@@ -218,35 +218,10 @@ class WorkflowGraphSupport:
             for telemetry in self.iter_step_telemetry()
         ]
 
-        outputs: list[Any] = []
-        if hasattr(run_result, "get_outputs"):
-            try:
-                outputs = list(run_result.get_outputs())
-            except Exception:  # pragma: no cover - defensive guard
-                outputs = []
-        elif hasattr(run_result, "outputs"):
-            candidate = run_result.outputs
-            outputs = list(candidate if isinstance(candidate, list) else [candidate])
-
-        if outputs:
-            answer = ensure_text(outputs[-1])
-        elif steps:
-            answer = steps[-1].output
-        else:
-            answer = ""
-
-        status_events: list[Any] = []
-        if hasattr(run_result, "status_timeline"):
-            try:
-                status_events = list(run_result.status_timeline())
-            except Exception:  # pragma: no cover - defensive guard
-                status_events = []
-
-        if steps and status_events:
-            states = [getattr(event.state, "value", getattr(event, "state", None)) for event in status_events]
-            status_values = [state for state in states if isinstance(state, str)]
-            if status_values:
-                steps[-1].metadata.setdefault("status", status_values)
+        outputs = self._collect_workflow_outputs(run_result)
+        answer = self._resolve_workflow_answer(outputs, steps)
+        status_values = self._collect_status_values(run_result)
+        self._attach_status_metadata(steps, status_values)
 
         return WorkflowResult(
             answer=answer,
@@ -255,6 +230,47 @@ class WorkflowGraphSupport:
             total_elapsed_seconds=total_elapsed,
             query=normalized_query,
         )
+
+    def _collect_workflow_outputs(self, run_result: Any) -> list[Any]:
+        if hasattr(run_result, "get_outputs"):
+            try:
+                return list(run_result.get_outputs())
+            except Exception:  # pragma: no cover - defensive guard
+                return []
+
+        if hasattr(run_result, "outputs"):
+            candidate = run_result.outputs
+            return list(candidate if isinstance(candidate, list) else [candidate])
+
+        return []
+
+    def _resolve_workflow_answer(self, outputs: list[Any], steps: list[WorkflowStep]) -> str:
+        if outputs:
+            return ensure_text(outputs[-1])
+        if steps:
+            return steps[-1].output
+        return ""
+
+    def _collect_status_values(self, run_result: Any) -> list[str]:
+        if not hasattr(run_result, "status_timeline"):
+            return []
+
+        try:
+            status_events = list(run_result.status_timeline())
+        except Exception:  # pragma: no cover - defensive guard
+            return []
+
+        values: list[str] = []
+        for event in status_events:
+            state = getattr(event.state, "value", getattr(event, "state", None))
+            if isinstance(state, str):
+                values.append(state)
+        return values
+
+    def _attach_status_metadata(self, steps: list[WorkflowStep], status_values: list[str]) -> None:
+        if not steps or not status_values:
+            return
+        steps[-1].metadata.setdefault("status", status_values)
 
 
 class InstrumentedAgentExecutor(Executor):
@@ -336,20 +352,7 @@ def ensure_text(value: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        pieces: list[str] = []
-        for item in content:
-            if isinstance(item, str):
-                pieces.append(item)
-            elif isinstance(item, dict):
-                text = item.get("text")
-                if isinstance(text, str):
-                    pieces.append(text)
-            else:
-                text_attr = getattr(item, "text", None)
-                if isinstance(text_attr, str):
-                    pieces.append(text_attr)
-                else:
-                    pieces.append(str(item))
+        pieces = _collect_content_pieces(content)
         if pieces:
             return "\n".join(pieces)
 
@@ -358,6 +361,25 @@ def ensure_text(value: Any) -> str:
         return text_attr
 
     return str(value)
+
+
+def _collect_content_pieces(content: list[Any]) -> list[str]:
+    pieces = [_coerce_content_item_text(item) for item in content]
+    return [piece for piece in pieces if piece]
+
+
+def _coerce_content_item_text(item: Any) -> str:
+    if isinstance(item, str):
+        return item
+
+    if isinstance(item, dict):
+        text = item.get("text")
+        return text if isinstance(text, str) else ""
+
+    text_attr = getattr(item, "text", None)
+    if isinstance(text_attr, str):
+        return text_attr
+    return str(item)
 
 
 def collect_tool_names(agent: Any) -> list[str]:
@@ -591,56 +613,11 @@ class MCPWorkflowRunner:
     ) -> asyncio.Task[WorkflowResult] | _WorkflowStreamAdapter:
         normalized_message = ensure_text(message)
         if stream:
-            event_queue: asyncio.Queue[Any] = asyncio.Queue()
-            result_future: asyncio.Future[WorkflowResult] = asyncio.get_running_loop().create_future()
-            adapter = _WorkflowStreamAdapter(event_queue, result_future)
-
-            async def _run_stream() -> None:
-                try:
-                    await event_queue.put(
-                        WorkflowEvent(
-                            type=cast(Any, "progress"),
-                            data={
-                                "stage": "workflow_runner_started",
-                                "workflow_type": self._workflow_type.value,
-                            },
-                        )
-                    )
-                    async with self._factory(self._mcp_url) as workflow:
-                        normalized_query = workflow.prepare_run(normalized_message)
-                        stream_result = workflow.create_stream(
-                            normalized_query,
-                            include_status_events=include_status_events,
-                            **run_kwargs,
-                        )
-                        if inspect.isawaitable(stream_result):
-                            stream_obj, finalize = await stream_result
-                        else:
-                            stream_obj, finalize = stream_result
-                        async for event in stream_obj:
-                            await event_queue.put(event)
-                        final_result = await finalize()
-                        if not result_future.done():
-                            result_future.set_result(final_result)
-                        await event_queue.put(
-                            WorkflowEvent(
-                                type=cast(Any, "progress"),
-                                data={
-                                    "stage": "workflow_runner_completed",
-                                    "workflow_type": self._workflow_type.value,
-                                },
-                            )
-                        )
-                except Exception as exc:
-                    if not result_future.done():
-                        result_future.set_exception(exc)
-                    await event_queue.put(WorkflowEvent(type="error", data=str(exc)))
-                finally:
-                    await event_queue.put(_STREAM_END)
-
-            stream_task = asyncio.create_task(_run_stream())
-            adapter._background_task = stream_task
-            return adapter
+            return self._run_streaming_mode(
+                normalized_message,
+                include_status_events=include_status_events,
+                **run_kwargs,
+            )
 
         return asyncio.create_task(
             self._execute_workflow(
@@ -649,6 +626,78 @@ class MCPWorkflowRunner:
                 **run_kwargs,
             )
         )
+
+    def _run_streaming_mode(
+        self,
+        normalized_message: str,
+        *,
+        include_status_events: bool,
+        **run_kwargs: Any,
+    ) -> _WorkflowStreamAdapter:
+        event_queue: asyncio.Queue[Any] = asyncio.Queue()
+        result_future: asyncio.Future[WorkflowResult] = asyncio.get_running_loop().create_future()
+        adapter = _WorkflowStreamAdapter(event_queue, result_future)
+
+        async def _run_stream() -> None:
+            try:
+                await event_queue.put(
+                    WorkflowEvent(
+                        type=cast(Any, "progress"),
+                        data={
+                            "stage": "workflow_runner_started",
+                            "workflow_type": self._workflow_type.value,
+                        },
+                    )
+                )
+                async with self._factory(self._mcp_url) as workflow:
+                    normalized_query = workflow.prepare_run(normalized_message)
+                    stream_obj, finalize = await self._resolve_stream_result(
+                        workflow=workflow,
+                        normalized_query=normalized_query,
+                        include_status_events=include_status_events,
+                        **run_kwargs,
+                    )
+                    async for event in stream_obj:
+                        await event_queue.put(event)
+                    final_result = await finalize()
+                    if not result_future.done():
+                        result_future.set_result(final_result)
+                    await event_queue.put(
+                        WorkflowEvent(
+                            type=cast(Any, "progress"),
+                            data={
+                                "stage": "workflow_runner_completed",
+                                "workflow_type": self._workflow_type.value,
+                            },
+                        )
+                    )
+            except Exception as exc:
+                if not result_future.done():
+                    result_future.set_exception(exc)
+                await event_queue.put(WorkflowEvent(type="error", data=str(exc)))
+            finally:
+                await event_queue.put(_STREAM_END)
+
+        stream_task = asyncio.create_task(_run_stream())
+        adapter._background_task = stream_task
+        return adapter
+
+    async def _resolve_stream_result(
+        self,
+        *,
+        workflow: Any,
+        normalized_query: str,
+        include_status_events: bool,
+        **run_kwargs: Any,
+    ) -> tuple[Any, Callable[[], Awaitable[WorkflowResult]]]:
+        stream_result = workflow.create_stream(
+            normalized_query,
+            include_status_events=include_status_events,
+            **run_kwargs,
+        )
+        if inspect.isawaitable(stream_result):
+            return cast(tuple[Any, Callable[[], Awaitable[WorkflowResult]]], await stream_result)
+        return cast(tuple[Any, Callable[[], Awaitable[WorkflowResult]]], stream_result)
 
     def run_structured(
         self,

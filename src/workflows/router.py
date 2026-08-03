@@ -118,14 +118,9 @@ class RouterWorkflow:
         """Return a clean query string from common payload shapes."""
 
         if isinstance(value, str):
-            stripped = value.strip()
-            if stripped.startswith("{") and stripped.endswith("}"):
-                for parser in (RouterWorkflow._parse_json_like_dict, RouterWorkflow._parse_python_like_dict):
-                    parsed = parser(stripped)
-                    if parsed is not None:
-                        extracted = RouterWorkflow._extract_query_from_mapping(parsed)
-                        if extracted is not None:
-                            return extracted
+            extracted = RouterWorkflow._extract_query_from_string_payload(value)
+            if extracted is not None:
+                return extracted
             return value
 
         if isinstance(value, dict):
@@ -134,6 +129,23 @@ class RouterWorkflow:
                 return extracted
 
         return ensure_text(value)
+
+    @staticmethod
+    def _extract_query_from_string_payload(value: str) -> str | None:
+        stripped = value.strip()
+        if not (stripped.startswith("{") and stripped.endswith("}")):
+            return None
+
+        for parser in (RouterWorkflow._parse_json_like_dict, RouterWorkflow._parse_python_like_dict):
+            parsed = parser(stripped)
+            if parsed is None:
+                continue
+
+            extracted = RouterWorkflow._extract_query_from_mapping(parsed)
+            if extracted is not None:
+                return extracted
+
+        return None
 
     @staticmethod
     def _extract_query_from_mapping(payload: Mapping[str, object]) -> str | None:

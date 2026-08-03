@@ -113,6 +113,7 @@ ignore = [
 "__init__.py" = ["F401"]
 "src/workflows/base.py" = ["UP035"]
 "src/mcp_server/tools/types.py" = ["UP035"]
+"tests/**/*.py" = ["PLC0415", "RUF043"]
 
 [tool.mypy]
 python_version = "3.11"

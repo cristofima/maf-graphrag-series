@@ -212,6 +212,8 @@ jobs:
     name: "Router Evaluation (main Foundry + Red Team)"
     needs: [test, router_eval_changes_main]
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.router_eval_changes_main.outputs.run_eval == 'true' }}
+    permissions:
+      contents: read
     uses: ./.github/workflows/router-evaluation.yml
     with:
       ref: ${{ github.sha }}

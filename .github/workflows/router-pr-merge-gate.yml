@@ -65,6 +65,8 @@ jobs:
     name: "Router Evaluation (PR Local Pre-Merge)"
     needs: [router_eval_changes]
     if: ${{ needs.router_eval_changes.outputs.run_eval == 'true' }}
+    permissions:
+      contents: read
     uses: ./.github/workflows/router-evaluation.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}

@@ -54,7 +54,7 @@ flowchart TD
 | ------------------ | -------------------------------------------------------------------------------------- |
 | `AZURE_AI_PROJECT` | Foundry project URL (`https://<account>.services.ai.azure.com/api/projects/<project>`) |
 
-Step 4 requires `AZURE_AI_PROJECT` and uses New Foundry endpoint mode only.
+Step 4 requires `AZURE_AI_PROJECT` and uses the Foundry project endpoint path.
 
 ### Optional (Application Insights monitoring)
 
@@ -70,11 +70,11 @@ Step 4 requires `AZURE_AI_PROJECT` and uses New Foundry endpoint mode only.
 | `ENTITIES_PARQUET_PATH`      | Path to entities Parquet      | `output/create_final_entities.parquet`      |
 | `RELATIONSHIPS_PARQUET_PATH` | Path to relationships Parquet | `output/create_final_relationships.parquet` |
 
-## Running the Full Evaluation Pipeline
+## Evaluation Workflow
 
-## Region Strategy (Single Project)
+### Region Strategy (Single Project)
 
-Use one New Foundry project in a region that supports the features you need most.
+Use one Foundry project in a region that supports the features you need most.
 
 - Step 3 (batch evaluation) and Step 4 (red teaming) can use the same project.
 - For best coverage, prefer a region documented for evaluation + red teaming support (for example `East US 2` or `France Central`).
@@ -91,7 +91,7 @@ uv run python run_mcp_server.py
 Runs the Knowledge Captain agent against each of the 10 golden questions and writes
 `src/evaluation/datasets/eval_data.jsonl`:
 
-Step 2 is independent from Foundry/New Foundry. If you already have `eval_data.jsonl`, you can reuse it directly.
+Step 2 is independent from Foundry publishing. If you already have `eval_data.jsonl`, you can reuse it directly.
 
 ```powershell
 uv run python -m evaluation.scripts.generate_eval_data
@@ -139,7 +139,7 @@ uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data
 # Skip custom graph evaluators (no Parquet needed)
 uv run python -m evaluation.scripts.run_batch_evaluation --no-custom
 
-# Publish a New Foundry evaluation run (openai/v1/evals)
+# Publish a Foundry evaluation run (openai/v1/evals)
 uv run python -m evaluation.scripts.run_batch_evaluation --foundry
 ```
 
@@ -148,26 +148,11 @@ Results are written to:
 - `src/evaluation/results/evaluation_results.json` — raw SDK output
 - `src/evaluation/results/evaluation_report.md` — human-readable Markdown summary
 
-When `--foundry` is enabled, Step 3 now publishes through New Foundry `openai/v1/evals`
-and writes the nextgen `report_url` into the local report (`studio_url` field).
+When `--foundry` is enabled, Step 3 publishes through the Foundry `openai/v1/evals`
+endpoint and writes the returned `report_url` into the local report (`studio_url` field).
 
-### Latest Foundry Snapshot (March 2026)
+Evaluation outputs vary by dataset and deployment, but local artifacts always preserve per-run metrics, token usage, and any Foundry-linked report URLs.
 
-Latest quality run summary from Azure AI Foundry (10 rows):
-
-| Metric                | Value  | Rows  |
-| --------------------- | ------ | ----- |
-| Task adherence        | 80%    | 8/10  |
-| Intent resolution     | 100%   | 10/10 |
-| Relevance             | 100%   | 10/10 |
-| Coherence             | 100%   | 10/10 |
-| Response completeness | 100%   | 10/10 |
-| Prompt tokens         | 85,686 | -     |
-| Completion tokens     | 5,048  | -     |
-
-Interpretation:
-
-- The current bottleneck is `task_adherence` (8/10), while semantic quality signals are stable.
 - `ToolCallAccuracyEvaluator` is emitted only when `eval_data.jsonl` contains structured `tool_call` items.
 - Custom graph evaluators remain available in local artifacts (`evaluation_results.json`, `evaluation_report.md`).
 
@@ -177,14 +162,14 @@ Requires an Azure AI Foundry project. **You do not need to redeploy your OpenAI 
 project is only used to submit the red team job and store results. LLM calls still go to your existing
 `AZURE_OPENAI_ENDPOINT`.
 
-Step 4 now supports two flows:
+Step 4 supports two flows:
 
 - `cloud-model` (default, recommended): scans your Azure OpenAI deployment directly.
 - `local-agent`: scans the local Knowledge Captain callback target.
 
-Use `cloud-model` for the most stable New Foundry-compatible path.
+Use `cloud-model` for the most stable Foundry-compatible path.
 
-**Provision via Terraform** (adds New Foundry Project under AI Services):
+**Provision via Terraform** (adds a Foundry project under AI Services):
 
 ```hcl
 # infra/terraform.tfvars
@@ -226,11 +211,11 @@ Available risk categories: `Violence`, `HateUnfairness`, `Sexual`, `SelfHarm`
 
 Results are written to `src/evaluation/results/redteam_results.json`.
 
-In `cloud-model` flow, Step 4 also attempts a New Foundry `openai/v1/evals` red-team
+In `cloud-model` flow, Step 4 also attempts a Foundry `openai/v1/evals` red-team
 reference run and stores its metadata under `new_foundry` in the JSON output. This keeps
-the full SDK red-team scorecard while providing a New Foundry nextgen report URL.
+the full SDK red-team scorecard while providing a Foundry report URL.
 
-Important behavior: if the scan completes but yields zero evaluated attacks (`0/0`), the script now exits with
+Important behavior: if the scan completes but yields zero evaluated attacks (`0/0`), the script exits with
 an explicit error. In practice, this usually indicates your selected region does not support required RAI
 safety scoring capabilities (for example content-harm scoring). Keep a single project architecture, but place
 that project in a region that supports Step 4 red teaming.

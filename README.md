@@ -14,6 +14,16 @@ Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 
 This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft GraphRAG and Azure OpenAI.
 
+## Core Stack
+
+Use the root README for high-level stack families only. Exact dependency pins live in `pyproject.toml`.
+
+| Technology      | Version Family | Purpose                                  |
+| --------------- | -------------- | ---------------------------------------- |
+| GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval   |
+| Agent Framework | `1.13.x`       | Agents, orchestration, and model clients |
+| FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
+
 | Part | Title                    | Status         | Folder/Module                                      |
 | ---- | ------------------------ | -------------- | -------------------------------------------------- |
 | 1    | GraphRAG Fundamentals    | ✅ Complete    | `src/core/`                                        |
@@ -91,7 +101,7 @@ uv run python -m core.example "What are the main projects?" --type global
 
 ### Using the Python API
 
-The `src/core/` module provides a modern Python API for GraphRAG 3.0.x:
+The `src/core/` module provides a modern Python API for GraphRAG knowledge graph operations:
 
 #### Building the Knowledge Graph
 
@@ -221,7 +231,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ### What You'll Learn
 
-- Microsoft Agent Framework fundamentals (1.11.x)
+- Microsoft Agent Framework fundamentals
 - `MCPStreamableHTTPTool` for MCP server integration
 - `Agent` as async context manager for automatic MCP lifecycle management
 - System prompt-based tool routing (GPT-4o decides which MCP tool to call)
@@ -229,7 +239,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 - Three-layer middleware pipeline (timing, token counting, logging, query rewriting)
 - Local `@tool` functions and research delegate sub-agent
 - `AgentSession` for conversation memory across multiple turns
-- MCP transport upgrade: SSE (`/sse`) → Streamable HTTP (`/mcp`)
+- Streamable HTTP (`/mcp`) transport for MCP connectivity
 
 ### Architecture
 
@@ -239,8 +249,8 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 flowchart TD
     A["run_devui.py<br/>Interactive surface · Rich UI"]
     B["agents/<br/>KnowledgeCaptainRunner · create_client()<br/>MCPStreamableHTTPTool · Middleware Pipeline<br/>Local @tools · Research Delegate"]
-    C["mcp_server/<br/>FastMCP 3.1.x · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
-    D["core/<br/>GraphRAG 3.0.x<br/>147 entities<br/>263 relationships<br/>32 communities"]
+    C["mcp_server/<br/>FastMCP server · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
+    D["core/<br/>GraphRAG knowledge graph<br/>indexing · retrieval · analysis"]
 
     A --> B
     B -->|"Streamable HTTP /mcp"| C
@@ -294,7 +304,7 @@ async with KnowledgeCaptainRunner() as runner:
     runner.clear_history()
 ```
 
-### Microsoft Agent Framework 1.11.x
+### Microsoft Agent Framework Patterns
 
 Key patterns used:
 
@@ -352,7 +362,7 @@ maf-graphrag-series/
 │   ├── *.parquet
 │   └── lancedb/               # Vector store
 ├── src/                       # Application source code
-│   ├── core/                  # Part 1: Python API for GraphRAG 3.0.x
+│   ├── core/                  # Part 1: Python API for GraphRAG
 │   │   ├── __init__.py        # Module exports
 │   │   ├── classification_utils.py # Shared confidence parsing utilities
 │   │   ├── config.py          # Configuration loading
@@ -532,19 +542,7 @@ End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based
 - MAF agent observability with OpenTelemetry and Application Insights
 - Red team safety scanning with `RedTeam` (requires Azure AI Foundry)
 
-### Latest Foundry Snapshot (March 2026)
-
-Most recent Step 3 quality run summary (10 rows):
-
-| Metric                | Score  | Rows  |
-| --------------------- | ------ | ----- |
-| Task adherence        | 80%    | 8/10  |
-| Intent resolution     | 100%   | 10/10 |
-| Relevance             | 100%   | 10/10 |
-| Coherence             | 100%   | 10/10 |
-| Response completeness | 100%   | 10/10 |
-| Prompt tokens         | 85,686 | -     |
-| Completion tokens     | 5,048  | -     |
+Batch evaluation outputs include aggregate metric reports, token usage, and optional Foundry-linked traces.
 
 `ToolCallAccuracyEvaluator` appears only when the evaluation dataset includes structured `tool_call` payloads.
 
@@ -574,7 +572,7 @@ uv run python -m evaluation.scripts.run_batch_evaluation --foundry
 uv run python -m evaluation.scripts.run_redteam
 ```
 
-**Configuration note**: keep `AZURE_OPENAI_API_VERSION` and `AZURE_OPENAI_EVAL_API_VERSION` separate. In this repo, agent and workflow chat calls are validated with `AZURE_OPENAI_API_VERSION=2024-11-20`, while Azure AI Evaluation built-in evaluators are validated with `AZURE_OPENAI_EVAL_API_VERSION=2025-04-01-preview`. Reusing `2024-11-20` for the evaluators can return `404 Resource not found` even when the same endpoint and deployment work for the workflow path.
+**Configuration note**: keep `AZURE_OPENAI_API_VERSION` and `AZURE_OPENAI_EVAL_API_VERSION` independently configurable. Azure AI Evaluation endpoints can require a different API version than the chat and workflow runtime. See [src/evaluation/README.md](src/evaluation/README.md) for the current evaluator configuration guidance.
 
 ### Evaluators
 
@@ -604,15 +602,115 @@ For documentation clarity, use this split:
 
 ---
 
+## Part 6: Router SLM Integration
+
+Move from pattern demos to a production router posture where all user traffic enters through `RouterWorkflow` and routes to sequential, concurrent, handoff, or `out_of_context` response paths.
+
+### What You'll Learn
+
+- Foundry-first router classifier integration with Agent Framework client path
+- Production fallback policy (retry transient classifier errors, then degrade to sequential)
+- Router metadata contract for observability (`classified_workflow`, `routed_workflow`, confidence, fallback reason)
+- DevUI and connector-style chatbot surfaces that both execute the same router workflow backend
+- Staged CI governance for router evaluation (PR local gate, `main` Foundry publish + optional red team)
+
+### Production Routing Contract
+
+`RouterWorkflow` is the production entry point and enforces deterministic behavior:
+
+| Rule                               | Behavior                                                |
+| ---------------------------------- | ------------------------------------------------------- |
+| Classifier confidence threshold    | Route as classified when confidence >= 80               |
+| Transient classifier failures      | Retry, then continue if recovered                       |
+| Non-retryable / exhausted failures | Fallback to sequential with explicit metadata           |
+| Unknown workflow label             | Fallback to sequential                                  |
+| `out_of_context` label             | Return safe direct response path (no retrieval fan-out) |
+
+### Architecture
+
+```mermaid
+flowchart TD
+        Q["User Query"] --> RC["RouterClassifier\n(Foundry model router)"]
+        RC --> RW["RouterWorkflow"]
+        RW --> SQ["Sequential Workflow"]
+        RW --> CC["Concurrent Workflow"]
+        RW --> HF["Handoff Workflow"]
+        RW --> OOC["Out-of-context Response"]
+        SQ --> OUT["Final Answer + Step Trace"]
+        CC --> OUT
+        HF --> OUT
+        OOC --> OUT
+```
+
+### Runtime Surfaces
+
+| Surface             | Entry Point                           | Purpose                                                                          |
+| ------------------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| DevUI               | `uv run python run_devui.py`          | Interactive workflow visualization and timeline tracing                          |
+| Teams/Connector API | `uv run python run_router_chatbot.py` | `/api/messages` endpoint for Microsoft 365 Agents Playground or Bot integrations |
+
+### Quick Start
+
+```powershell
+# Terminal 1: MCP server (tool backend)
+uv run python run_mcp_server.py
+
+# Terminal 2: DevUI router surface
+uv run python run_devui.py
+
+# Optional Terminal 3: Connector endpoint for Agents Playground
+uv run python run_router_chatbot.py
+```
+
+### Microsoft 365 Agents Playground
+
+Agents Playground is an external CLI for local chat testing. It is not installed from PyPI and is not bundled with this repository.
+
+Install one of these ways:
+
+```powershell
+# Windows standalone install
+winget install agentsplayground
+
+# Cross-platform npm install
+npm install -g @microsoft/m365agentsplayground
+```
+
+Then launch it against the local router endpoint:
+
+```powershell
+agentsplayground -e http://localhost:3978/api/messages -c msteams
+```
+
+This flow is also documented in [src/workflows/README.md](src/workflows/README.md), which contains the connector-focused setup notes and Microsoft Learn references.
+
+### Part 6 Screenshots
+
+**DevUI**
+
+![Part 6 DevUI Router Workflow](docs/images/part6-devui-router-workflow.png)
+
+_DevUI router execution view with workflow graph, execution timeline, and events panel._
+
+**Microsoft 365 Agents Playground**
+
+![Part 6 Agents Playground Chat](docs/images/part6-agents-playground-chat.png)
+
+_Microsoft 365 Agents Playground conversation showing routed responses across GraphRAG workflows._
+
+📖 **Part 6 Implementation Notes:** See [docs/part6-implementation-notes.md](docs/part6-implementation-notes.md) for routing policy, CI governance, and rollout details.
+
+---
+
 ## Azure AI Services Used
 
-| Service                  | Purpose                    | Model/Version                |
-| ------------------------ | -------------------------- | ---------------------------- |
-| **Azure OpenAI**         | Entity extraction, queries | GPT-4o                       |
-| **Azure OpenAI**         | Document embeddings        | text-embedding-3-small       |
-| **Agent Framework**      | Multi-agent orchestration  | 1.11.x                       |
-| **Azure AI Evaluation**  | LLM-as-judge + red team    | `azure-ai-evaluation` 1.18.x |
-| **Application Insights** | Agent observability traces | via OpenTelemetry 1.43.x     |
+| Service                  | Purpose                    | Tooling                       |
+| ------------------------ | -------------------------- | ----------------------------- |
+| **Azure OpenAI**         | Entity extraction, queries | GPT-4o                        |
+| **Azure OpenAI**         | Document embeddings        | text-embedding-3-small        |
+| **Agent Framework**      | Multi-agent orchestration  | Agent Framework SDK           |
+| **Azure AI Evaluation**  | LLM-as-judge + red team    | Azure AI Evaluation SDK       |
+| **Application Insights** | Agent observability traces | OpenTelemetry + Azure Monitor |
 
 ## Testing
 

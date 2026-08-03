@@ -2,7 +2,7 @@
 
 Multi-agent workflow patterns that extend the single-agent Knowledge Captain from Part 3. The **Router workflow** is the production entry point that downstream chat surfaces should invoke; the other patterns remain as learning aids and internal experimentation.
 
-## Architecture Overview
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -195,7 +195,7 @@ uv run python run_mcp_server.py   # Terminal 1
 uv run python run_devui.py
 ```
 
-## Microsoft 365 Agents Playground (Single Router Endpoint)
+## Microsoft 365 Agents Playground
 
 If you want a chatbot endpoint for Microsoft 365 Agents Playground, run the
 router-backed endpoint and point Playground to `/api/messages`.
@@ -222,7 +222,7 @@ Reference docs:
 - [Agents Playground overview](https://learn.microsoft.com/en-us/microsoftteams/platform/teams-sdk/developer-tools/agents-playground/overview?tabs=typescript%2Ccsharp%2Cpython)
 - [Test your agent locally in Microsoft 365 Agents Playground](https://learn.microsoft.com/en-us/microsoft-365/agents-sdk/test-with-toolkit-project)
 
-## Prompt Bank (kept from retired workflow CLI)
+## Prompt Bank
 
 ### Router prompts
 
@@ -418,4 +418,4 @@ Different workflow patterns use different MCP tool ownership strategies:
 | **Sequential / Handoff** | Shared MCP tool, managed externally via `AsyncExitStack` in `MCPWorkflowBase`     | Multiple agents share one tool — the base class manages connect/close |
 | **Concurrent**           | Each agent owns its own MCP tool via `Agent` context manager + `tool_name_prefix` | Parallel agents need separate connections to avoid conflicts          |
 
-This follows Agent Framework rc5+ patterns: `Agent` as async context manager auto-manages MCP tool lifecycle. When a tool must be shared across agents, it’s managed externally to avoid premature disconnection.
+This follows the current Agent Framework pattern: `Agent` as async context manager auto-manages MCP tool lifecycle. When a tool must be shared across agents, it’s managed externally to avoid premature disconnection.

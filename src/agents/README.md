@@ -38,7 +38,7 @@ flowchart TD
     MCP["MCP Server (8011)\nlocal_search\nglobal_search\nlist_entities\nget_entity"]
 ```
 
-## Key Insight: System Prompt as Router
+## System Prompt Routing
 
 The agent doesn't need complex routing logic. The system prompt tells GPT-4o when to use each tool:
 
@@ -81,7 +81,7 @@ AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o
 AZURE_OPENAI_ROUTER_DEPLOYMENT=router-deployment-name
 
 # Optional
-AZURE_OPENAI_API_VERSION=2024-11-20
+AZURE_OPENAI_API_VERSION=your-supported-api-version
 AZURE_OPENAI_ROUTER_ENDPOINT=https://your-router-resource.openai.azure.com/
 AZURE_OPENAI_ROUTER_SUBSET=default
 MCP_SERVER_URL=http://127.0.0.1:8011/mcp
@@ -98,7 +98,7 @@ For direct programmatic usage (without DevUI), use `KnowledgeCaptainRunner` as s
 
 ## Usage
 
-### Using KnowledgeCaptainRunner (Recommended)
+### Using KnowledgeCaptainRunner
 
 ```python
 from agents import KnowledgeCaptainRunner
@@ -121,7 +121,7 @@ async with KnowledgeCaptainRunner() as runner:
 ```python
 from agents import create_knowledge_captain
 
-# Agent as async context manager (rc5+) — auto-manages MCP tool lifecycle
+# Agent as async context manager — auto-manages MCP tool lifecycle
 agent = create_knowledge_captain()
 
 async with agent:
@@ -231,7 +231,7 @@ The delegate provides **context isolation**: its internal conversation (raw MCP 
 
 ## MCP Transport Protocol
 
-This module uses the **Streamable HTTP** transport (`/mcp` endpoint) instead of SSE (`/sse`):
+This module uses the **Streamable HTTP** transport (`/mcp` endpoint) as the agent-facing MCP transport:
 
 | Transport           | Endpoint | Use Case                                            |
 | ------------------- | -------- | --------------------------------------------------- |

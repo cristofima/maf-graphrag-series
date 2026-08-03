@@ -1,6 +1,6 @@
 # Core Module
 
-Python API for GraphRAG 3.0.x knowledge graph operations.
+Python API for GraphRAG knowledge graph operations.
 
 ## Quick Start
 
@@ -175,7 +175,7 @@ output_storage:
 
 ## File Locations
 
-GraphRAG 3.0.x outputs files without prefix:
+GraphRAG outputs files without prefix:
 
 ```
 output/
@@ -192,7 +192,6 @@ output/
 ## Requirements
 
 - Python >=3.11,<3.13
-- GraphRAG ~3.0.2
-- pandas ^2.3.0, pyarrow ^22.0.0
-- rich ^14.0.0
+- GraphRAG configured through `pyproject.toml`
+- Data and CLI dependencies installed through `uv sync --dev`
 - Azure OpenAI credentials in `.env`

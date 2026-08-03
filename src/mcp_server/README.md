@@ -1,6 +1,6 @@
-# GraphRAG MCP Server - Part 2
+# GraphRAG MCP Server
 
-Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for Microsoft Agent Framework integration.
+Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for agent and workflow integration.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ flowchart TD
 
 ## Quick Start
 
-### 1. Start MCP Server
+### Start MCP Server
 
 ```bash
 # Using Python module
@@ -27,7 +27,7 @@ Server will start at: `http://localhost:8011`
 
 At startup, the server emits structured logs to console and to `logs/run_mcp_server_YYYYMMDD.log`.
 
-### 2. Test Tools
+### Test Tools
 
 ```bash
 # Option A: Test in notebook (recommended, no server needed)
@@ -174,6 +174,12 @@ npx @modelcontextprotocol/inspector
 3. Reconnect Inspector and test affected tools
 4. Check the **Notifications** pane for server logs
 
+## Integration Notes
+
+- Agent and workflow runtimes connect to this server through the Streamable HTTP endpoint at `/mcp`.
+- Local interactive inspection can use MCP Inspector against the same server.
+- `local_search` preserves source traceability, while `global_search` returns synthesized community-level answers.
+
 ## Configuration
 
 Environment variables:
@@ -233,10 +239,6 @@ uv run gunicorn mcp_server.server:app -w 4 -k uvicorn.workers.UvicornWorker
 docker build -t graphrag-mcp .
 docker run -p 8011:8011 graphrag-mcp
 ```
-
-## Next: Part 3 - Supervisor Agent Pattern
-
-In Part 3, we'll integrate Microsoft Agent Framework to create a supervisor agent that orchestrates multiple MCP tools, building on this MCP server as the foundation.
 
 ## References
 

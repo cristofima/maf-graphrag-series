@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from agent_framework import WorkflowEvent
+from agent_framework.exceptions import ChatClientException
 
 from agents.router_classifier import RouterClassification, RouterClassifier
 
@@ -55,6 +56,11 @@ _OUT_OF_CONTEXT_MESSAGE = (
     "I can help with questions about the indexed knowledge base (people, projects, teams, technologies, "
     "and relationships). Please ask a query related to that context."
 )
+_EVENT_PROGRESS = "progress"
+_EVENT_EXECUTOR_INVOKED = "executor_invoked"
+_EVENT_EXECUTOR_COMPLETED = "executor_completed"
+_EVENT_OUTPUT = "output"
+_ROUTER_ROUTED_WORKFLOW_EVENT_KEY = "router.routed_workflow"
 
 
 def _supports_keyword_argument(callable_obj: Callable[..., Any], keyword: str) -> bool:
@@ -227,7 +233,7 @@ class RouterWorkflow:
         with _TRACER.start_as_current_span("router.workflow.select") as span:
             self._span_set_if_present(span, "router.query", self._clip(query))
             self._span_set_if_present(span, "router.classified_workflow", classified_workflow)
-            self._span_set_if_present(span, "router.routed_workflow", routed_workflow)
+            self._span_set_if_present(span, _ROUTER_ROUTED_WORKFLOW_EVENT_KEY, routed_workflow)
             self._span_set_if_present(span, "router.classifier_status", router_outcome.classifier_status)
             self._span_set_if_present(span, "router.classifier_attempts", router_outcome.classifier_attempts)
             self._span_set_if_present(span, "router.confidence_score", router_outcome.classification.confidence_score)
@@ -247,7 +253,7 @@ class RouterWorkflow:
                 "router.workflow.decision",
                 {
                     "router.classified_workflow": classified_workflow,
-                    "router.routed_workflow": routed_workflow,
+                    _ROUTER_ROUTED_WORKFLOW_EVENT_KEY: routed_workflow,
                     "router.confidence_score": router_outcome.classification.confidence_score,
                     "router.fallback_reason": router_outcome.fallback_reason,
                     "router.classifier_status": router_outcome.classifier_status,
@@ -258,7 +264,7 @@ class RouterWorkflow:
                     span,
                     "router.output.generated",
                     {
-                        "router.routed_workflow": routed_workflow,
+                        _ROUTER_ROUTED_WORKFLOW_EVENT_KEY: routed_workflow,
                         "router.response_preview": self._clip(response_output),
                     },
                 )
@@ -300,32 +306,29 @@ class RouterWorkflow:
             }
 
             async def _stream_out_of_context() -> AsyncIterator[Any]:
-                yield WorkflowEvent(type=cast(Any, "progress"), data=progress_payload)
+                yield WorkflowEvent(type=cast(Any, _EVENT_PROGRESS), data=progress_payload)
                 yield WorkflowEvent(
-                    type=cast(Any, "executor_invoked"),
+                    type=cast(Any, _EVENT_EXECUTOR_INVOKED),
                     executor_id="OutOfContextResponder",
                     data={"response_type": "out_of_context"},
                 )
                 yield WorkflowEvent(
-                    type=cast(Any, "output"),
+                    type=cast(Any, _EVENT_OUTPUT),
                     executor_id="OutOfContextResponder",
                     data=_OUT_OF_CONTEXT_MESSAGE,
                 )
                 yield WorkflowEvent(
-                    type=cast(Any, "executor_completed"),
+                    type=cast(Any, _EVENT_EXECUTOR_COMPLETED),
                     executor_id="OutOfContextResponder",
                     data={"response_type": "out_of_context"},
                 )
-                yield WorkflowEvent(type=cast(Any, "progress"), data=response_payload)
+                yield WorkflowEvent(type=cast(Any, _EVENT_PROGRESS), data=response_payload)
 
-            async def _finalize_out_of_context() -> WorkflowResult:
-                return self._build_out_of_context_result(
-                    normalized_query,
-                    router_outcome,
-                    include_status_events=include_status_events,
-                )
-
-            return _stream_out_of_context(), _finalize_out_of_context
+            return _stream_out_of_context(), self._build_out_of_context_finalize(
+                normalized_query,
+                router_outcome,
+                include_status_events=include_status_events,
+            )
 
         decision = self._resolve_workflow_decision(router_outcome)
         self._emit_routing_span(
@@ -357,23 +360,17 @@ class RouterWorkflow:
         }
 
         async def stream_with_router_progress() -> AsyncIterator[Any]:
-            yield WorkflowEvent(type=cast(Any, "progress"), data=progress_payload)
+            yield WorkflowEvent(type=cast(Any, _EVENT_PROGRESS), data=progress_payload)
             async for event in stream:
                 yield event
 
-        async def finalize() -> WorkflowResult:
-            try:
-                inner_result = await finalize_inner()
-                return self._combine_results(
-                    normalized_query=normalized_query,
-                    router_outcome=router_outcome,
-                    decision=decision,
-                    inner_result=inner_result,
-                )
-            finally:
-                await exit_stack.aclose()
-
-        return stream_with_router_progress(), finalize
+        return stream_with_router_progress(), self._build_delegate_finalize(
+            normalized_query=normalized_query,
+            router_outcome=router_outcome,
+            decision=decision,
+            finalize_inner=finalize_inner,
+            exit_stack=exit_stack,
+        )
 
     async def run(
         self,
@@ -439,7 +436,12 @@ class RouterWorkflow:
                     classifier_status="success",
                     classifier_attempts=attempt,
                 )
-            except Exception as exc:  # pragma: no cover - covered via fallback branch tests
+            except (
+                ChatClientException,
+                RuntimeError,
+                TimeoutError,
+                ValueError,
+            ) as exc:  # pragma: no cover - covered via fallback branch tests
                 last_error = exc
                 if attempt < _CLASSIFIER_MAX_ATTEMPTS and self._is_retryable_classifier_error(exc):
                     logger.warning(
@@ -586,6 +588,49 @@ class RouterWorkflow:
             total_elapsed_seconds=total_elapsed,
             query=inner_result.query or normalized_query or self._last_query or "",
         )
+
+    def _build_out_of_context_finalize(
+        self,
+        normalized_query: str,
+        router_outcome: RouterOutcome,
+        *,
+        include_status_events: bool,
+    ) -> Callable[[], Awaitable[WorkflowResult]]:
+        def finalize() -> Awaitable[WorkflowResult]:
+            result = self._build_out_of_context_result(
+                normalized_query,
+                router_outcome,
+                include_status_events=include_status_events,
+            )
+            return asyncio.sleep(0, result=result)
+
+        return finalize
+
+    def _build_delegate_finalize(
+        self,
+        *,
+        normalized_query: str,
+        router_outcome: RouterOutcome,
+        decision: WorkflowType,
+        finalize_inner: Callable[[], Awaitable[WorkflowResult]],
+        exit_stack: AsyncExitStack,
+    ) -> Callable[[], Awaitable[WorkflowResult]]:
+        def finalize() -> Awaitable[WorkflowResult]:
+            async def _finalize() -> WorkflowResult:
+                try:
+                    inner_result = await finalize_inner()
+                    return self._combine_results(
+                        normalized_query=normalized_query,
+                        router_outcome=router_outcome,
+                        decision=decision,
+                        inner_result=inner_result,
+                    )
+                finally:
+                    await exit_stack.aclose()
+
+            return _finalize()
+
+        return finalize
 
     def _build_out_of_context_result(
         self,

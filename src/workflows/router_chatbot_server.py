@@ -43,8 +43,10 @@ _PLAYGROUND_HEADER = "x-ms-agents-playground"
 _CONNECTOR_DELIVERY_TIMEOUT_SECONDS = 15.0
 _DEFAULT_PROGRESS_STATUS = "Processing your request..."
 
+_ROUTING_STATUS_MESSAGE = "Routing your question..."
+_GUIDANCE_STATUS_MESSAGE = "Preparing guidance response..."
 _EXECUTOR_PROGRESS_MESSAGES: dict[str, str] = {
-    "WorkflowRouter": "Routing your question...",
+    "WorkflowRouter": _ROUTING_STATUS_MESSAGE,
     "QueryAnalyzer": "Analyzing your question...",
     "KnowledgeSearcher": "Searching the knowledge base...",
     "QueryBroadcast": "Preparing parallel search...",
@@ -55,7 +57,7 @@ _EXECUTOR_PROGRESS_MESSAGES: dict[str, str] = {
     "EntityExpert": "Expanding entity details...",
     "ThemesExpert": "Expanding thematic context...",
     "HandoffComposer": "Composing final answer...",
-    "OutOfContextResponder": "Preparing guidance response...",
+    "OutOfContextResponder": _GUIDANCE_STATUS_MESSAGE,
 }
 
 _WORKFLOW_EXECUTOR_PROGRESS_MESSAGES: dict[str, dict[str, str]] = {
@@ -77,16 +79,21 @@ _WORKFLOW_EXECUTOR_PROGRESS_MESSAGES: dict[str, dict[str, str]] = {
         "HandoffComposer": "Composing specialist handoff answer...",
     },
     "out_of_context": {
-        "OutOfContextResponder": "Preparing guidance response...",
+        "OutOfContextResponder": _GUIDANCE_STATUS_MESSAGE,
     },
 }
 
 _STAGE_PROGRESS_MESSAGES: dict[str, str] = {
-    "router_delegation": "Routing your question...",
-    "out_of_context_response": "Preparing guidance response...",
+    "router_delegation": _ROUTING_STATUS_MESSAGE,
+    "out_of_context_response": _GUIDANCE_STATUS_MESSAGE,
     "workflow_runner_started": "Starting workflow execution...",
     "workflow_runner_completed": "Finalizing response...",
 }
+_MESSAGE_ACTIVITY_TYPE = "message"
+_TYPING_ACTIVITY_TYPE = "typing"
+_CONVERSATION_UPDATE_ACTIVITY_TYPE = "conversationUpdate"
+_INSTALLATION_UPDATE_ACTIVITY_TYPE = "installationUpdate"
+_ROUTER_CHANNEL_DATA_TYPE = "router"
 
 
 class RouterChatbotConfig(BaseModel):
@@ -156,7 +163,7 @@ class RouterChatService:
                 )
 
                 if on_progress is not None:
-                    await on_progress("Routing your question...")
+                    await on_progress(_ROUTING_STATUS_MESSAGE)
 
                 stream_routed_workflow: str | None = None
                 async for event in stream:
@@ -202,6 +209,23 @@ class RouterChatReply:
     classifier_status: str | None = None
     fallback_reason: str | None = None
     total_elapsed_seconds: float | None = None
+
+
+def _copy_activity_context(request_activity: Mapping[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+    """Populate a Bot Framework-like response with the request's routing context."""
+    for key in ("channelId", "serviceUrl", "conversation"):
+        value = request_activity.get(key)
+        if value is not None:
+            response[key] = value
+
+    sender = request_activity.get("from")
+    recipient = request_activity.get("recipient")
+    if isinstance(recipient, Mapping):
+        response["from"] = dict(recipient)
+    if isinstance(sender, Mapping):
+        response["recipient"] = dict(sender)
+
+    return response
 
 
 def _log_json(level: int, event: str, **fields: Any) -> None:
@@ -262,39 +286,55 @@ def _status_text_from_event(
     data = getattr(event, "data", None)
     updated_workflow = routed_workflow
     if event_type == "progress" and isinstance(data, Mapping):
-        stage = data.get("stage")
-        routed = _normalize_routed_workflow(data.get("routed_workflow"))
-        if routed is not None:
-            updated_workflow = routed
-
-        if isinstance(stage, str):
-            stage_message = _STAGE_PROGRESS_MESSAGES.get(stage)
-            if stage_message is not None:
-                return stage_message, updated_workflow
-
-        if updated_workflow == "sequential":
-            return "Running sequential reasoning...", updated_workflow
-        if updated_workflow == "concurrent":
-            return "Running parallel retrieval...", updated_workflow
-        if updated_workflow == "handoff":
-            return "Coordinating specialist handoff...", updated_workflow
-        if updated_workflow == "out_of_context":
-            return "Preparing guidance response...", updated_workflow
+        updated_workflow = _update_routed_workflow(data, routed_workflow)
+        stage_message = _status_text_for_stage(data, updated_workflow)
+        if stage_message is not None:
+            return stage_message, updated_workflow
 
     if event_type in {"executor_invoked", "executor_completed"}:
-        executor_id = getattr(event, "executor_id", None)
-        if isinstance(executor_id, str):
-            if updated_workflow is not None:
-                workflow_messages = _WORKFLOW_EXECUTOR_PROGRESS_MESSAGES.get(updated_workflow, {})
-                workflow_message = workflow_messages.get(executor_id)
-                if workflow_message is not None:
-                    return workflow_message, updated_workflow
-
-            generic_message = _EXECUTOR_PROGRESS_MESSAGES.get(executor_id)
-            if generic_message is not None:
-                return generic_message, updated_workflow
+        return _status_text_for_executor(event, updated_workflow)
 
     return None, updated_workflow
+
+
+def _update_routed_workflow(data: Mapping[str, Any], routed_workflow: str | None) -> str | None:
+    routed = _normalize_routed_workflow(data.get("routed_workflow"))
+    return routed if routed is not None else routed_workflow
+
+
+def _status_text_for_stage(data: Mapping[str, Any], routed_workflow: str | None) -> str | None:
+    stage = data.get("stage")
+    if isinstance(stage, str):
+        stage_message = _STAGE_PROGRESS_MESSAGES.get(stage)
+        if stage_message is not None:
+            return stage_message
+
+    if routed_workflow == "sequential":
+        return "Running sequential reasoning..."
+    if routed_workflow == "concurrent":
+        return "Running parallel retrieval..."
+    if routed_workflow == "handoff":
+        return "Coordinating specialist handoff..."
+    if routed_workflow == "out_of_context":
+        return _GUIDANCE_STATUS_MESSAGE
+    return None
+
+
+def _status_text_for_executor(event: Any, routed_workflow: str | None) -> tuple[str | None, str | None]:
+    executor_id = getattr(event, "executor_id", None)
+    if not isinstance(executor_id, str):
+        return None, routed_workflow
+
+    if routed_workflow is not None:
+        workflow_messages = _WORKFLOW_EXECUTOR_PROGRESS_MESSAGES.get(routed_workflow, {})
+        workflow_message = workflow_messages.get(executor_id)
+        if workflow_message is not None:
+            return workflow_message, routed_workflow
+
+    generic_message = _EXECUTOR_PROGRESS_MESSAGES.get(executor_id)
+    if generic_message is not None:
+        return generic_message, routed_workflow
+    return None, routed_workflow
 
 
 def _is_playground_request(headers: Mapping[str, str]) -> bool:
@@ -495,7 +535,7 @@ def build_typing_activity(request_activity: Mapping[str, Any]) -> dict[str, Any]
     """Build a typing activity compatible with Bot Framework channels."""
 
     response: dict[str, Any] = {
-        "type": "typing",
+        "type": _TYPING_ACTIVITY_TYPE,
     }
 
     for key in ("channelId", "serviceUrl", "conversation"):
@@ -517,24 +557,12 @@ def build_status_activity(request_activity: Mapping[str, Any], status_text: str)
     """Build an informational message activity for long-running operations."""
 
     response: dict[str, Any] = {
-        "type": "message",
+        "type": _MESSAGE_ACTIVITY_TYPE,
         "text": status_text,
-        "channelData": {"router": {"status": "processing"}},
+        "channelData": {_ROUTER_CHANNEL_DATA_TYPE: {"status": "processing"}},
     }
 
-    for key in ("channelId", "serviceUrl", "conversation"):
-        value = request_activity.get(key)
-        if value is not None:
-            response[key] = value
-
-    sender = request_activity.get("from")
-    recipient = request_activity.get("recipient")
-    if isinstance(recipient, Mapping):
-        response["from"] = dict(recipient)
-    if isinstance(sender, Mapping):
-        response["recipient"] = dict(sender)
-
-    return response
+    return _copy_activity_context(request_activity, response)
 
 
 async def _messages_handler(request: Request) -> JSONResponse:
@@ -545,7 +573,7 @@ async def _messages_handler(request: Request) -> JSONResponse:
     welcomed_conversation_ids: set[str] = request.app.state.welcomed_conversation_ids
     try:
         payload = await request.json()
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
         return JSONResponse({"error": "Invalid JSON payload."}, status_code=400)
 
     if not isinstance(payload, dict):
@@ -558,226 +586,302 @@ async def _messages_handler(request: Request) -> JSONResponse:
         "router_chatbot.handle_activity", context=incoming_context, kind=SpanKind.SERVER
     ):
         activity_type = payload.get("type")
-        if activity_type in {"conversationUpdate", "installationUpdate"}:
-            conversation_id = _conversation_id(payload)
-            if conversation_id and conversation_id in welcomed_conversation_ids:
-                _log_json(
-                    logging.INFO,
-                    "router_chatbot.welcome_skipped_duplicate",
-                    activity_type=str(activity_type),
-                    conversation_id=conversation_id,
-                )
-                return JSONResponse({"status": "ignored", "reason": "welcome_already_sent"})
+        if activity_type in {_CONVERSATION_UPDATE_ACTIVITY_TYPE, _INSTALLATION_UPDATE_ACTIVITY_TYPE}:
+            return await _handle_welcome_activity(payload, welcomed_conversation_ids, config, incoming_headers)
 
-            if conversation_id:
-                welcomed_conversation_ids.add(conversation_id)
+        if activity_type != _MESSAGE_ACTIVITY_TYPE:
+            return _handle_unsupported_activity(payload)
 
-            _log_json(logging.INFO, "router_chatbot.welcome", activity_type=str(activity_type))
-            welcome = RouterChatReply(answer=config.welcome_message, classifier_status="welcome")
-            welcome_payload = build_reply_activity(payload, welcome)
-            response_headers: dict[str, str] = {}
-            _inject_trace_headers(response_headers)
+        return await _handle_message_activity(payload, service, config, incoming_headers)
 
-            if _is_playground_request(incoming_headers):
-                try:
-                    delivered = await _dispatch_reply_to_connector(
-                        incoming_activity=payload,
-                        reply_activity=welcome_payload,
-                        incoming_headers=incoming_headers,
-                    )
-                except Exception as exc:
-                    _log_json(
-                        logging.ERROR,
-                        "router_chatbot.connector_welcome_delivery_failed",
-                        error_type=type(exc).__name__,
-                        error=str(exc),
-                    )
-                    delivered = False
 
-                if delivered:
-                    return JSONResponse({"status": "accepted", "delivery": "connector"}, headers=response_headers)
-
-                _log_json(logging.WARNING, "router_chatbot.connector_welcome_fallback_to_response_body")
-
-            return JSONResponse(welcome_payload, headers=response_headers)
-
-        if activity_type != "message":
-            _log_json(logging.INFO, "router_chatbot.unsupported_activity", activity_type=str(activity_type))
-            info_answer = "This endpoint only supports message activities in local development."
-            response_headers = {}
-            _inject_trace_headers(response_headers)
-            return JSONResponse(
-                build_reply_activity(payload, RouterChatReply(answer=info_answer)), headers=response_headers
-            )
-
-        text = extract_activity_text(payload)
-        if text is None:
-            return JSONResponse({"error": "Message activity is missing non-empty text."}, status_code=400)
-
-        conversation_id = _conversation_id(payload)
-
-        message_id = payload.get("id")
-        message_id_text = message_id if isinstance(message_id, str) else ""
+async def _handle_welcome_activity(
+    payload: Mapping[str, Any],
+    welcomed_conversation_ids: set[str],
+    config: RouterChatbotConfig,
+    incoming_headers: Mapping[str, str],
+) -> JSONResponse:
+    """Handle welcome-style activities for local playground sessions."""
+    conversation_id = _conversation_id(payload)
+    if conversation_id and conversation_id in welcomed_conversation_ids:
         _log_json(
             logging.INFO,
-            "router_chatbot.message_received",
+            "router_chatbot.welcome_skipped_duplicate",
+            activity_type=str(payload.get("type")),
+            conversation_id=conversation_id,
+        )
+        return JSONResponse({"status": "ignored", "reason": "welcome_already_sent"})
+
+    if conversation_id:
+        welcomed_conversation_ids.add(conversation_id)
+
+    _log_json(logging.INFO, "router_chatbot.welcome", activity_type=str(payload.get("type")))
+    welcome = RouterChatReply(answer=config.welcome_message, classifier_status="welcome")
+    welcome_payload = build_reply_activity(payload, welcome)
+    response_headers: dict[str, str] = {}
+    _inject_trace_headers(response_headers)
+
+    if _is_playground_request(incoming_headers):
+        try:
+            delivered = await _dispatch_reply_to_connector(
+                incoming_activity=payload,
+                reply_activity=welcome_payload,
+                incoming_headers=incoming_headers,
+            )
+        except Exception as exc:
+            _log_json(
+                logging.ERROR,
+                "router_chatbot.connector_welcome_delivery_failed",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+            delivered = False
+
+        if delivered:
+            return JSONResponse({"status": "accepted", "delivery": "connector"}, headers=response_headers)
+
+        _log_json(logging.WARNING, "router_chatbot.connector_welcome_fallback_to_response_body")
+
+    return JSONResponse(welcome_payload, headers=response_headers)
+
+
+def _handle_unsupported_activity(payload: Mapping[str, Any]) -> JSONResponse:
+    """Return a response for unsupported activity types."""
+    _log_json(logging.INFO, "router_chatbot.unsupported_activity", activity_type=str(payload.get("type")))
+    info_answer = "This endpoint only supports message activities in local development."
+    response_headers: dict[str, str] = {}
+    _inject_trace_headers(response_headers)
+    return JSONResponse(build_reply_activity(payload, RouterChatReply(answer=info_answer)), headers=response_headers)
+
+
+async def _handle_message_activity(
+    payload: Mapping[str, Any],
+    service: RouterChatService,
+    config: RouterChatbotConfig,
+    incoming_headers: Mapping[str, str],
+) -> JSONResponse:
+    """Process a user message using the router workflow and return the response."""
+    text = extract_activity_text(payload)
+    if text is None:
+        return JSONResponse({"error": "Message activity is missing non-empty text."}, status_code=400)
+
+    conversation_id = _conversation_id(payload)
+    message_id = payload.get("id")
+    message_id_text = message_id if isinstance(message_id, str) else ""
+    _log_json(
+        logging.INFO,
+        "router_chatbot.message_received",
+        conversation_id=conversation_id,
+        message_id=message_id_text,
+        text=text,
+    )
+
+    typing_task: asyncio.Task[None] | None = None
+    typing_stop_event: asyncio.Event | None = None
+    status_message_sent = False
+    last_progress_status = _DEFAULT_PROGRESS_STATUS
+    last_status_sent_at = 0.0
+    processing_started_at = time.perf_counter()
+
+    async def _on_progress(status_text: str) -> None:
+        nonlocal last_progress_status, last_status_sent_at, status_message_sent
+
+        if not status_text.strip():
+            return
+
+        last_progress_status = status_text.strip()
+        if not _should_emit_progress_status(incoming_headers, config, processing_started_at, status_text):
+            return
+
+        now = time.perf_counter()
+        delivered = await _dispatch_progress_status_message(
+            incoming_activity=payload,
+            incoming_headers=incoming_headers,
+            status_text=last_progress_status,
+        )
+        if delivered:
+            status_message_sent = True
+            last_status_sent_at = now
+            _log_json(logging.INFO, "router_chatbot.progress_status_sent", status_text=last_progress_status)
+
+    typing_stop_event, typing_task = await _start_playground_typing(payload, incoming_headers, config)
+
+    started = time.perf_counter()
+
+    try:
+        reply = await service.answer(text, on_progress=_on_progress)
+    except Exception as exc:
+        _log_json(
+            logging.ERROR,
+            "router_chatbot.processing_failed",
             conversation_id=conversation_id,
             message_id=message_id_text,
-            text=text,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        reply = RouterChatReply(answer=_LOCAL_ERROR_MESSAGE, classifier_status="error")
+    finally:
+        await _finalize_message_processing(
+            payload=payload,
+            incoming_headers=incoming_headers,
+            config=config,
+            processing_started_at=processing_started_at,
+            last_progress_status=last_progress_status,
+            status_message_sent=status_message_sent,
+            last_status_sent_at=last_status_sent_at,
+            typing_stop_event=typing_stop_event,
+            typing_task=typing_task,
         )
 
-        typing_task: asyncio.Task[None] | None = None
-        typing_stop_event: asyncio.Event | None = None
-        status_message_sent = False
-        last_progress_status = _DEFAULT_PROGRESS_STATUS
-        last_status_sent_at = 0.0
-        processing_started_at = time.perf_counter()
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    _log_json(
+        logging.INFO,
+        "router_chatbot.message_processed",
+        conversation_id=conversation_id,
+        message_id=message_id_text,
+        routed_workflow=reply.routed_workflow,
+        classifier_status=reply.classifier_status,
+        fallback_reason=reply.fallback_reason,
+        elapsed_ms=round(elapsed_ms, 1),
+    )
 
-        async def _on_progress(status_text: str) -> None:
-            nonlocal last_progress_status, last_status_sent_at, status_message_sent
+    response_payload = build_reply_activity(payload, reply)
+    response_headers = _build_response_headers(reply)
+    _inject_trace_headers(response_headers)
 
-            if not status_text.strip():
-                return
+    if _is_playground_request(incoming_headers):
+        try:
+            delivered = await _dispatch_reply_to_connector(
+                incoming_activity=payload,
+                reply_activity=response_payload,
+                incoming_headers=incoming_headers,
+            )
+        except Exception as exc:
+            _log_json(
+                logging.ERROR,
+                "router_chatbot.connector_delivery_failed",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+            delivered = False
 
-            last_progress_status = status_text.strip()
+        if delivered:
+            return JSONResponse({"status": "accepted", "delivery": "connector"}, headers=response_headers)
 
-            if not _is_playground_request(incoming_headers):
-                return
-            if config.progress_status_after_seconds <= 0:
-                return
+        _log_json(logging.WARNING, "router_chatbot.connector_delivery_fallback_to_response_body")
 
-            now = time.perf_counter()
-            elapsed = now - processing_started_at
-            if elapsed < config.progress_status_after_seconds:
-                return
+    return JSONResponse(response_payload, headers=response_headers)
 
-            if status_message_sent and status_text == _DEFAULT_PROGRESS_STATUS:
-                return
 
-            if status_message_sent and (now - last_status_sent_at) < config.progress_status_min_interval_seconds:
-                return
+async def _start_playground_typing(
+    payload: Mapping[str, Any],
+    incoming_headers: Mapping[str, str],
+    config: RouterChatbotConfig,
+) -> tuple[asyncio.Event | None, asyncio.Task[None] | None]:
+    """Start typing and keepalive tasks for playground requests."""
+    if not _is_playground_request(incoming_headers):
+        return None, None
 
-            delivered = await _dispatch_progress_status_message(
+    typing_activity = build_typing_activity(payload)
+    try:
+        delivered_typing = await _dispatch_reply_to_connector(
+            incoming_activity=payload,
+            reply_activity=typing_activity,
+            incoming_headers=incoming_headers,
+        )
+        if delivered_typing:
+            _log_json(logging.INFO, "router_chatbot.typing_sent")
+    except Exception as exc:
+        _log_json(
+            logging.WARNING,
+            "router_chatbot.typing_delivery_failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+
+    typing_stop_event = asyncio.Event()
+    typing_task = asyncio.create_task(
+        _typing_keepalive_loop(
+            incoming_activity=payload,
+            incoming_headers=incoming_headers,
+            stop_event=typing_stop_event,
+            fast_interval_seconds=config.typing_keepalive_fast_seconds,
+            slow_interval_seconds=config.typing_keepalive_slow_seconds,
+            slow_after_seconds=config.typing_keepalive_slow_after_seconds,
+        )
+    )
+    return typing_stop_event, typing_task
+
+
+async def _finalize_message_processing(
+    *,
+    payload: Mapping[str, Any],
+    incoming_headers: Mapping[str, str],
+    config: RouterChatbotConfig,
+    processing_started_at: float,
+    last_progress_status: str,
+    status_message_sent: bool,
+    last_status_sent_at: float,
+    typing_stop_event: asyncio.Event | None,
+    typing_task: asyncio.Task[None] | None,
+) -> None:
+    """Send a fallback progress update and stop typing keepalive tasks."""
+    if _is_playground_request(incoming_headers):
+        elapsed = time.perf_counter() - processing_started_at
+        if (
+            not status_message_sent
+            and config.progress_status_after_seconds > 0
+            and elapsed >= config.progress_status_after_seconds
+        ):
+            delivered_status = await _dispatch_progress_status_message(
                 incoming_activity=payload,
                 incoming_headers=incoming_headers,
                 status_text=last_progress_status,
             )
-            if delivered:
-                status_message_sent = True
-                last_status_sent_at = now
-                _log_json(logging.INFO, "router_chatbot.progress_status_sent", status_text=last_progress_status)
-
-        if _is_playground_request(incoming_headers):
-            typing_activity = build_typing_activity(payload)
-            try:
-                delivered_typing = await _dispatch_reply_to_connector(
-                    incoming_activity=payload,
-                    reply_activity=typing_activity,
-                    incoming_headers=incoming_headers,
-                )
-                if delivered_typing:
-                    _log_json(logging.INFO, "router_chatbot.typing_sent")
-            except Exception as exc:
+            if delivered_status:
                 _log_json(
-                    logging.WARNING,
-                    "router_chatbot.typing_delivery_failed",
-                    error_type=type(exc).__name__,
-                    error=str(exc),
+                    logging.INFO,
+                    "router_chatbot.progress_status_sent",
+                    status_text=last_progress_status,
+                    mode="fallback",
                 )
-
-            typing_stop_event = asyncio.Event()
-            typing_task = asyncio.create_task(
-                _typing_keepalive_loop(
-                    incoming_activity=payload,
-                    incoming_headers=incoming_headers,
-                    stop_event=typing_stop_event,
-                    fast_interval_seconds=config.typing_keepalive_fast_seconds,
-                    slow_interval_seconds=config.typing_keepalive_slow_seconds,
-                    slow_after_seconds=config.typing_keepalive_slow_after_seconds,
-                )
-            )
-
-        started = time.perf_counter()
-
-        try:
-            reply = await service.answer(text, on_progress=_on_progress)
-        except Exception as exc:
-            _log_json(
-                logging.ERROR,
-                "router_chatbot.processing_failed",
-                conversation_id=conversation_id,
-                message_id=message_id_text,
-                error_type=type(exc).__name__,
-                error=str(exc),
-            )
-            reply = RouterChatReply(answer=_LOCAL_ERROR_MESSAGE, classifier_status="error")
-        finally:
-            if _is_playground_request(incoming_headers):
-                elapsed = time.perf_counter() - processing_started_at
-                if not status_message_sent and config.progress_status_after_seconds > 0:
-                    if elapsed >= config.progress_status_after_seconds:
-                        delivered_status = await _dispatch_progress_status_message(
-                            incoming_activity=payload,
-                            incoming_headers=incoming_headers,
-                            status_text=last_progress_status,
-                        )
-                        if delivered_status:
-                            _log_json(
-                                logging.INFO,
-                                "router_chatbot.progress_status_sent",
-                                status_text=last_progress_status,
-                                mode="fallback",
-                            )
-            if typing_stop_event is not None:
-                typing_stop_event.set()
-            if typing_task is not None:
-                await typing_task
-
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        _log_json(
-            logging.INFO,
-            "router_chatbot.message_processed",
-            conversation_id=conversation_id,
-            message_id=message_id_text,
-            routed_workflow=reply.routed_workflow,
-            classifier_status=reply.classifier_status,
-            fallback_reason=reply.fallback_reason,
-            elapsed_ms=round(elapsed_ms, 1),
-        )
-
-        response_payload = build_reply_activity(payload, reply)
-        response_headers = {}
-        if reply.routed_workflow:
-            response_headers["x-router-routed-workflow"] = reply.routed_workflow
-        if reply.classifier_status:
-            response_headers["x-router-classifier-status"] = reply.classifier_status
-        _inject_trace_headers(response_headers)
-
-        if _is_playground_request(incoming_headers):
-            try:
-                delivered = await _dispatch_reply_to_connector(
-                    incoming_activity=payload,
-                    reply_activity=response_payload,
-                    incoming_headers=incoming_headers,
-                )
-            except Exception as exc:
-                _log_json(
-                    logging.ERROR,
-                    "router_chatbot.connector_delivery_failed",
-                    error_type=type(exc).__name__,
-                    error=str(exc),
-                )
-                delivered = False
-
-            if delivered:
-                return JSONResponse({"status": "accepted", "delivery": "connector"}, headers=response_headers)
-
-            _log_json(logging.WARNING, "router_chatbot.connector_delivery_fallback_to_response_body")
-
-        return JSONResponse(response_payload, headers=response_headers)
+    if typing_stop_event is not None:
+        typing_stop_event.set()
+    if typing_task is not None:
+        await typing_task
 
 
-async def _messages_health_handler(request: Request) -> JSONResponse:
+def _should_emit_progress_status(
+    incoming_headers: Mapping[str, str],
+    config: RouterChatbotConfig,
+    processing_started_at: float,
+    status_text: str,
+) -> bool:
+    """Return True when a progress update should be emitted for the current request."""
+    if not _is_playground_request(incoming_headers):
+        return False
+    if config.progress_status_after_seconds <= 0:
+        return False
+
+    now = time.perf_counter()
+    elapsed = now - processing_started_at
+    if elapsed < config.progress_status_after_seconds:
+        return False
+
+    return True
+
+
+def _build_response_headers(reply: RouterChatReply) -> dict[str, str]:
+    """Build response headers for routed workflow and classifier metadata."""
+    response_headers: dict[str, str] = {}
+    if reply.routed_workflow:
+        response_headers["x-router-routed-workflow"] = reply.routed_workflow
+    if reply.classifier_status:
+        response_headers["x-router-classifier-status"] = reply.classifier_status
+    return response_headers
+
+
+def _messages_health_handler(request: Request) -> JSONResponse:
     """Return a simple readiness response for Agents Playground wait-on checks."""
 
     config: RouterChatbotConfig = request.app.state.router_chatbot_config

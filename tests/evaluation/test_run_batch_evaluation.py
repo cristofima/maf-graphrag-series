@@ -6,7 +6,12 @@ from typing import Any, cast
 
 import pytest
 
-from evaluation.scripts.run_batch_evaluation import DATASETS_DIR, _compute_route_summary, _resolve_cli_data_path
+from evaluation.scripts.run_batch_evaluation import (
+    DATASETS_DIR,
+    _compute_route_summary,
+    _resolve_cli_data_path,
+    _select_foundry_evaluator_names,
+)
 
 
 class TestResolveCliDataPath:
@@ -29,6 +34,33 @@ class TestResolveCliDataPath:
     def test_rejects_non_jsonl_files(self) -> None:
         with pytest.raises(ValueError, match=r"must point to a \.jsonl file"):
             _resolve_cli_data_path("eval_data.json")
+
+
+class TestSelectFoundryEvaluatorNames:
+    def test_selects_supported_foundry_evaluators(self) -> None:
+        selected = _select_foundry_evaluator_names(
+            {
+                "task_adherence": object(),
+                "intent_resolution": object(),
+                "coherence": object(),
+                "response_completeness": object(),
+                "tool_call_accuracy": object(),
+                "entity_accuracy": object(),
+            }
+        )
+
+        assert selected == {
+            "task_adherence",
+            "intent_resolution",
+            "coherence",
+            "response_completeness",
+            "tool_call_accuracy",
+        }
+
+    def test_ignores_unknown_or_disabled_evaluators(self) -> None:
+        selected = _select_foundry_evaluator_names({"entity_accuracy": object(), "foo": object()})
+
+        assert selected == set()
 
 
 class TestComputeRouteSummary:

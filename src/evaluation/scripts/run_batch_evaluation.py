@@ -49,6 +49,14 @@ ITEM_RESPONSE_TEMPLATE = "{{item.response}}"
 ITEM_GROUND_TRUTH_TEMPLATE = "{{item.ground_truth}}"
 ITEM_TOOL_DEFINITIONS_TEMPLATE = "{{item.tool_definitions}}"
 ITEM_TOOL_CALLS_TEMPLATE = "{{item.tool_calls}}"
+FOUNDRY_EVALUATOR_NAMES = (
+    "task_adherence",
+    "intent_resolution",
+    "relevance",
+    "coherence",
+    "response_completeness",
+    "tool_call_accuracy",
+)
 
 
 def _resolve_cli_data_path(path_value: str | Path) -> Path:
@@ -134,18 +142,7 @@ def run_batch_evaluation(
 
     evaluator_config = _build_evaluator_config(evaluators)
 
-    selected_foundry_evaluators = {
-        name
-        for name in (
-            "task_adherence",
-            "intent_resolution",
-            "relevance",
-            "coherence",
-            "response_completeness",
-            "tool_call_accuracy",
-        )
-        if name in evaluators
-    }
+    selected_foundry_evaluators = _select_foundry_evaluator_names(evaluators)
 
     new_foundry_run: dict[str, object] | None = None
     if use_foundry:
@@ -178,6 +175,11 @@ def run_batch_evaluation(
     _write_report(result, output_dir / "evaluation_report.md")
 
     return result
+
+
+def _select_foundry_evaluator_names(evaluators: Mapping[str, object]) -> set[str]:
+    """Return the subset of built-in evaluators that are active for Foundry publishing."""
+    return {name for name in FOUNDRY_EVALUATOR_NAMES if name in evaluators}
 
 
 def _build_evaluator_config(evaluators: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -222,48 +224,7 @@ def _write_report(result: dict[str, object], output_path: Path) -> None:
         lines.append(f"| {name} | {value} |")
 
     lines.append("")
-
-    if isinstance(route_summary, dict):
-        lines.append("## Router Route Accuracy")
-        lines.append("")
-
-        total_cases = route_summary.get("total_cases")
-        decided_cases = route_summary.get("decided_cases")
-        matched_cases = route_summary.get("matched_cases")
-        route_accuracy = route_summary.get("route_accuracy")
-        flexible_cases = route_summary.get("flexible_cases")
-        flexible_matched_cases = route_summary.get("flexible_matched_cases")
-        flexible_accuracy = route_summary.get("flexible_accuracy")
-
-        lines.append(f"- Total cases: {total_cases}")
-        lines.append(f"- Decided cases: {decided_cases}")
-        lines.append(f"- Matched routes: {matched_cases}")
-        if isinstance(route_accuracy, (int, float)):
-            lines.append(f"- Route accuracy: {route_accuracy:.3f} ({route_accuracy * 100:.1f}%)")
-        if isinstance(flexible_cases, int):
-            lines.append(f"- Flexible cases (multi-valid route): {flexible_cases}")
-        if isinstance(flexible_matched_cases, int):
-            lines.append(f"- Flexible matched cases: {flexible_matched_cases}")
-        if isinstance(flexible_accuracy, (int, float)):
-            lines.append(f"- Flexible accuracy: {flexible_accuracy:.3f} ({flexible_accuracy * 100:.1f}%)")
-        lines.append("")
-
-        by_expected = route_summary.get("by_expected_route")
-        if isinstance(by_expected, dict) and by_expected:
-            lines.append("| Expected Route | Cases | Matched | Accuracy |")
-            lines.append("|----------------|-------|---------|----------|")
-            for expected_route, stats in sorted(by_expected.items()):
-                if not isinstance(stats, dict):
-                    continue
-                cases = stats.get("cases", 0)
-                matched = stats.get("matched", 0)
-                accuracy = stats.get("accuracy")
-                if isinstance(accuracy, (int, float)):
-                    accuracy_text = f"{accuracy:.3f}"
-                else:
-                    accuracy_text = "n/a"
-                lines.append(f"| {expected_route} | {cases} | {matched} | {accuracy_text} |")
-            lines.append("")
+    lines.extend(_build_route_summary_lines(route_summary))
 
     if studio_url:
         lines.append("## Azure AI Foundry Dashboard")
@@ -276,6 +237,64 @@ def _write_report(result: dict[str, object], output_path: Path) -> None:
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
     logger.info("Report written to %s", output_path)
+
+
+def _build_route_summary_lines(route_summary: object) -> list[str]:
+    """Return Markdown lines for a route-summary payload when present."""
+    if not isinstance(route_summary, dict):
+        return []
+
+    lines = ["## Router Route Accuracy", ""]
+    lines.extend(_build_route_accuracy_lines(route_summary))
+    lines.extend(_build_expected_route_lines(route_summary.get("by_expected_route")))
+    return lines
+
+
+def _build_route_accuracy_lines(route_summary: Mapping[str, object]) -> list[str]:
+    """Return the summary statistics section for route accuracy."""
+    lines: list[str] = []
+    total_cases = route_summary.get("total_cases")
+    decided_cases = route_summary.get("decided_cases")
+    matched_cases = route_summary.get("matched_cases")
+    route_accuracy = route_summary.get("route_accuracy")
+    flexible_cases = route_summary.get("flexible_cases")
+    flexible_matched_cases = route_summary.get("flexible_matched_cases")
+    flexible_accuracy = route_summary.get("flexible_accuracy")
+
+    lines.append(f"- Total cases: {total_cases}")
+    lines.append(f"- Decided cases: {decided_cases}")
+    lines.append(f"- Matched routes: {matched_cases}")
+    if isinstance(route_accuracy, (int, float)):
+        lines.append(f"- Route accuracy: {route_accuracy:.3f} ({route_accuracy * 100:.1f}%)")
+    if isinstance(flexible_cases, int):
+        lines.append(f"- Flexible cases (multi-valid route): {flexible_cases}")
+    if isinstance(flexible_matched_cases, int):
+        lines.append(f"- Flexible matched cases: {flexible_matched_cases}")
+    if isinstance(flexible_accuracy, (int, float)):
+        lines.append(f"- Flexible accuracy: {flexible_accuracy:.3f} ({flexible_accuracy * 100:.1f}%)")
+    lines.append("")
+    return lines
+
+
+def _build_expected_route_lines(by_expected: object) -> list[str]:
+    """Return the per-route breakdown section when available."""
+    if not isinstance(by_expected, Mapping) or not by_expected:
+        return []
+
+    lines = ["| Expected Route | Cases | Matched | Accuracy |", "|----------------|-------|---------|----------|"]
+    for expected_route, stats in sorted(by_expected.items()):
+        if not isinstance(stats, Mapping):
+            continue
+        cases = stats.get("cases", 0)
+        matched = stats.get("matched", 0)
+        accuracy = stats.get("accuracy")
+        if isinstance(accuracy, (int, float)):
+            accuracy_text = f"{accuracy:.3f}"
+        else:
+            accuracy_text = "n/a"
+        lines.append(f"| {expected_route} | {cases} | {matched} | {accuracy_text} |")
+    lines.append("")
+    return lines
 
 
 def _extract_response_text(response: object) -> str:
@@ -711,48 +730,37 @@ def _compute_route_summary(data_path: Path) -> dict[str, object] | None:
     flexible_cases = 0
     flexible_matched_cases = 0
     by_expected_route: dict[str, dict[str, int]] = {}
+    saw_route_fields = False
 
     with data_path.open(encoding="utf-8") as file_handle:
         for line in file_handle:
-            stripped = line.strip()
-            if not stripped:
+            row = _coerce_route_summary_row(line)
+            if row is None:
                 continue
 
-            row = json.loads(stripped)
-            if not isinstance(row, dict):
-                continue
-
-            if "route_match" not in row:
-                continue
+            if {"route_match", "expected_routed_workflow", "accepted_routed_workflows"} & row.keys():
+                saw_route_fields = True
 
             route_match = row.get("route_match")
             expected_route = row.get("expected_routed_workflow")
             accepted_routes = row.get("accepted_routed_workflows")
 
             total_cases += 1
+            (
+                total_cases,
+                decided_cases,
+                matched_cases,
+                flexible_cases,
+                flexible_matched_cases,
+            ) = _update_route_summary_counts(
+                route_match=route_match,
+                accepted_routes=accepted_routes,
+                expected_route=expected_route,
+                by_expected_route=by_expected_route,
+                counts=(total_cases, decided_cases, matched_cases, flexible_cases, flexible_matched_cases),
+            )
 
-            if isinstance(route_match, bool):
-                decided_cases += 1
-                if route_match:
-                    matched_cases += 1
-
-            if isinstance(accepted_routes, list):
-                normalized_accepted_routes = [
-                    value for value in accepted_routes if isinstance(value, str) and value.strip()
-                ]
-                if len(normalized_accepted_routes) > 1:
-                    flexible_cases += 1
-                    if route_match is True:
-                        flexible_matched_cases += 1
-
-            if isinstance(expected_route, str) and expected_route.strip():
-                key = expected_route.strip().lower()
-                stats = by_expected_route.setdefault(key, {"cases": 0, "matched": 0})
-                stats["cases"] += 1
-                if route_match is True:
-                    stats["matched"] += 1
-
-    if total_cases == 0:
+    if total_cases == 0 or not saw_route_fields:
         return None
 
     summary: dict[str, object] = {
@@ -778,6 +786,48 @@ def _compute_route_summary(data_path: Path) -> dict[str, object] | None:
         summary["by_expected_route"] = by_route
 
     return summary
+
+
+def _coerce_route_summary_row(line: str) -> dict[str, object] | None:
+    """Parse a single JSONL route-summary row when it contains the expected fields."""
+    stripped = line.strip()
+    if not stripped:
+        return None
+
+    row = json.loads(stripped)
+    return row if isinstance(row, dict) else None
+
+
+def _update_route_summary_counts(
+    *,
+    route_match: object,
+    accepted_routes: object,
+    expected_route: object,
+    by_expected_route: dict[str, dict[str, int]],
+    counts: tuple[int, int, int, int, int],
+) -> tuple[int, int, int, int, int]:
+    """Mutate counters for a single route-summary row."""
+    total_cases, decided_cases, matched_cases, flexible_cases, flexible_matched_cases = counts
+    if isinstance(route_match, bool):
+        decided_cases += 1
+        if route_match:
+            matched_cases += 1
+
+    if isinstance(accepted_routes, list):
+        normalized_accepted_routes = [value for value in accepted_routes if isinstance(value, str) and value.strip()]
+        if len(normalized_accepted_routes) > 1:
+            flexible_cases += 1
+            if route_match is True:
+                flexible_matched_cases += 1
+
+    if isinstance(expected_route, str) and expected_route.strip():
+        key = expected_route.strip().lower()
+        stats = by_expected_route.setdefault(key, {"cases": 0, "matched": 0})
+        stats["cases"] += 1
+        if route_match is True:
+            stats["matched"] += 1
+
+    return total_cases, decided_cases, matched_cases, flexible_cases, flexible_matched_cases
 
 
 if __name__ == "__main__":

@@ -2,6 +2,19 @@ name: Router Evaluation
 
 on:
   workflow_call:
+    outputs:
+      route_match:
+        description: "Matched vs evaluated routes (e.g., 19/20)."
+        value: ${{ jobs.evaluate.outputs.route_match }}
+      route_accuracy:
+        description: "Computed route accuracy as decimal string."
+        value: ${{ jobs.evaluate.outputs.route_accuracy }}
+      route_threshold:
+        description: "Minimum configured route accuracy threshold."
+        value: ${{ jobs.evaluate.outputs.route_threshold }}
+      route_gate_passed:
+        description: "Whether the route-accuracy gate passed."
+        value: ${{ jobs.evaluate.outputs.route_gate_passed }}
     inputs:
       ref:
         description: "Branch, tag, or SHA to evaluate (optional)."
@@ -87,6 +100,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      route_match: ${{ steps.route_metrics.outputs.route_match }}
+      route_accuracy: ${{ steps.route_metrics.outputs.route_accuracy }}
+      route_threshold: ${{ steps.route_metrics.outputs.route_threshold }}
+      route_gate_passed: ${{ steps.route_metrics.outputs.gate_passed }}
 
     env:
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
@@ -130,11 +148,52 @@ jobs:
         if: ${{ always() && env.MCP_PID != '' }}
         run: kill "$MCP_PID"
 
-      - name: Enforce route-accuracy gate
+      - name: Compute route-accuracy metrics
+        id: route_metrics
         env:
           MIN_ROUTE_ACCURACY: ${{ inputs.min_route_accuracy || '0.95' }}
         run: |
-          uv run python -c "import json, pathlib, sys, os; p=pathlib.Path('src/evaluation/datasets/eval_router_data.jsonl'); rows=[json.loads(l) for l in p.read_text(encoding='utf-8').splitlines() if l.strip()]; decided=[r.get('route_match') for r in rows if isinstance(r.get('route_match'), bool)]; ok=sum(1 for v in decided if v); acc=(ok/len(decided)) if decided else 0.0; threshold=float(os.environ['MIN_ROUTE_ACCURACY']); print(f'route_match={ok}/{len(decided)} accuracy={acc:.4f} threshold={threshold:.4f}'); sys.exit(0 if acc>=threshold else 1)"
+          uv run python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          dataset = Path("src/evaluation/datasets/eval_router_data.jsonl")
+          rows = [
+              json.loads(line)
+              for line in dataset.read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          decided = [row.get("route_match") for row in rows if isinstance(row.get("route_match"), bool)]
+          ok = sum(1 for value in decided if value)
+          total = len(decided)
+          accuracy = (ok / total) if total else 0.0
+          threshold = float(os.environ["MIN_ROUTE_ACCURACY"])
+          gate_passed = "true" if accuracy >= threshold else "false"
+
+          print(
+              f"route_match={ok}/{total} "
+              f"accuracy={accuracy:.4f} "
+              f"threshold={threshold:.4f} "
+              f"gate_passed={gate_passed}"
+          )
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"route_match={ok}/{total}\n")
+              fh.write(f"route_accuracy={accuracy:.4f}\n")
+              fh.write(f"route_threshold={threshold:.4f}\n")
+              fh.write(f"gate_passed={gate_passed}\n")
+          PY
+
+      - name: Enforce route-accuracy gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.route_metrics.outputs.gate_passed }}" != "true" ]]; then
+            echo "Route gate failed: match=${{ steps.route_metrics.outputs.route_match }}, accuracy=${{ steps.route_metrics.outputs.route_accuracy }}, threshold=${{ steps.route_metrics.outputs.route_threshold }}"
+            exit 1
+          fi
 
       - name: Run router batch evaluation
         if: ${{ inputs.run_batch_eval && !inputs.publish_foundry }}
@@ -161,3 +220,23 @@ jobs:
             mcp-server.log
           retention-days: 14
           if-no-files-found: warn
+
+      - name: Publish router evaluation summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "## Router Evaluation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \\`${{ inputs.ref != '' && inputs.ref || github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Regenerate data: \\`${{ inputs.regenerate_data }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Batch eval: \\`${{ inputs.run_batch_eval }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Publish Foundry: \\`${{ inputs.publish_foundry }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Red team: \\`${{ inputs.run_redteam }}\\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Route gate: \\`${{ steps.route_metrics.outputs.gate_passed }}\\` (match=${{ steps.route_metrics.outputs.route_match }}, accuracy=${{ steps.route_metrics.outputs.route_accuracy }}, threshold=${{ steps.route_metrics.outputs.route_threshold }})" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f src/evaluation/results/evaluation_report.md ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Evaluation report preview" >> "$GITHUB_STEP_SUMMARY"
+            sed -n '1,40p' src/evaluation/results/evaluation_report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Evaluation report: not generated in this run." >> "$GITHUB_STEP_SUMMARY"
+          fi

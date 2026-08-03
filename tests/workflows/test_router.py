@@ -113,7 +113,8 @@ async def test_router_delegates_to_selected_workflow() -> None:
         result = await workflow.run("Tell me everything about Project Alpha")
 
     assert classifier.calls == ["Tell me everything about Project Alpha"]
-    assert created and created[0].run_queries == ["Tell me everything about Project Alpha"]
+    assert created
+    assert created[0].run_queries == ["Tell me everything about Project Alpha"]
     assert result.workflow_type == WorkflowType.ROUTER
     assert result.answer == "Concurrent answer"
     assert result.steps[0].agent_name == "WorkflowRouter"
@@ -158,7 +159,8 @@ async def test_router_falls_back_to_sequential(monkeypatch: pytest.MonkeyPatch) 
         result = await workflow.run("Fallback question")
 
     assert classifier.calls == ["Fallback question"]
-    assert created and created[0].run_queries == ["Fallback question"]
+    assert created
+    assert created[0].run_queries == ["Fallback question"]
     assert result.steps[0].metadata["routed_workflow"] == WorkflowType.SEQUENTIAL.value
     assert result.steps[0].metadata["classified_workflow"] == WorkflowType.ROUTER.value
     assert result.steps[0].metadata["fallback_reason"] == "missing_confidence_score"
@@ -251,7 +253,8 @@ async def test_router_classifier_failure_falls_back_to_sequential_with_metadata(
     async with workflow:
         result = await workflow.run("Fallback by error")
 
-    assert created and created[0].run_queries == ["Fallback by error"]
+    assert created
+    assert created[0].run_queries == ["Fallback by error"]
     assert classifier.calls == ["Fallback by error"]
     assert result.steps[0].metadata["routed_workflow"] == WorkflowType.SEQUENTIAL.value
     assert result.steps[0].metadata["classified_workflow"] == WorkflowType.SEQUENTIAL.value
@@ -289,7 +292,8 @@ async def test_router_low_confidence_degrades_to_sequential() -> None:
     async with workflow:
         result = await workflow.run("Ambiguous question")
 
-    assert created and created[0].run_queries == ["Ambiguous question"]
+    assert created
+    assert created[0].run_queries == ["Ambiguous question"]
     assert result.steps[0].metadata["classified_workflow"] == WorkflowType.CONCURRENT.value
     assert result.steps[0].metadata["routed_workflow"] == WorkflowType.SEQUENTIAL.value
     assert result.steps[0].metadata["fallback_reason"] == "low_confidence_score"

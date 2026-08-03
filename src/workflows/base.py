@@ -105,10 +105,11 @@ class WorkflowGraphSupport:
         self._executors: list[Any] = []
         self._step_telemetry: list[StepTelemetry] = []
         self._workflow_type: WorkflowType | None = workflow_type
+        self._WORKFLOW_NOT_BUILT_MESSAGE = "Workflow not built. Did you enter the context manager?"
 
     def get_workflow(self) -> Workflow:
         if self._workflow is None:
-            raise RuntimeError("Workflow not built. Did you enter the context manager?")
+            raise RuntimeError(self._WORKFLOW_NOT_BUILT_MESSAGE)
         return self._workflow.clone()
 
     def _set_workflow(self, workflow: Workflow, executors: Sequence[Any] | None = None) -> None:
@@ -150,7 +151,7 @@ class WorkflowGraphSupport:
 
     def to_dict(self) -> dict[str, Any]:
         if self._workflow is None:
-            raise RuntimeError("Workflow not built. Did you enter the context manager?")
+            raise RuntimeError(self._WORKFLOW_NOT_BUILT_MESSAGE)
         return self._workflow.to_dict()
 
     @property
@@ -170,21 +171,32 @@ class WorkflowGraphSupport:
     def create_stream(
         self,
         normalized_query: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
     ) -> tuple[Any, Callable[[], Awaitable[WorkflowResult]]]:
         if self._workflow is None:
-            raise RuntimeError("Workflow not built. Did you enter the context manager?")
+            raise RuntimeError(self._WORKFLOW_NOT_BUILT_MESSAGE)
 
         run_started = time.perf_counter()
-        stream = self._workflow.run(normalized_query, stream=True)
+        stream = self._workflow.run(
+            normalized_query,
+            stream=True,
+            **run_kwargs,
+        )
 
         async def finalize() -> WorkflowResult:
             run_result = await stream.get_final_response()
             total_elapsed = time.perf_counter() - run_started
-            return self.build_workflow_result(
+            result = self.build_workflow_result(
                 normalized_query=normalized_query,
                 run_result=run_result,
                 total_elapsed=total_elapsed,
             )
+            if not include_status_events:
+                for step in result.steps:
+                    step.metadata.pop("status", None)
+            return result
 
         return stream, finalize
 
@@ -216,7 +228,12 @@ class WorkflowGraphSupport:
             candidate = run_result.outputs
             outputs = list(candidate if isinstance(candidate, list) else [candidate])
 
-        answer = ensure_text(outputs[-1]) if outputs else (steps[-1].output if steps else "")
+        if outputs:
+            answer = ensure_text(outputs[-1])
+        elif steps:
+            answer = steps[-1].output
+        else:
+            answer = ""
 
         status_events: list[Any] = []
         if hasattr(run_result, "status_timeline"):
@@ -591,7 +608,11 @@ class MCPWorkflowRunner:
                     )
                     async with self._factory(self._mcp_url) as workflow:
                         normalized_query = workflow.prepare_run(normalized_message)
-                        stream_result = workflow.create_stream(normalized_query)
+                        stream_result = workflow.create_stream(
+                            normalized_query,
+                            include_status_events=include_status_events,
+                            **run_kwargs,
+                        )
                         if inspect.isawaitable(stream_result):
                             stream_obj, finalize = await stream_result
                         else:
@@ -621,7 +642,13 @@ class MCPWorkflowRunner:
             adapter._background_task = stream_task
             return adapter
 
-        return asyncio.create_task(self._execute_workflow(normalized_message))
+        return asyncio.create_task(
+            self._execute_workflow(
+                normalized_message,
+                include_status_events=include_status_events,
+                **run_kwargs,
+            )
+        )
 
     def run_structured(
         self,
@@ -630,14 +657,33 @@ class MCPWorkflowRunner:
         include_status_events: bool = True,
         **run_kwargs: Any,
     ) -> asyncio.Task[WorkflowResult]:
-        return asyncio.create_task(self._execute_workflow(ensure_text(message)))
+        return asyncio.create_task(
+            self._execute_workflow(
+                ensure_text(message),
+                include_status_events=include_status_events,
+                **run_kwargs,
+            )
+        )
 
     def get_executors_list(self) -> list[str]:
         return list(self.executors)
 
-    async def _execute_workflow(self, message: str) -> WorkflowResult:
+    async def _execute_workflow(
+        self,
+        message: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
         async with self._factory(self._mcp_url) as workflow:
-            return cast(WorkflowResult, await workflow.run(message))
+            return cast(
+                WorkflowResult,
+                await workflow.run(
+                    message,
+                    include_status_events=include_status_events,
+                    **run_kwargs,
+                ),
+            )
 
     def to_dict(self) -> dict[str, Any]:
         if self._blueprint_cache is not None:

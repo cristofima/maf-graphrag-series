@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import inspect
 import json
 import logging
 import re
@@ -49,6 +50,18 @@ _CLASSIFIER_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 _ROUTER_HTTP_STATUS = re.compile(r"router HTTP error\s+(\d{3})", re.IGNORECASE)
 _LOW_CONFIDENCE_FALLBACK = WorkflowType.SEQUENTIAL
 _MIN_ROUTING_CONFIDENCE_SCORE = 80
+
+
+def _supports_keyword_argument(callable_obj: Callable[..., Any], keyword: str) -> bool:
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return False
+
+    for parameter in signature.parameters.values():
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+    return keyword in signature.parameters
 
 
 @dataclass(slots=True)
@@ -217,6 +230,9 @@ class RouterWorkflow:
     async def create_stream(
         self,
         normalized_query: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
     ) -> tuple[Any, Callable[[], Awaitable[WorkflowResult]]]:
         """Return a stream adapter and finalize callback for DevUI streaming."""
 
@@ -234,7 +250,10 @@ class RouterWorkflow:
         workflow = await exit_stack.enter_async_context(factory(self._mcp_url))
 
         inner_normalized = workflow.prepare_run(normalized_query)
-        stream, finalize_inner = workflow.create_stream(inner_normalized)
+        stream_kwargs = dict(run_kwargs)
+        if _supports_keyword_argument(workflow.create_stream, "include_status_events"):
+            stream_kwargs["include_status_events"] = include_status_events
+        stream, finalize_inner = workflow.create_stream(inner_normalized, **stream_kwargs)
 
         progress_payload = {
             "stage": "router_delegation",
@@ -265,7 +284,13 @@ class RouterWorkflow:
 
         return stream_with_router_progress(), finalize
 
-    async def run(self, query: str) -> WorkflowResult:
+    async def run(
+        self,
+        query: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
         if not self._entered:
             raise RuntimeError("WorkflowRouter must be used inside an async context manager")
 
@@ -278,7 +303,10 @@ class RouterWorkflow:
         logger.info("Router selected '%s' workflow", decision.value)
 
         async with factory(self._mcp_url) as workflow:
-            inner_result = await workflow.run(normalized_query)
+            delegated_kwargs = dict(run_kwargs)
+            if _supports_keyword_argument(workflow.run, "include_status_events"):
+                delegated_kwargs["include_status_events"] = include_status_events
+            inner_result = await workflow.run(normalized_query, **delegated_kwargs)
 
         return self._combine_results(
             normalized_query=normalized_query,

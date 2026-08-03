@@ -11,11 +11,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, NoReturn, cast
 
+from agent_framework.exceptions import ChatClientException
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 try:  # pragma: no cover - optional runtime dependency guard
     from opentelemetry import trace
-except Exception:  # pragma: no cover - fallback when otel isn't installed
+except ImportError:  # pragma: no cover - fallback when otel isn't installed
     trace = None  # type: ignore[assignment]
 
 from agents.config import AgentConfig, get_agent_config
@@ -152,7 +153,7 @@ def _safe_response_json(response: object) -> Mapping[str, Any] | None:
         return None
     try:
         payload = response.json()
-    except Exception:
+    except (TypeError, ValueError):
         return None
     return payload if isinstance(payload, Mapping) else None
 
@@ -162,7 +163,7 @@ def _safe_response_text(response: object) -> str | None:
         return None
     try:
         text_value = getattr(response, "text", None)
-    except Exception:  # pragma: no cover - defensive
+    except AttributeError:  # pragma: no cover - defensive
         return None
     return text_value if isinstance(text_value, str) else None
 
@@ -314,7 +315,7 @@ class RouterClassifier:
             _span_set_if_present(span, "router.classification.prompt", _clip(prompt))
             try:
                 result = await self._classify_impl(prompt=prompt, start=start)
-            except Exception as error:
+            except RouterClassifierError as error:
                 _span_set_if_present(span, "router.classification.error", str(error).strip())
                 raise
 
@@ -341,7 +342,7 @@ class RouterClassifier:
         )
         try:
             body = await self._call_chat_with_agent_client(prompt)
-        except Exception as chat_error:
+        except (ChatClientException, RuntimeError, TimeoutError, ValueError) as chat_error:
             self._handle_chat_error(chat_error)
 
         raw_text = _extract_chat_response_text(body)
@@ -559,7 +560,7 @@ def _parse_router_payload(raw_text: str) -> tuple[WorkflowType, str | None, int 
 
     try:
         parsed = json.loads(payload)
-    except Exception:  # pragma: no cover - tolerate malformed JSON
+    except json.JSONDecodeError:  # pragma: no cover - tolerate malformed JSON
         logger.debug("Router classifier returned unparseable payload: %s", raw_text)
         return workflow, reason, confidence_score
 

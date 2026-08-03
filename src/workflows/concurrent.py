@@ -330,7 +330,13 @@ class ParallelSearchWorkflow(WorkflowGraphSupport):
         workflow = builder.build()
         self._set_workflow(workflow, [broadcast, entity_executor, themes_executor, synth_executor])
 
-    async def run(self, query: str) -> WorkflowResult:
+    async def run(
+        self,
+        query: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
         workflow = self._workflow
         if workflow is None:
             if not all((self._entity_searcher, self._themes_searcher, self._answer_synthesizer)):
@@ -344,7 +350,11 @@ class ParallelSearchWorkflow(WorkflowGraphSupport):
         logger.info("Executing concurrent workflow via WorkflowBuilder graph")
 
         run_started = time.perf_counter()
-        run_result = await workflow.run(normalized_query, include_status_events=True)
+        run_result = await workflow.run(
+            normalized_query,
+            include_status_events=include_status_events,
+            **run_kwargs,
+        )
         total_elapsed = time.perf_counter() - run_started
         return self.build_workflow_result(
             normalized_query=normalized_query,

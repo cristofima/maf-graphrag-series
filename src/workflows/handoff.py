@@ -502,7 +502,13 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
             [router_executor, entity_executor, themes_executor, composer_executor],
         )
 
-    async def run(self, query: object) -> WorkflowResult:
+    async def run(
+        self,
+        query: object,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
         """Execute the WorkflowBuilder graph and return routed telemetry."""
 
         workflow = self._workflow
@@ -518,7 +524,11 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
         logger.info("Executing handoff workflow via WorkflowBuilder graph")
 
         run_started = time.perf_counter()
-        run_result = await workflow.run(normalized_query, include_status_events=True)
+        run_result = await workflow.run(
+            normalized_query,
+            include_status_events=include_status_events,
+            **run_kwargs,
+        )
         total_elapsed = time.perf_counter() - run_started
         return self.build_workflow_result(
             normalized_query=normalized_query,

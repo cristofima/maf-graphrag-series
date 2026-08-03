@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import pytest
+from agent_framework.exceptions import ChatClientException
 
 from agents.config import AgentConfig
 from agents.router_classifier import RouterClassifier, RouterClassifierError
@@ -31,9 +32,9 @@ class _RouterAPIError(Exception):
         self.response = _ErrorResponse(status, body)
 
 
-class _AFClientError(Exception):
+class _AFClientError(ChatClientException):
     def __init__(self, inner_exception: Exception) -> None:
-        super().__init__(str(inner_exception))
+        super().__init__(str(inner_exception), inner_exception=inner_exception)
         self.inner_exception = inner_exception
 
 
@@ -67,7 +68,7 @@ class _StubAFClient:
         return item
 
 
-@pytest.fixture()
+@pytest.fixture
 def foundry_config() -> AgentConfig:
     return AgentConfig(
         azure_endpoint="https://stub.openai.azure.com",

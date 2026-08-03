@@ -220,7 +220,9 @@ class RouterWorkflow:
         if _TRACER is None:
             return
 
-        classified_workflow = router_outcome.classification.workflow_label or router_outcome.classification.workflow.value
+        classified_workflow = (
+            router_outcome.classification.workflow_label or router_outcome.classification.workflow.value
+        )
 
         with _TRACER.start_as_current_span("router.workflow.select") as span:
             self._span_set_if_present(span, "router.query", self._clip(query))

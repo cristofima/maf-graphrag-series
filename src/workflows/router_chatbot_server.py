@@ -33,10 +33,11 @@ from workflows.base import create_router_workflow
 logger = logging.getLogger(__name__)
 
 _LOCAL_ERROR_MESSAGE = (
-    "I ran into an error while processing your request. "
-    "Please try again with a knowledge-base question."
+    "I ran into an error while processing your request. Please try again with a knowledge-base question."
 )
-_WELCOME_MESSAGE = "Welcome. I can route your question across GraphRAG workflows. Ask me anything about the knowledge base."
+_WELCOME_MESSAGE = (
+    "Welcome. I can route your question across GraphRAG workflows. Ask me anything about the knowledge base."
+)
 _TRACER = trace.get_tracer(__name__)
 _PLAYGROUND_HEADER = "x-ms-agents-playground"
 _CONNECTOR_DELIVERY_TIMEOUT_SECONDS = 15.0
@@ -116,7 +117,9 @@ class RouterChatbotConfig(BaseModel):
             "welcome_message": os.getenv("ROUTER_CHATBOT_WELCOME_MESSAGE", _WELCOME_MESSAGE),
             "typing_keepalive_fast_seconds": os.getenv("ROUTER_CHATBOT_TYPING_KEEPALIVE_SECONDS", "1.2"),
             "typing_keepalive_slow_seconds": os.getenv("ROUTER_CHATBOT_TYPING_KEEPALIVE_SLOW_SECONDS", "3.0"),
-            "typing_keepalive_slow_after_seconds": os.getenv("ROUTER_CHATBOT_TYPING_KEEPALIVE_SLOW_AFTER_SECONDS", "20"),
+            "typing_keepalive_slow_after_seconds": os.getenv(
+                "ROUTER_CHATBOT_TYPING_KEEPALIVE_SLOW_AFTER_SECONDS", "20"
+            ),
             "progress_status_after_seconds": os.getenv("ROUTER_CHATBOT_PROGRESS_STATUS_AFTER_SECONDS", "8"),
             "progress_status_min_interval_seconds": os.getenv(
                 "ROUTER_CHATBOT_PROGRESS_STATUS_MIN_INTERVAL_SECONDS",
@@ -551,7 +554,9 @@ async def _messages_handler(request: Request) -> JSONResponse:
     incoming_headers = dict(request.headers.items())
     incoming_context = extract(incoming_headers)
 
-    with _TRACER.start_as_current_span("router_chatbot.handle_activity", context=incoming_context, kind=SpanKind.SERVER):
+    with _TRACER.start_as_current_span(
+        "router_chatbot.handle_activity", context=incoming_context, kind=SpanKind.SERVER
+    ):
         activity_type = payload.get("type")
         if activity_type in {"conversationUpdate", "installationUpdate"}:
             conversation_id = _conversation_id(payload)
@@ -601,7 +606,9 @@ async def _messages_handler(request: Request) -> JSONResponse:
             info_answer = "This endpoint only supports message activities in local development."
             response_headers = {}
             _inject_trace_headers(response_headers)
-            return JSONResponse(build_reply_activity(payload, RouterChatReply(answer=info_answer)), headers=response_headers)
+            return JSONResponse(
+                build_reply_activity(payload, RouterChatReply(answer=info_answer)), headers=response_headers
+            )
 
         text = extract_activity_text(payload)
         if text is None:

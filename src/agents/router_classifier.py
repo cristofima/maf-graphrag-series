@@ -161,9 +161,10 @@ def _safe_response_text(response: object) -> str | None:
     if not hasattr(response, "text"):
         return None
     try:
-        return response.text
+        text_value = getattr(response, "text", None)
     except Exception:  # pragma: no cover - defensive
         return None
+    return text_value if isinstance(text_value, str) else None
 
 
 def _extract_router_metadata(
@@ -237,17 +238,30 @@ def _extract_routing_fields(metadata: Mapping[str, Any], default_mode: str, defa
     router_info = metadata.get("router") or metadata.get("routing") or metadata.get("route")
 
     if isinstance(router_info, Mapping):
-        mode_value = _coalesce_non_empty_str(router_info.get("mode"), router_info.get("policy"), fallback="")
-        subset_value = _coalesce_non_empty_str(router_info.get("subset"), router_info.get("profile"), fallback="")
+        mode_value = _coalesce_non_empty_str(
+            _mapping_str_value(router_info, "mode"),
+            _mapping_str_value(router_info, "policy"),
+            fallback="",
+        )
+        subset_value = _coalesce_non_empty_str(
+            _mapping_str_value(router_info, "subset"),
+            _mapping_str_value(router_info, "profile"),
+            fallback="",
+        )
     else:
-        mode_value = metadata.get("mode") if isinstance(metadata.get("mode"), str) else ""
-        subset_value = metadata.get("subset") if isinstance(metadata.get("subset"), str) else ""
+        mode_value = _mapping_str_value(metadata, "mode") or ""
+        subset_value = _mapping_str_value(metadata, "subset") or ""
 
     if mode_value:
         router_mode = mode_value
     if subset_value:
         router_subset = subset_value
     return router_mode, router_subset
+
+
+def _mapping_str_value(mapping: Mapping[str, Any], key: str) -> str | None:
+    value = mapping.get(key)
+    return value if isinstance(value, str) else None
 
 
 class RouterClassifier:

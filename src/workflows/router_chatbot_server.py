@@ -680,20 +680,18 @@ async def _handle_message_activity(
     typing_stop_event: asyncio.Event | None = None
     status_message_sent = False
     last_progress_status = _DEFAULT_PROGRESS_STATUS
-    last_status_sent_at = 0.0
     processing_started_at = time.perf_counter()
 
     async def _on_progress(status_text: str) -> None:
-        nonlocal last_progress_status, last_status_sent_at, status_message_sent
+        nonlocal last_progress_status, status_message_sent
 
         if not status_text.strip():
             return
 
         last_progress_status = status_text.strip()
-        if not _should_emit_progress_status(incoming_headers, config, processing_started_at, status_text):
+        if not _should_emit_progress_status(incoming_headers, config, processing_started_at):
             return
 
-        now = time.perf_counter()
         delivered = await _dispatch_progress_status_message(
             incoming_activity=payload,
             incoming_headers=incoming_headers,
@@ -701,7 +699,6 @@ async def _handle_message_activity(
         )
         if delivered:
             status_message_sent = True
-            last_status_sent_at = now
             _log_json(logging.INFO, "router_chatbot.progress_status_sent", status_text=last_progress_status)
 
     typing_stop_event, typing_task = await _start_playground_typing(payload, incoming_headers, config)
@@ -728,7 +725,6 @@ async def _handle_message_activity(
             processing_started_at=processing_started_at,
             last_progress_status=last_progress_status,
             status_message_sent=status_message_sent,
-            last_status_sent_at=last_status_sent_at,
             typing_stop_event=typing_stop_event,
             typing_task=typing_task,
         )
@@ -821,7 +817,6 @@ async def _finalize_message_processing(
     processing_started_at: float,
     last_progress_status: str,
     status_message_sent: bool,
-    last_status_sent_at: float,
     typing_stop_event: asyncio.Event | None,
     typing_task: asyncio.Task[None] | None,
 ) -> None:
@@ -855,7 +850,6 @@ def _should_emit_progress_status(
     incoming_headers: Mapping[str, str],
     config: RouterChatbotConfig,
     processing_started_at: float,
-    status_text: str,
 ) -> bool:
     """Return True when a progress update should be emitted for the current request."""
     if not _is_playground_request(incoming_headers):

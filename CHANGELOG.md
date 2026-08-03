@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-08-03
+
+### Added
+
+- **Router-first runtime**: Added a production router runtime with `RouterClassifier` and `RouterWorkflow`, including retry, fallback, and confidence-based routing behavior. ([19dc6c4](https://github.com/cristofima/maf-graphrag-series/commit/19dc6c4))
+- **Out-of-context routing**: Introduced an out-of-context workflow path and a dedicated chatbot endpoint for router validation in the Agents Playground. ([5b4aed6](https://github.com/cristofima/maf-graphrag-series/commit/5b4aed6))
+- **Evaluation workflows**: Added router evaluation pipelines and merge-gate workflows with local, Foundry, and red-team evaluation modes. ([4b9bfd3](https://github.com/cristofima/maf-graphrag-series/commit/4b9bfd3))
+
+### Changed
+
+- **Workflow behavior**: Streamlined progress/status handling in workflow message processing and improved router workflow event handling and metadata extraction. ([e4b48be](https://github.com/cristofima/maf-graphrag-series/commit/e4b48be), [c9a5b27](https://github.com/cristofima/maf-graphrag-series/commit/c9a5b27))
+- **Developer experience**: Updated the project docs and examples to reflect the router-first architecture and the new DevUI entrypoints. ([ec658fe](https://github.com/cristofima/maf-graphrag-series/commit/ec658fe), [a8e8fca](https://github.com/cristofima/maf-graphrag-series/commit/a8e8fca), [7951811](https://github.com/cristofima/maf-graphrag-series/commit/7951811))
+
+### Fixed
+
+- **Reliability improvements**: Improved error handling in workflow execution and response processing, and normalized confidence score handling for router decisions. ([e154b45](https://github.com/cristofima/maf-graphrag-series/commit/e154b45), [41f0f95](https://github.com/cristofima/maf-graphrag-series/commit/41f0f95), [9157583](https://github.com/cristofima/maf-graphrag-series/commit/9157583), [3b754f1](https://github.com/cristofima/maf-graphrag-series/commit/3b754f1))
+
+### Documentation
+
+- Added and updated router integration, evaluation governance, and release notes documentation for the new workflow stack. ([7e4748d](https://github.com/cristofima/maf-graphrag-series/commit/7e4748d), [66cb27d](https://github.com/cristofima/maf-graphrag-series/commit/66cb27d))
+
+### Internal
+
+- Refined CI and release automation, including workflow permission alignment, Node runtime updates, and branch trigger coverage for feature and refactor branches. ([af9b7a7](https://github.com/cristofima/maf-graphrag-series/commit/af9b7a7), [f17a6d3](https://github.com/cristofima/maf-graphrag-series/commit/f17a6d3), [5d57f57](https://github.com/cristofima/maf-graphrag-series/commit/5d57f57))
+
+---
+
 ## [4.0.0] - 2026-07-22
 
 ### ⚠️ Breaking

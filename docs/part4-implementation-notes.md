@@ -1,5 +1,8 @@
 # Part 4 Implementation Notes: Workflow Patterns
 
+> Historical snapshot for article Part 4.
+> Current runtime surfaces: [../README.md](../README.md), [../src/agents/README.md](../src/agents/README.md), and [../src/workflows/README.md](../src/workflows/README.md).
+
 ## Overview
 
 Part 4 introduces three multi-agent workflow patterns built on top of the single Knowledge Captain agent from Part 3. All workflows connect to the same GraphRAG MCP Server via `MCPStreamableHTTPTool` and share the same underlying `core/` search functions.
@@ -20,7 +23,7 @@ Part 4 introduces three multi-agent workflow patterns built on top of the single
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│  run_workflow.py  (CLI entry point)                                  │
+│  run_devui.py  (interactive entry point)                             │
 │  workflow_type = sequential | concurrent | handoff                   │
 └───────────────────────────┬──────────────────────────────────────────┘
                             │
@@ -70,7 +73,7 @@ Part 4 introduces three multi-agent workflow patterns built on top of the single
 | [workflows/concurrent.py](../workflows/concurrent.py) | `ParallelSearchWorkflow` — asyncio.gather + synthesis                  |
 | [workflows/handoff.py](../workflows/handoff.py)       | `ExpertHandoffWorkflow` — Router → specialist                          |
 | [workflows/README.md](../workflows/README.md)         | Module documentation                                                   |
-| [run_workflow.py](../run_workflow.py)                 | Interactive CLI demo                                                   |
+| [run_devui.py](../run_devui.py)                       | Interactive DevUI demo (router + workflow patterns)                    |
 
 ---
 
@@ -313,7 +316,7 @@ Several optimizations were applied to keep workflow execution practical:
 
 4. **Independent MCP cleanup** (`concurrent.py`): The `__aexit__` method closes each `MCPStreamableHTTPTool` independently with `try/except` to prevent one cleanup failure from cascading.
 
-5. **Logging suppression**: `run_workflow.py` sets noisy loggers (`agent_framework`, `graphrag.query`, `asyncio`) to ERROR/CRITICAL level to suppress non-fatal warnings (cancel scope cleanup, token limit, JSON decode).
+5. **Logging suppression**: current interactive runs rely on shared logging configuration in the runtime modules; for workflow-specific guidance, see [../src/workflows/README.md](../src/workflows/README.md).
 
 6. **Multi-provider LLM client**: All workflows use `create_azure_client()` (alias for `create_client()`) from Part 3, supporting Azure OpenAI, GitHub Models, OpenAI, and Ollama. This is transparent to the workflow code — only the `API_HOST` env var changes.
 

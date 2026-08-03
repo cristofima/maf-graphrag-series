@@ -1,5 +1,8 @@
 # Part 3 Implementation Notes: Supervisor Agent Pattern
 
+> Historical snapshot for article Part 3.
+> Current runtime surfaces: [../README.md](../README.md), [../src/agents/README.md](../src/agents/README.md), and [../src/workflows/README.md](../src/workflows/README.md).
+
 ## Overview
 
 Part 3 implements the **Knowledge Captain** agent pattern using Microsoft Agent Framework with the MCP Server from Part 2. The agent queries the GraphRAG knowledge graph via `MCPStreamableHTTPTool`, with GPT-4o deciding which tool to use based on its system prompt.
@@ -86,7 +89,7 @@ For tutorial scope, GPT-4o + System Prompt is sufficient. SLM routing is a produ
 | [agents/supervisor.py](../agents/supervisor.py) | Agent creation, multi-provider client, research delegate        |
 | [agents/tools.py](../agents/tools.py)           | Local `@tool` functions (format_as_table, extract_key_entities) |
 | [agents/README.md](../agents/README.md)         | Module documentation                                            |
-| [run_agent.py](../run_agent.py)                 | Interactive CLI for Knowledge Captain                           |
+| [run_devui.py](../run_devui.py)                 | Interactive DevUI surface for Knowledge Captain and workflows   |
 
 ### Key Components
 
@@ -369,7 +372,7 @@ The Agent Framework's `MCPStreamableHTTPTool` specifically requires Streamable H
 ### Interactive CLI
 
 ```powershell
-uv run python run_agent.py
+uv run python run_devui.py
 ```
 
 Commands:
@@ -416,7 +419,7 @@ async with agent:
 uv run python run_mcp_server.py
 
 # Terminal 2: Run agent
-uv run python run_agent.py
+uv run python run_devui.py
 ```
 
 Example session:
@@ -492,5 +495,3 @@ Key imports:
 | Local tools           | Not available                     | `@tool(approval_mode="never_require")` decorator       |
 | `Message` constructor | `items=[...]` parameter           | `text="..."` parameter                                 |
 | MCP tool naming       | Single name per process           | `tool_name_prefix` to avoid duplicate names            |
-
-

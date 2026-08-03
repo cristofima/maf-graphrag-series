@@ -191,15 +191,35 @@ adds real value beyond DevUI visibility.
 # Prerequisites
 uv run python run_mcp_server.py   # Terminal 1
 
-# Run workflow demo CLI
-uv run python run_workflow.py     # Terminal 2 (router is the default option)
-
-# Or try a specific workflow
-uv run python run_workflow.py router     "Who leads Project Alpha?"
-uv run python run_workflow.py sequential "What are the key projects?"
-uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
-uv run python run_workflow.py handoff    "What are the main strategic initiatives?"
+# Run DevUI as the supported interactive surface
+uv run python run_devui.py
 ```
+
+## Prompt Bank (kept from retired workflow CLI)
+
+### Router prompts
+
+- "Who leads Project Alpha and how does it support TechVenture's strategy?"
+- "Summarize the major initiatives and name the teams delivering them."
+- "Give me both entity details and overarching themes for Project Beta."
+
+### Sequential prompts
+
+- "What are the leadership structure, technology choices, and strategic goals of Project Alpha?"
+- "Give me a comprehensive overview of TechVenture Inc's engineering practices and team structure."
+- "How does Project Beta connect to the broader organizational strategy?"
+
+### Concurrent prompts
+
+- "What are the main projects and who leads them?"
+- "Who are the technical leads and what technologies does TechVenture focus on?"
+- "Describe the team structure and the strategic initiatives at TechVenture Inc."
+
+### Handoff prompts
+
+- "Who leads Project Alpha?"
+- "What are the main strategic initiatives at TechVenture Inc?"
+- "Tell me about the technology stack used across all projects."
 
 ## Programmatic Usage
 
@@ -280,7 +300,7 @@ class WorkflowResult:
 ## Logging and Observability
 
 - Per-step workflow logs are emitted under workflow-specific logger names (`workflows.router`, `workflows.handoff`, `workflows.sequential`, `workflows.concurrent`) to keep attribution clear.
-- Set `WORKFLOW_STEP_LOGS=true` to enable step-level logs in CLI and DevUI runs.
+- Set `WORKFLOW_STEP_LOGS=true` to enable step-level logs in DevUI runs.
 - Entry points write structured logs under the `logs/` folder with daily filenames.
 
 Each `WorkflowStep` contains:
@@ -297,7 +317,7 @@ class WorkflowStep:
 
 ## Live Output Examples
 
-### Handoff: `uv run python run_workflow.py handoff "Who leads Project Alpha?"`
+### Handoff workflow sample output
 
 ```
 Step 1: Router — classifying query...
@@ -314,7 +334,7 @@ Step 2: EntityExpert completed (7.4s)
 Total: 8.8s · 2 steps
 ```
 
-### Sequential: `uv run python run_workflow.py sequential "What are the key projects and their tech stack?"`
+### Sequential workflow sample output
 
 ```
 Step 1/3: QueryAnalyzer — decomposing query...     (1.9s)
@@ -331,7 +351,7 @@ Step 3/3: ReportWriter — synthesizing report...     (13.3s)
 Total: 83.7s · 3 steps
 ```
 
-### Concurrent: `uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the themes?"`
+### Concurrent workflow sample output
 
 ```
 Steps 1+2: EntitySearcher + ThemesSearcher running in parallel... (103.9s)

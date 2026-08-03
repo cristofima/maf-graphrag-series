@@ -87,22 +87,14 @@ AZURE_OPENAI_ROUTER_SUBSET=default
 MCP_SERVER_URL=http://127.0.0.1:8011/mcp
 ```
 
-### Running the Agent
+### Running the Agent Surface
 
 ```bash
-# Interactive CLI mode
-uv run python run_agent.py
-
-# Single query
-uv run python run_agent.py "Who leads Project Alpha?"
+# Interactive surface (DevUI)
+uv run python run_devui.py
 ```
 
-### CLI Commands
-
-| Command         | Description                |
-| --------------- | -------------------------- |
-| `clear`         | Clear conversation history |
-| `quit` / `exit` | Exit the chat              |
+For direct programmatic usage (without DevUI), use `KnowledgeCaptainRunner` as shown below.
 
 ## Usage
 

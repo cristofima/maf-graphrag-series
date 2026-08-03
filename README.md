@@ -14,16 +14,17 @@ Building Knowledge Graphs with Microsoft GraphRAG and Azure OpenAI.
 
 This repository contains the code for the **MAF + GraphRAG** article series, demonstrating enterprise-grade knowledge graph integration with Microsoft GraphRAG and Azure OpenAI.
 
-| Part | Title                    | Status      | Folder/Module     |
-| ---- | ------------------------ | ----------- | ----------------- |
-| 1    | GraphRAG Fundamentals    | ✅ Complete | `src/core/`       |
-| 2    | GraphRAG MCP Server      | ✅ Complete | `src/mcp_server/` |
-| 3    | Supervisor Agent Pattern | ✅ Complete | `src/agents/`     |
-| 4    | Workflow Patterns        | ✅ Complete | `src/workflows/`  |
-| 5    | Agent Evaluation         | ✅ Complete | `src/evaluation/` |
-| 6    | Human-in-the-Loop        | ⏳ Planned  | —                 |
-| 7    | Tool Registry            | ⏳ Planned  | —                 |
-| 8    | Production Deployment    | ⏳ Planned  | —                 |
+| Part | Title                    | Status         | Folder/Module                                      |
+| ---- | ------------------------ | -------------- | -------------------------------------------------- |
+| 1    | GraphRAG Fundamentals    | ✅ Complete    | `src/core/`                                        |
+| 2    | GraphRAG MCP Server      | ✅ Complete    | `src/mcp_server/`                                  |
+| 3    | Supervisor Agent Pattern | ✅ Complete    | `src/agents/`                                      |
+| 4    | Workflow Patterns        | ✅ Complete    | `src/workflows/`                                   |
+| 5    | Agent Evaluation         | ✅ Complete    | `src/evaluation/`                                  |
+| 6    | Router SLM Integration   | 🚧 In-Progress | `src/agents/`, `src/workflows/`, `src/evaluation/` |
+| 7    | Human-in-the-Loop        | ⏳ Planned     | —                                                  |
+| 8    | Tool Registry            | ⏳ Planned     | —                                                  |
+| 9    | Production Deployment    | ⏳ Planned     | —                                                  |
 
 ## Part 1: GraphRAG Fundamentals
 
@@ -236,7 +237,7 @@ Build the Knowledge Captain: a conversational agent that connects to the GraphRA
 
 ```mermaid
 flowchart TD
-    A["run_agent.py<br/>CLI entry point · Rich"]
+    A["run_devui.py<br/>Interactive surface · Rich UI"]
     B["agents/<br/>KnowledgeCaptainRunner · create_client()<br/>MCPStreamableHTTPTool · Middleware Pipeline<br/>Local @tools · Research Delegate"]
     C["mcp_server/<br/>FastMCP 3.1.x · port 8011<br/>local_search<br/>global_search<br/>list_entities · get_entity"]
     D["core/<br/>GraphRAG 3.0.x<br/>147 entities<br/>263 relationships<br/>32 communities"]
@@ -261,8 +262,8 @@ uv sync --dev
 # Start MCP server (Terminal 1)
 uv run python run_mcp_server.py
 
-# Interactive agent (Terminal 2)
-uv run python run_agent.py
+# Interactive surface (Terminal 2)
+uv run python run_devui.py
 ```
 
 ### Key Pattern: System Prompt Routing
@@ -331,9 +332,8 @@ maf-graphrag-series/
 ├── uv.lock                    # Locked dependency versions
 ├── settings.yaml              # GraphRAG configuration
 ├── .env.example
-├── run_agent.py               # Interactive agent CLI (Part 3)
+├── run_devui.py               # DevUI entry point (interactive exploration)
 ├── run_mcp_server.py          # Start MCP server (Part 2)
-├── run_workflow.py            # Multi-agent workflow CLI (Part 4)
 ├── input/
 │   ├── README.md              # Document descriptions
 │   └── documents/             # 10 sample interconnected documents
@@ -467,15 +467,12 @@ Extend the single Knowledge Captain agent with multi-agent workflow patterns tha
 # Prerequisites (same as Part 3)
 uv run python run_mcp_server.py          # Terminal 1
 
-# Interactive workflow selector
-uv run python run_workflow.py            # Terminal 2
-
-# Direct single-query mode
-uv run python run_workflow.py router     "Summarize the major initiatives for TechVenture"
-uv run python run_workflow.py sequential "What are the key projects and their tech stack?"
-uv run python run_workflow.py concurrent "Who leads Project Alpha and what are the main themes?"
-uv run python run_workflow.py handoff    "Who leads Project Alpha?"
+# DevUI workflow exploration
+uv run python run_devui.py               # Terminal 2
 ```
+
+Prompt examples for router/sequential/concurrent/handoff are maintained in
+[src/workflows/README.md](src/workflows/README.md).
 
 ### Architecture
 

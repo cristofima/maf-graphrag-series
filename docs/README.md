@@ -6,6 +6,13 @@ This directory contains detailed documentation, lessons learned, and reference m
 
 ### Implementation Notes (by Part)
 
+Implementation notes are historical snapshots of each article part. For current
+runtime entry points and active usage, use:
+
+- [../README.md](../README.md)
+- [../src/agents/README.md](../src/agents/README.md)
+- [../src/workflows/README.md](../src/workflows/README.md)
+
 | Part | Notes                                                            | Description                                         |
 | ---- | ---------------------------------------------------------------- | --------------------------------------------------- |
 | 1    | [part1-implementation-notes.md](./part1-implementation-notes.md) | GraphRAG setup, Azure config, version fixes         |
@@ -14,7 +21,9 @@ This directory contains detailed documentation, lessons learned, and reference m
 | 4    | [part4-implementation-notes.md](./part4-implementation-notes.md) | Workflow Patterns (Sequential, Concurrent, Handoff) |
 | 5    | [part5-implementation-notes.md](./part5-implementation-notes.md) | Monitoring, Evaluation & Safety                     |
 | 6    | [part6-implementation-notes.md](./part6-implementation-notes.md) | Production Router Integration                       |
-| 7+   | _Coming soon_                                                    | Human-in-the-Loop, Tool Registry, Production        |
+| 7    | _Coming soon_                                                    | Human-in-the-Loop                                   |
+| 8    | _Coming soon_                                                    | Tool Registry                                       |
+| 9    | _Coming soon_                                                    | Production Deployment                               |
 
 ### Reference Documents
 
@@ -37,10 +46,11 @@ These documents serve as:
 
 ## Contributing
 
-As this series progresses through Part 7-8, additional documentation will be added:
+As this series progresses through Part 7-9, additional documentation will be added:
 
-- Part 7: Tool Registry
-- Part 8: Production Deployment
+- Part 7: Human-in-the-Loop
+- Part 8: Tool Registry
+- Part 9: Production Deployment
 
 ## Related Resources
 
@@ -50,6 +60,6 @@ As this series progresses through Part 7-8, additional documentation will be add
 
 ---
 
-**Series**: GraphRAG + Azure OpenAI (8-Part Series)
+**Series**: GraphRAG + Azure OpenAI (9-Part Series)
 **Parts**: 1-6 complete (GraphRAG Fundamentals, MCP Server, Supervisor Agent, Workflow Patterns, Agent Evaluation, Router Integration)
 **Author**: Cristopher Coronado

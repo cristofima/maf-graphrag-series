@@ -19,7 +19,7 @@ Part 6 migrates the tutorial series to a production-ready routing posture by rel
 flowchart TD
 	A["src/agents/config.py\nFoundry-only AgentConfig"] --> B["src/agents/router_classifier.py\nAF OpenAI client classifier"]
 	B --> C["src/workflows/router.py\nretry, fallback, confidence policy"]
-	C --> D["run_workflow.py\nrouter-first CLI surface"]
+	C --> D["run_devui.py\nrouter-first interactive surface"]
 	E[".env.example\nrouter + logging env samples"] --> A
 	F["tests/agents/test_router_classifier.py\nAF-path classifier coverage"] --> B
 	G["tests/workflows/test_router.py\nrouter policy coverage"] --> C
@@ -63,9 +63,9 @@ The classifier returns a `RouterClassification` dataclass consumed by [src/workf
 
 ---
 
-## Workflow CLI Alignment
+## Workflow Surface Alignment
 
-`uv run python run_workflow.py` now advertises the router workflow as the production surface. The CLI description clarifies when to use sequential or concurrent patterns for debugging while promoting router as the default entry point for integrated deployments.
+`uv run python run_devui.py` is the interactive runtime surface. Router remains the production default workflow, while sequential and concurrent patterns are retained for debugging and targeted validation.
 
 ---
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from agent_framework import WorkflowBuilder, WorkflowContext, handler
 
 from agents.supervisor import create_azure_client
+from core.classification_utils import normalize_confidence_score
 from workflows.base import (
     InstrumentedAgentExecutor,
     MCPWorkflowBase,
@@ -183,31 +184,6 @@ def _normalize_query_text(value: object) -> str:
     return ensure_text(value)
 
 
-def _normalize_route_confidence_score(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if 0 <= value <= 100 else None
-    if isinstance(value, float):
-        integer = int(value)
-        return integer if integer == value and 0 <= integer <= 100 else None
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped.isdigit():
-            score = int(stripped)
-            return score if 0 <= score <= 100 else None
-
-        # Backward compatibility for legacy values.
-        lowered = stripped.lower()
-        if lowered == "high":
-            return 90
-        if lowered == "medium":
-            return 70
-        if lowered == "low":
-            return 40
-    return None
-
-
 @dataclass(slots=True)
 class RouteClassification:
     """Parsed handoff router output with optional confidence signals."""
@@ -231,9 +207,9 @@ def _parse_route_classification(router_output: str) -> RouteClassification:
 
     route_value = parsed.get("route")
     decision = _parse_route(route_value if isinstance(route_value, str) else router_output)
-    confidence_score = _normalize_route_confidence_score(parsed.get("confidence_score"))
+    confidence_score = normalize_confidence_score(parsed.get("confidence_score"))
     if confidence_score is None:
-        confidence_score = _normalize_route_confidence_score(parsed.get("confidence"))
+        confidence_score = normalize_confidence_score(parsed.get("confidence"))
     raw_reason = parsed.get("reason")
     reason = raw_reason.strip() if isinstance(raw_reason, str) and raw_reason.strip() else None
     return RouteClassification(decision=decision, confidence_score=confidence_score, reason=reason)

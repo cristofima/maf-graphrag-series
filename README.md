@@ -353,6 +353,7 @@ maf-graphrag-series/
 ├── src/                       # Application source code
 │   ├── core/                  # Part 1: Python API for GraphRAG 3.0.x
 │   │   ├── __init__.py        # Module exports
+│   │   ├── classification_utils.py # Shared confidence parsing utilities
 │   │   ├── config.py          # Configuration loading
 │   │   ├── data_loader.py     # Parquet file loading
 │   │   ├── indexer.py         # Build knowledge graph

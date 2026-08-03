@@ -59,15 +59,16 @@ uv run python -m core.example "What are the main projects?" --type global
 
 ## Module Structure
 
-| File             | Purpose                                              |
-| ---------------- | ---------------------------------------------------- |
-| `__init__.py`    | Module exports                                       |
-| `config.py`      | Load GraphRagConfig, validate output files           |
-| `data_loader.py` | Load Parquet files into GraphData dataclass          |
-| `indexer.py`     | Build knowledge graph from documents                 |
-| `search.py`      | Async search functions (local, global, drift, basic) |
-| `index.py`       | CLI for indexing                                     |
-| `example.py`     | CLI for querying                                     |
+| File                      | Purpose                                                               |
+| ------------------------- | --------------------------------------------------------------------- |
+| `__init__.py`             | Module exports                                                        |
+| `classification_utils.py` | Shared parsing utilities (for example confidence score normalization) |
+| `config.py`               | Load GraphRagConfig, validate output files                            |
+| `data_loader.py`          | Load Parquet files into GraphData dataclass                           |
+| `indexer.py`              | Build knowledge graph from documents                                  |
+| `search.py`               | Async search functions (local, global, drift, basic)                  |
+| `index.py`                | CLI for indexing                                                      |
+| `example.py`              | CLI for querying                                                      |
 
 ## API Reference
 
@@ -126,6 +127,18 @@ response, context = await drift_search(query, data)
 response, context = await basic_search(query, data)
 ```
 
+### Shared Utilities
+
+```python
+from core.classification_utils import normalize_confidence_score
+
+normalize_confidence_score(92)       # 92
+normalize_confidence_score("high")   # 90
+normalize_confidence_score("invalid")  # None
+```
+
+`normalize_confidence_score` centralizes confidence parsing to keep routing logic consistent across agents and workflows.
+
 ## GraphData Fields
 
 | Field               | Type              | Description                                           |
@@ -183,4 +196,3 @@ output/
 - pandas ^2.3.0, pyarrow ^22.0.0
 - rich ^14.0.0
 - Azure OpenAI credentials in `.env`
-

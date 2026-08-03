@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover - fallback when otel isn't installed
     trace = None  # type: ignore[assignment]
 
 from agents.config import AgentConfig, get_agent_config
+from core.classification_utils import normalize_confidence_score
 from workflows.base import WorkflowType
 
 logger = logging.getLogger(__name__)
@@ -94,41 +95,15 @@ def _strip_fences(payload: str) -> str:
     return payload
 
 
-def _normalize_confidence_score(value: Any) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if 0 <= value <= 100 else None
-    if isinstance(value, float):
-        integer = int(value)
-        return integer if integer == value and 0 <= integer <= 100 else None
-    if isinstance(value, str):
-        stripped = value.strip()
-        if stripped.isdigit():
-            score = int(stripped)
-            return score if 0 <= score <= 100 else None
-
-        # Backward compatibility for legacy prompts/tests.
-        lowered = stripped.lower()
-        if lowered == "high":
-            return 90
-        if lowered == "medium":
-            return 70
-        if lowered == "low":
-            return 40
-    return None
-
-
 def _parse_workflow(value: Any) -> WorkflowType:
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {WorkflowType.SEQUENTIAL.value, "sequential"}:
-            return WorkflowType.SEQUENTIAL
-        if normalized in {WorkflowType.CONCURRENT.value, "concurrent"}:
-            return WorkflowType.CONCURRENT
-        if normalized in {WorkflowType.HANDOFF.value, "handoff"}:
-            return WorkflowType.HANDOFF
-    return WorkflowType.SEQUENTIAL
+    if not isinstance(value, str):
+        return WorkflowType.SEQUENTIAL
+    workflow_map = {
+        "sequential": WorkflowType.SEQUENTIAL,
+        "concurrent": WorkflowType.CONCURRENT,
+        "handoff": WorkflowType.HANDOFF,
+    }
+    return workflow_map.get(value.strip().lower(), WorkflowType.SEQUENTIAL)
 
 
 def _map_http_error_reason(status: int | None) -> str:
@@ -151,30 +126,44 @@ def _is_version_not_supported(error: Exception) -> bool:
     if "api version not supported" in lowered or "unsupported api version" in lowered:
         return True
 
-    response = getattr(error, "response", None)
-    if response is None:
-        return False
-
-    detail: str | None = None
-    if hasattr(response, "json"):
-        try:
-            payload = response.json()
-        except Exception:
-            payload = None
-        if isinstance(payload, Mapping):
-            error_body = payload.get("error")
-            if isinstance(error_body, Mapping):
-                candidate = error_body.get("message") or error_body.get("detail")
-                if isinstance(candidate, str):
-                    detail = candidate
-    if detail is None and hasattr(response, "text"):
-        try:
-            detail = response.text
-        except Exception:  # pragma: no cover - defensive
-            detail = None
+    detail = _extract_response_error_detail(getattr(error, "response", None))
     if detail is None:
         return False
     return "api version not supported" in detail.lower() or "unsupported api version" in detail.lower()
+
+
+def _extract_response_error_detail(response: object | None) -> str | None:
+    if response is None:
+        return None
+
+    payload = _safe_response_json(response)
+    if isinstance(payload, Mapping):
+        error_body = payload.get("error")
+        if isinstance(error_body, Mapping):
+            candidate = error_body.get("message") or error_body.get("detail")
+            if isinstance(candidate, str):
+                return candidate
+
+    return _safe_response_text(response)
+
+
+def _safe_response_json(response: object) -> Mapping[str, Any] | None:
+    if not hasattr(response, "json"):
+        return None
+    try:
+        payload = response.json()
+    except Exception:
+        return None
+    return payload if isinstance(payload, Mapping) else None
+
+
+def _safe_response_text(response: object) -> str | None:
+    if not hasattr(response, "text"):
+        return None
+    try:
+        return response.text
+    except Exception:  # pragma: no cover - defensive
+        return None
 
 
 def _extract_router_metadata(
@@ -197,56 +186,68 @@ def _extract_router_metadata(
         metadata (if present) with configuration defaults.
     """
 
-    def _coerce_mapping(candidate: object) -> Mapping[str, Any] | None:
-        if isinstance(candidate, Mapping):
-            return candidate
-        return None
-
-    def _lookup_metadata(obj: object | None) -> Mapping[str, Any] | None:
-        if obj is None:
-            return None
-        if isinstance(obj, Mapping):
-            # Foundry responses expose metadata at the top level.
-            candidate = obj.get("metadata") if "metadata" in obj else obj
-            return _coerce_mapping(candidate)
-        for attr in ("metadata", "extra_metadata", "response_metadata"):
-            meta = getattr(obj, attr, None)
-            mapping = _coerce_mapping(meta)
-            if mapping:
-                return mapping
-        response = getattr(obj, "response", None)
-        if response is not None:
-            return _lookup_metadata(response)
-        return None
-
-    metadata = _lookup_metadata(result)
+    metadata = _lookup_router_metadata(result)
 
     model_name = default_model
     router_mode = default_mode
     router_subset = default_subset
 
     if metadata:
-        candidate_model = metadata.get("model") or metadata.get("deployedModelName")
-        if isinstance(candidate_model, str) and candidate_model:
-            model_name = candidate_model
-
-        router_info = metadata.get("router") or metadata.get("routing") or metadata.get("route")
-        if isinstance(router_info, Mapping):
-            mode_value = router_info.get("mode") or router_info.get("policy")
-            if isinstance(mode_value, str) and mode_value:
-                router_mode = mode_value
-            subset_value = router_info.get("subset") or router_info.get("profile")
-            if isinstance(subset_value, str) and subset_value:
-                router_subset = subset_value
-        else:
-            mode_value = metadata.get("mode")
-            if isinstance(mode_value, str) and mode_value:
-                router_mode = mode_value
-            subset_value = metadata.get("subset")
-            if isinstance(subset_value, str) and subset_value:
-                router_subset = subset_value
+        model_name = _coalesce_non_empty_str(
+            metadata.get("model"), metadata.get("deployedModelName"), fallback=model_name
+        )
+        router_mode, router_subset = _extract_routing_fields(metadata, router_mode, router_subset)
 
     return model_name, router_mode, router_subset
+
+
+def _coerce_mapping(candidate: object) -> Mapping[str, Any] | None:
+    if isinstance(candidate, Mapping):
+        return candidate
+    return None
+
+
+def _lookup_router_metadata(obj: object | None) -> Mapping[str, Any] | None:
+    if obj is None:
+        return None
+    if isinstance(obj, Mapping):
+        # Foundry responses expose metadata at the top level.
+        candidate = obj.get("metadata") if "metadata" in obj else obj
+        return _coerce_mapping(candidate)
+
+    for attr in ("metadata", "extra_metadata", "response_metadata"):
+        mapping = _coerce_mapping(getattr(obj, attr, None))
+        if mapping is not None:
+            return mapping
+
+    response = getattr(obj, "response", None)
+    return _lookup_router_metadata(response) if response is not None else None
+
+
+def _coalesce_non_empty_str(first: object, second: object, *, fallback: str) -> str:
+    for candidate in (first, second):
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return fallback
+
+
+def _extract_routing_fields(metadata: Mapping[str, Any], default_mode: str, default_subset: str) -> tuple[str, str]:
+    router_mode = default_mode
+    router_subset = default_subset
+    router_info = metadata.get("router") or metadata.get("routing") or metadata.get("route")
+
+    if isinstance(router_info, Mapping):
+        mode_value = _coalesce_non_empty_str(router_info.get("mode"), router_info.get("policy"), fallback="")
+        subset_value = _coalesce_non_empty_str(router_info.get("subset"), router_info.get("profile"), fallback="")
+    else:
+        mode_value = metadata.get("mode") if isinstance(metadata.get("mode"), str) else ""
+        subset_value = metadata.get("subset") if isinstance(metadata.get("subset"), str) else ""
+
+    if mode_value:
+        router_mode = mode_value
+    if subset_value:
+        router_subset = subset_value
+    return router_mode, router_subset
 
 
 class RouterClassifier:
@@ -327,41 +328,14 @@ class RouterClassifier:
         try:
             body = await self._call_chat_with_agent_client(prompt)
         except Exception as chat_error:
-            provider_error = _unwrap_inner_exception(chat_error)
-            if _is_version_not_supported(provider_error):
-                snippet = _get_error_body_snippet(provider_error)
-                if snippet:
-                    logger.error(
-                        "Router chat request rejected due to API version mismatch: %s",
-                        snippet,
-                    )
-                else:
-                    logger.error("Router chat request rejected due to API version mismatch.")
-            else:
-                self._log_api_error("chat", provider_error)
-            self._raise_classifier_error("chat", provider_error)
+            self._handle_chat_error(chat_error)
 
         raw_text = _extract_chat_response_text(body)
         metadata_source: Mapping[str, Any] | None = body
 
         elapsed = time.perf_counter() - start
         logger.info("Router classifier received response in %.2fs", elapsed)
-        payload = _strip_fences(raw_text)
-
-        workflow = WorkflowType.SEQUENTIAL
-        reason: str | None = None
-        confidence_score: int | None = None
-
-        try:
-            parsed = json.loads(payload)
-            workflow = _parse_workflow(parsed.get("workflow"))
-            raw_reason = parsed.get("reason")
-            reason = raw_reason.strip() if isinstance(raw_reason, str) and raw_reason.strip() else None
-            confidence_score = _normalize_confidence_score(parsed.get("confidence_score"))
-            if confidence_score is None:
-                confidence_score = _normalize_confidence_score(parsed.get("confidence"))
-        except Exception:  # pragma: no cover - tolerate malformed JSON
-            logger.debug("Router classifier returned unparseable payload: %s", raw_text)
+        workflow, reason, confidence_score = _parse_router_payload(raw_text)
 
         model_name, router_mode, router_subset = _extract_router_metadata(
             metadata_source,
@@ -380,6 +354,21 @@ class RouterClassifier:
             router_mode=router_mode,
             router_subset=router_subset,
         )
+
+    def _handle_chat_error(self, chat_error: Exception) -> NoReturn:
+        provider_error = _unwrap_inner_exception(chat_error)
+        if _is_version_not_supported(provider_error):
+            snippet = _get_error_body_snippet(provider_error)
+            if snippet:
+                logger.error(
+                    "Router chat request rejected due to API version mismatch: %s",
+                    snippet,
+                )
+            else:
+                logger.error("Router chat request rejected due to API version mismatch.")
+        else:
+            self._log_api_error("chat", provider_error)
+        self._raise_classifier_error("chat", provider_error)
 
     def _create_client(self) -> object:
         from agent_framework.openai import OpenAIChatCompletionClient
@@ -422,31 +411,7 @@ class RouterClassifier:
         except TimeoutError as exc:
             raise TimeoutError("Router chat request timed out") from exc
 
-        usage_payload: dict[str, int] | None = None
-        usage = getattr(response, "usage_details", None)
-        if isinstance(usage, Mapping):
-            prompt_tokens = usage.get("input_token_count")
-            completion_tokens = usage.get("output_token_count")
-            total_tokens = usage.get("total_token_count")
-            if isinstance(prompt_tokens, int) or isinstance(completion_tokens, int) or isinstance(total_tokens, int):
-                usage_payload = {}
-                if isinstance(prompt_tokens, int):
-                    usage_payload["prompt_tokens"] = prompt_tokens
-                if isinstance(completion_tokens, int):
-                    usage_payload["completion_tokens"] = completion_tokens
-                if isinstance(total_tokens, int):
-                    usage_payload["total_tokens"] = total_tokens
-
-        metadata_payload: dict[str, Any] | None = None
-        additional_properties = getattr(response, "additional_properties", None)
-        if isinstance(additional_properties, Mapping):
-            metadata_payload = {key: value for key, value in additional_properties.items() if value is not None}
-        response_model = getattr(response, "model", None)
-        if isinstance(response_model, str) and response_model:
-            if metadata_payload is None:
-                metadata_payload = {}
-            metadata_payload.setdefault("model", response_model)
-
+        response_model = _extract_response_model(response)
         payload: dict[str, Any] = {
             "choices": [
                 {
@@ -457,8 +422,12 @@ class RouterClassifier:
             ],
             "model": response_model,
         }
+
+        usage_payload = _build_usage_payload(response)
         if usage_payload:
             payload["usage"] = usage_payload
+
+        metadata_payload = _build_metadata_payload(response, response_model=response_model)
         if metadata_payload:
             payload["metadata"] = metadata_payload
         return payload
@@ -492,17 +461,32 @@ class RouterClassifier:
 
 
 def _extract_chat_response_text(body: object) -> str:
-    if isinstance(body, Mapping):
-        choices = body.get("choices")
-        if isinstance(choices, list) and choices:
-            first = choices[0]
-            if isinstance(first, Mapping):
-                message = first.get("message")
-                if isinstance(message, Mapping):
-                    content = message.get("content")
-                    if isinstance(content, str) and content.strip():
-                        return content
+    first_choice = _first_choice_mapping(body)
+    if first_choice is not None:
+        content = _extract_choice_content(first_choice)
+        if content is not None:
+            return content
     return str(body)
+
+
+def _first_choice_mapping(body: object) -> Mapping[str, Any] | None:
+    if not isinstance(body, Mapping):
+        return None
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    first = choices[0]
+    return first if isinstance(first, Mapping) else None
+
+
+def _extract_choice_content(choice: Mapping[str, Any]) -> str | None:
+    message = choice.get("message")
+    if not isinstance(message, Mapping):
+        return None
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return content
+    return None
 
 
 def _unwrap_inner_exception(error: Exception) -> Exception:
@@ -532,28 +516,86 @@ def _get_error_body_snippet(error: Exception) -> str:
     response = getattr(error, "response", None)
     if response is None:
         return ""
-    text_value: str | None = None
-    if hasattr(response, "text"):
-        try:
-            text_value = response.text
-        except Exception:  # pragma: no cover - defensive
-            text_value = None
-    if text_value is None and hasattr(response, "json"):
-        try:
-            payload = response.json()
-        except Exception:
-            payload = None
-        if isinstance(payload, Mapping):
-            text_value = json.dumps(payload)[:200]
-    if text_value is None and hasattr(response, "body"):
-        body = response.body
-        if isinstance(body, bytes):
-            text_value = body.decode("utf-8", errors="ignore")
-        elif isinstance(body, str):
-            text_value = body
+
+    text_value = _safe_response_text(response)
+    if text_value is None:
+        payload = _safe_response_json(response)
+        text_value = json.dumps(payload)[:200] if payload is not None else None
+    if text_value is None:
+        text_value = _safe_response_body_text(response)
     if text_value is None:
         return ""
     return text_value.strip().replace("\n", " ")[:200]
+
+
+def _safe_response_body_text(response: object) -> str | None:
+    body = getattr(response, "body", None)
+    if isinstance(body, bytes):
+        return body.decode("utf-8", errors="ignore")
+    if isinstance(body, str):
+        return body
+    return None
+
+
+def _parse_router_payload(raw_text: str) -> tuple[WorkflowType, str | None, int | None]:
+    workflow = WorkflowType.SEQUENTIAL
+    reason: str | None = None
+    confidence_score: int | None = None
+    payload = _strip_fences(raw_text)
+
+    try:
+        parsed = json.loads(payload)
+    except Exception:  # pragma: no cover - tolerate malformed JSON
+        logger.debug("Router classifier returned unparseable payload: %s", raw_text)
+        return workflow, reason, confidence_score
+
+    if isinstance(parsed, Mapping):
+        workflow = _parse_workflow(parsed.get("workflow"))
+        reason = _normalize_optional_reason(parsed.get("reason"))
+        confidence_score = normalize_confidence_score(parsed.get("confidence_score"))
+        if confidence_score is None:
+            confidence_score = normalize_confidence_score(parsed.get("confidence"))
+
+    return workflow, reason, confidence_score
+
+
+def _normalize_optional_reason(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _extract_response_model(response: object) -> str:
+    response_model = getattr(response, "model", None)
+    if isinstance(response_model, str):
+        return response_model
+    return ""
+
+
+def _build_usage_payload(response: object) -> dict[str, int] | None:
+    usage = getattr(response, "usage_details", None)
+    if not isinstance(usage, Mapping):
+        return None
+
+    token_mapping = {
+        "prompt_tokens": usage.get("input_token_count"),
+        "completion_tokens": usage.get("output_token_count"),
+        "total_tokens": usage.get("total_token_count"),
+    }
+    normalized = {key: value for key, value in token_mapping.items() if isinstance(value, int)}
+    return normalized or None
+
+
+def _build_metadata_payload(response: object, *, response_model: str) -> dict[str, Any] | None:
+    metadata_payload: dict[str, Any] = {}
+    additional_properties = getattr(response, "additional_properties", None)
+    if isinstance(additional_properties, Mapping):
+        metadata_payload.update({key: value for key, value in additional_properties.items() if value is not None})
+
+    if response_model:
+        metadata_payload.setdefault("model", response_model)
+
+    return metadata_payload or None
 
 
 def _clip(value: str, limit: int = 800) -> str:

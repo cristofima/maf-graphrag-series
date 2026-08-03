@@ -15,6 +15,8 @@ from typing import Any, cast
 
 from agent_framework import WorkflowEvent
 
+from agents.router_classifier import RouterClassification, RouterClassifier
+
 try:  # pragma: no cover - optional runtime dependency guard
     from opentelemetry import trace
 except Exception:  # pragma: no cover - fallback when otel isn't installed
@@ -32,12 +34,6 @@ from workflows.base import (
 
 logger = logging.getLogger(__name__)
 _TRACER = trace.get_tracer(__name__) if trace is not None else None
-
-try:
-    from agents.router_classifier import RouterClassification, RouterClassifier
-except Exception:  # pragma: no cover - fallback for documentation builds
-    RouterClassifier = None  # type: ignore
-    RouterClassification = None  # type: ignore
 
 WorkflowFactory = Callable[[str | None], Any]
 
@@ -77,9 +73,6 @@ class RouterWorkflow:
         classifier: RouterClassifier | None = None,
         workflow_factories: Mapping[WorkflowType, WorkflowFactory] | None = None,
     ) -> None:
-        if RouterClassifier is None:
-            raise RuntimeError("RouterClassifier dependency not available; install agent-framework-core >=1.11")
-
         self._mcp_url = mcp_url
         self._classifier = classifier or RouterClassifier()
         self._workflow_factories = {**_DEFAULT_FACTORIES, **(workflow_factories or {})}

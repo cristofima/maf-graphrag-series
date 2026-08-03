@@ -363,9 +363,11 @@ class _WorkflowStreamAdapter:
         self,
         event_queue: asyncio.Queue[Any],
         result_future: asyncio.Future[WorkflowResult],
+        background_task: asyncio.Task[None] | None = None,
     ) -> None:
         self._event_queue = event_queue
         self._result_future = result_future
+        self._background_task = background_task
 
     def __aiter__(self) -> _WorkflowStreamAdapter:
         return self
@@ -615,7 +617,8 @@ class MCPWorkflowRunner:
                 finally:
                     await event_queue.put(_STREAM_END)
 
-            asyncio.create_task(_run_stream())
+            stream_task = asyncio.create_task(_run_stream())
+            adapter._background_task = stream_task
             return adapter
 
         return asyncio.create_task(self._execute_workflow(normalized_message))

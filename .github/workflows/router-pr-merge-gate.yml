@@ -3,14 +3,7 @@ name: Router PR Merge Gate
 on:
   pull_request:
     branches: ["main"]
-    types: [labeled]
-    paths:
-      - "**.py"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/ci.yml"
-      - ".github/workflows/router-evaluation.yml"
-      - ".github/workflows/router-pr-merge-gate.yml"
+    types: [opened, reopened, synchronize, labeled]
   pull_request_review:
     types: [submitted]
   workflow_dispatch:
@@ -29,7 +22,7 @@ permissions: {}
 jobs:
   router_eval_changes:
     name: "Router Eval Change Detection (PR Merge Gate)"
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.label.name == 'ready-to-merge') || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main') }}
+    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main' && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -154,7 +147,7 @@ jobs:
   router_merge_gate:
     name: "Router Merge Gate (PR Local Batch)"
     needs: [router_eval_changes, router_evaluation, router_eval_pr_comment]
-    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && github.event.label.name == 'ready-to-merge') || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main')) }}
+    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -11,6 +11,7 @@ on:
       - ".github/workflows/router-evaluation.yml"
   pull_request:
     branches: ["main"]
+    types: [opened, reopened, ready_for_review]
     paths:
       - "**.py"
       - "pyproject.toml"

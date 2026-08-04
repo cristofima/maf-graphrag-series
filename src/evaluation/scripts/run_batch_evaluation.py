@@ -145,12 +145,20 @@ def run_batch_evaluation(
     selected_foundry_evaluators = _select_foundry_evaluator_names(evaluators)
 
     new_foundry_run: dict[str, object] | None = None
+    foundry_publish_error: str | None = None
     if use_foundry:
-        new_foundry_run = _publish_new_foundry_batch_run(
-            data_path=data_path,
-            config=config,
-            evaluator_names=selected_foundry_evaluators,
-        )
+        try:
+            new_foundry_run = _publish_new_foundry_batch_run(
+                data_path=data_path,
+                config=config,
+                evaluator_names=selected_foundry_evaluators,
+            )
+        except Exception as exc:
+            foundry_publish_error = str(exc)
+            logger.warning(
+                "Foundry publish failed. Continuing with local batch evaluation only. Error: %s",
+                foundry_publish_error,
+            )
 
     logger.info("Running batch evaluation on %s", data_path)
     raw_result = evaluate(
@@ -170,6 +178,8 @@ def run_batch_evaluation(
         report_url = new_foundry_run.get("report_url")
         if isinstance(report_url, str) and report_url:
             result["studio_url"] = report_url
+    elif foundry_publish_error:
+        result["foundry_publish_error"] = foundry_publish_error
 
     # Write summary report
     _write_report(result, output_dir / "evaluation_report.md")

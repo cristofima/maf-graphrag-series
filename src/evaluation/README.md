@@ -56,6 +56,20 @@ flowchart TD
 
 Step 4 requires `AZURE_AI_PROJECT` and uses the Foundry project endpoint path.
 
+### Required in GitHub Actions for Foundry publish and red-team
+
+When Step 3 (`--foundry`) and Step 4 run in CI, `DefaultAzureCredential` must resolve
+to a service principal. Configure these repository secrets:
+
+| Secret                | Description                                         |
+| --------------------- | --------------------------------------------------- |
+| `AZURE_TENANT_ID`     | Microsoft Entra tenant ID for the service principal |
+| `AZURE_CLIENT_ID`     | Service principal application (client) ID           |
+| `AZURE_CLIENT_SECRET` | Service principal client secret                     |
+
+Also keep `AZURE_AI_PROJECT` configured, and ensure this service principal has permission
+to create/read evaluation runs in the target Foundry project.
+
 ### Optional (Application Insights monitoring)
 
 | Variable                                | Description                                                                |

@@ -81,7 +81,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Upsert router evaluation comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           RUN_EVAL: ${{ needs.router_eval_changes.outputs.run_eval }}
           EVAL_RESULT: ${{ needs.router_evaluation.result }}

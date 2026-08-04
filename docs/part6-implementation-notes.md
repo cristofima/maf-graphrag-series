@@ -99,9 +99,15 @@ Workflow split:
 - `.github/workflows/ci.yml`: core lint/type/test pipeline for push and PR validation.
 - `.github/workflows/router-evaluation.yml`: reusable evaluator workflow (local, Foundry, optional red-team toggles).
 - `.github/workflows/router-main-evaluation.yml`: `main`-only workflow that runs full router evaluation with Foundry publish + red-team when relevant files changed.
-- `.github/workflows/router-pr-merge-gate.yml`: pre-merge PR gate (label or approval-triggered) that runs local router eval and reports deterministic pass/fail.
+- `.github/workflows/router-pr-merge-gate.yml`: required PR gate workflow triggered on PR lifecycle updates (`opened`, `reopened`, `synchronize`, `labeled`) and review submissions; expensive router evaluation remains conditional.
 
-This prevents per-commit evaluation spend during PR iteration while preserving merge-time quality enforcement.
+Gate behavior in PRs:
+
+- The required gate workflow is present on new PR commits so merge checks are not left in a missing/stale state.
+- Router evaluation execution is still controlled by internal diff detection (`run_eval=true/false`) and approval/ready-to-merge conditions.
+- Doc-only or otherwise non-relevant updates can still complete the gate without running token-heavy evaluation steps.
+
+This preserves deterministic merge enforcement while reducing unnecessary evaluation spend.
 
 ---
 

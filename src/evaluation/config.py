@@ -17,6 +17,7 @@ class EvalConfig(BaseModel):
     api_key: str = Field(..., description="Azure OpenAI API key")
     chat_deployment: str = Field(..., description="Default chat deployment name")
     eval_chat_deployment: str = Field(..., description="Evaluator-specific deployment")
+    redteam_chat_deployment: str = Field(..., description="Red-team target deployment")
     azure_ai_project: AnyHttpUrl | None = Field(
         default=None,
         description="Azure AI Foundry project URL",
@@ -39,7 +40,7 @@ class EvalConfig(BaseModel):
         description="Relationships parquet path",
     )
 
-    @field_validator("api_key", "chat_deployment", "eval_chat_deployment")
+    @field_validator("api_key", "chat_deployment", "eval_chat_deployment", "redteam_chat_deployment")
     @classmethod
     def _ensure_non_empty(cls, value: str) -> str:
         if not value or not value.strip():
@@ -66,6 +67,7 @@ class EvalConfig(BaseModel):
             "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
             "chat_deployment": os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
             "eval_chat_deployment": os.getenv("AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT"),
+            "redteam_chat_deployment": os.getenv("AZURE_OPENAI_REDTEAM_CHAT_DEPLOYMENT"),
             "azure_ai_project": os.getenv("AZURE_AI_PROJECT"),
             "app_insights_connection_string": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"),
             "otel_tracing_endpoint": os.getenv("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
@@ -78,6 +80,8 @@ class EvalConfig(BaseModel):
 
         if data["eval_chat_deployment"] is None:
             data["eval_chat_deployment"] = data["chat_deployment"]
+        if data["redteam_chat_deployment"] is None:
+            data["redteam_chat_deployment"] = data["chat_deployment"]
 
         try:
             return cls.model_validate(data)

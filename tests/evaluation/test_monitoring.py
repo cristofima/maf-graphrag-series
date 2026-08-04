@@ -23,6 +23,7 @@ class TestSetupMonitoring:
             api_key="key",
             chat_deployment="gpt-4o",
             eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
             otel_tracing_endpoint="http://jaeger:4317",
         )
         setup_monitoring(config, use_aspire=True)
@@ -36,6 +37,7 @@ class TestSetupMonitoring:
             api_key="key",
             chat_deployment="gpt-4o",
             eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
             app_insights_connection_string="InstrumentationKey=abc",
         )
         setup_monitoring(config, use_aspire=False)
@@ -48,6 +50,7 @@ class TestSetupMonitoring:
             api_key="key",
             chat_deployment="gpt-4o",
             eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
         )
         setup_monitoring(config, use_aspire=False)
         mock_configure.assert_called_once()
@@ -68,6 +71,7 @@ class TestSetupMonitoring:
             api_key="key",
             chat_deployment="gpt-4o",
             eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
             app_insights_connection_string="InstrumentationKey=abc",
         )
         setup_monitoring(config, use_aspire=True)

@@ -44,6 +44,7 @@ AI_SCOPE = "https://ai.azure.com/.default"
 NEW_FOUNDRY_TIMEOUT_SECONDS = 300
 NEW_FOUNDRY_POLL_SECONDS = 5
 NEW_FOUNDRY_DEFAULT_ATTACK_STRATEGIES = ["Base64", "Flip"]
+REDTEAM_RESULTS_FILENAME = "redteam_results.json"
 ZERO_ATTACKS_ERROR = (
     "Red team scan completed but produced zero evaluated attacks. "
     "This usually means the selected Azure AI Foundry region does not support the required "
@@ -120,7 +121,7 @@ def _build_cloud_model_target(config: EvalConfig) -> dict[str, str]:
     return {
         "azure_endpoint": str(config.azure_endpoint),
         "api_key": config.api_key,
-        "azure_deployment": config.chat_deployment,
+        "azure_deployment": config.redteam_chat_deployment,
         "api_version": config.api_version,
     }
 
@@ -138,7 +139,7 @@ def _resolve_scan_target(config: EvalConfig, flow: str) -> Any:
     if flow == "cloud-model":
         logger.info(
             "Running Step 4 in cloud-model flow against Azure OpenAI deployment '%s'.",
-            config.chat_deployment,
+            config.redteam_chat_deployment,
         )
         return _build_cloud_model_target(config)
 
@@ -216,6 +217,52 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     """Write JSON payload to disk."""
     with open(path, "w", encoding="utf-8") as file_handle:
         json.dump(payload, file_handle, indent=2, default=str)
+
+
+def _write_redteam_result(output_dir: Path, payload: dict[str, object]) -> None:
+    """Persist red-team output or failure details for CI artifacts."""
+    _write_json(output_dir / REDTEAM_RESULTS_FILENAME, payload)
+
+
+def _build_redteam_failure_payload(
+    *,
+    error: Exception,
+    flow: str,
+    config: EvalConfig,
+    risk_categories: list[str],
+    strategies: list[str],
+) -> dict[str, object]:
+    """Build a JSON-serializable failure payload with actionable diagnostics."""
+    error_type = type(error).__name__
+    message = str(error)
+    remediation: list[str] = []
+
+    if "AADSTS7000215" in message or "Invalid client secret" in message:
+        remediation = [
+            "Replace AZURE_CLIENT_SECRET with the client secret value, not the secret ID.",
+            "Confirm the service principal has Foundry User on the Foundry project.",
+            "Confirm the service principal has Cognitive Services OpenAI User on the model resource.",
+        ]
+    elif "RateLimitError" in message or "rate limit" in message.lower() or "429" in message:
+        remediation = [
+            "Retry after the server-provided retry-after-ms window.",
+            "Use a separate deployment for red-team with the same underlying model/version.",
+            "Reduce concurrent evaluation load or move the run to a region with more quota.",
+        ]
+
+    return {
+        "status": "failed",
+        "error_type": error_type,
+        "error": message,
+        "flow": flow,
+        "target_deployment": config.redteam_chat_deployment,
+        "eval_deployment": config.eval_chat_deployment,
+        "chat_deployment": config.chat_deployment,
+        "risk_categories": risk_categories,
+        "attack_strategies": strategies,
+        "remediation": remediation,
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
 
 
 def _serialize_redteam_result(result: object) -> dict[str, object]:
@@ -451,14 +498,36 @@ async def run_redteam_scan(
     logger.info("Risk categories: %s", risk_categories)
     logger.info("Step 4 flow: %s", redteam_flow)
 
-    result = await red_team.scan(
-        target=target,
-        scan_name="graphrag-agent-safety-scan",
-        attack_strategies=attack_strategies,
-        risk_categories=risk_categories,
-    )
+    try:
+        result = await red_team.scan(
+            target=target,
+            scan_name="graphrag-agent-safety-scan",
+            attack_strategies=attack_strategies,
+            risk_categories=risk_categories,
+        )
+    except Exception as exc:
+        failure_payload = _build_redteam_failure_payload(
+            error=exc,
+            flow=redteam_flow,
+            config=config,
+            risk_categories=risk_categories,
+            strategies=[str(strategy) for strategy in attack_strategies],
+        )
+        await asyncio.to_thread(_write_redteam_result, output_dir, failure_payload)
+        logger.exception(
+            "Red-team scan failed for flow=%s target_deployment=%s eval_deployment=%s.",
+            redteam_flow,
+            config.redteam_chat_deployment,
+            config.eval_chat_deployment,
+        )
+        raise
 
     result_payload = _serialize_redteam_result(result)
+    result_payload["status"] = "completed"
+    result_payload["flow"] = redteam_flow
+    result_payload["target_deployment"] = config.redteam_chat_deployment
+    result_payload["eval_deployment"] = config.eval_chat_deployment
+    result_payload["chat_deployment"] = config.chat_deployment
 
     total_attacks = _extract_total_evaluated_attacks(result_payload)
     if total_attacks == 0:
@@ -478,7 +547,7 @@ async def run_redteam_scan(
             logger.exception("Failed to publish New Foundry Step 4 reference run.")
 
     # Save results
-    result_path = output_dir / "redteam_results.json"
+    result_path = output_dir / REDTEAM_RESULTS_FILENAME
     await asyncio.to_thread(_write_json, result_path, result_payload)
     logger.info("Red team results saved to %s", result_path)
 

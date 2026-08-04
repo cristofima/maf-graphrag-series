@@ -5,6 +5,7 @@ import pytest
 from evaluation.config import EvalConfig
 from evaluation.scripts.run_redteam import (
     _build_cloud_model_target,
+    _build_redteam_failure_payload,
     _normalize_redteam_flow,
     _resolve_scan_target,
 )
@@ -47,6 +48,7 @@ class TestResolveScanTarget:
             api_key="test-key",
             chat_deployment="gpt-4o",
             eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o-redteam",
             api_version="2024-08-01-preview",
         )
 
@@ -58,7 +60,7 @@ class TestResolveScanTarget:
         assert target == {
             "azure_endpoint": "https://example.openai.azure.com/",
             "api_key": "test-key",
-            "azure_deployment": "gpt-4o",
+            "azure_deployment": "gpt-4o-redteam",
             "api_version": "2024-08-01-preview",
         }
 
@@ -68,7 +70,7 @@ class TestResolveScanTarget:
         target = _resolve_scan_target(config, "cloud-model")
 
         assert isinstance(target, dict)
-        assert target["azure_deployment"] == "gpt-4o"
+        assert target["azure_deployment"] == "gpt-4o-redteam"
 
     def test_resolve_scan_target_local_agent(self):
         config = self._make_config()
@@ -77,3 +79,19 @@ class TestResolveScanTarget:
 
         assert callable(target)
         assert target.__name__ == "_graphrag_agent_target"
+
+    def test_build_failure_payload_for_invalid_secret(self):
+        config = self._make_config()
+
+        payload = _build_redteam_failure_payload(
+            error=RuntimeError("AADSTS7000215: Invalid client secret provided."),
+            flow="cloud-model",
+            config=config,
+            risk_categories=["Violence"],
+            strategies=["AttackStrategy.Baseline"],
+        )
+
+        assert payload["status"] == "failed"
+        assert payload["target_deployment"] == "gpt-4o-redteam"
+        assert payload["eval_deployment"] == "gpt-4o"
+        assert any("AZURE_CLIENT_SECRET" in item for item in payload["remediation"])

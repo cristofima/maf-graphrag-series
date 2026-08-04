@@ -110,6 +110,9 @@ jobs:
       AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT }}
       AZURE_OPENAI_ROUTER_DEPLOYMENT: ${{ vars.AZURE_OPENAI_ROUTER_DEPLOYMENT }}
       AZURE_AI_PROJECT: ${{ secrets.AZURE_AI_PROJECT }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
     steps:
       - name: Checkout selected ref
@@ -130,6 +133,10 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --dev --frozen --no-build
+
+      - name: Install red-team dependencies
+        if: ${{ inputs.run_redteam }}
+        run: uv sync --dev --group redteam --frozen
 
       - name: Regenerate router eval data
         if: ${{ inputs.regenerate_data }}
@@ -191,17 +198,36 @@ jobs:
             exit 1
           fi
 
+      - name: Validate Foundry authentication prerequisites
+        id: foundry_auth
+        if: ${{ inputs.publish_foundry || inputs.run_redteam }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${AZURE_TENANT_ID:-}" && -n "${AZURE_CLIENT_ID:-}" && -n "${AZURE_CLIENT_SECRET:-}" ]]; then
+            echo "foundry_auth=true" >> "$GITHUB_OUTPUT"
+            echo "Azure service principal credentials detected for Foundry publish/red-team."
+          else
+            echo "foundry_auth=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Foundry publish/red-team requested, but AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET are missing. Running local batch evaluation only."
+          fi
+
       - name: Run router batch evaluation
-        if: ${{ inputs.run_batch_eval && !inputs.publish_foundry }}
+        if: ${{ inputs.run_batch_eval && (!inputs.publish_foundry || steps.foundry_auth.outputs.foundry_auth != 'true') }}
         run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
 
       - name: Run router batch evaluation and publish to Foundry
-        if: ${{ inputs.run_batch_eval && inputs.publish_foundry }}
+        if: ${{ inputs.run_batch_eval && inputs.publish_foundry && steps.foundry_auth.outputs.foundry_auth == 'true' }}
         run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
 
       - name: Run red-team safety scan
-        if: ${{ inputs.run_redteam }}
+        if: ${{ inputs.run_redteam && steps.foundry_auth.outputs.foundry_auth == 'true' }}
         run: uv run python -m evaluation.scripts.run_redteam --flow "${{ inputs.redteam_flow }}"
+
+      - name: Red-team skipped due to missing Azure auth
+        if: ${{ inputs.run_redteam && steps.foundry_auth.outputs.foundry_auth != 'true' }}
+        shell: bash
+        run: echo "::warning::Skipped red-team run because Azure service principal credentials are not configured in repository secrets."
 
       - name: Upload evaluation artifacts
         if: ${{ !cancelled() }}
@@ -223,12 +249,22 @@ jobs:
         run: |
           set -euo pipefail
           echo "## Router Evaluation Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ref: \\`${{ inputs.ref != '' && inputs.ref || github.sha }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Regenerate data: \\`${{ inputs.regenerate_data }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Batch eval: \\`${{ inputs.run_batch_eval }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Publish Foundry: \\`${{ inputs.publish_foundry }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Red team: \\`${{ inputs.run_redteam }}\\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Route gate: \\`${{ steps.route_metrics.outputs.gate_passed }}\\` (match=${{ steps.route_metrics.outputs.route_match }}, accuracy=${{ steps.route_metrics.outputs.route_accuracy }}, threshold=${{ steps.route_metrics.outputs.route_threshold }})" >> "$GITHUB_STEP_SUMMARY"
+          ref_value='${{ inputs.ref != '' && inputs.ref || github.sha }}'
+          regenerate_value='${{ inputs.regenerate_data }}'
+          batch_value='${{ inputs.run_batch_eval }}'
+          publish_value='${{ inputs.publish_foundry }}'
+          redteam_value='${{ inputs.run_redteam }}'
+          gate_value='${{ steps.route_metrics.outputs.gate_passed }}'
+          route_match_value='${{ steps.route_metrics.outputs.route_match }}'
+          route_accuracy_value='${{ steps.route_metrics.outputs.route_accuracy }}'
+          route_threshold_value='${{ steps.route_metrics.outputs.route_threshold }}'
+
+          printf '%s\n' "- Ref: $ref_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Regenerate data: $regenerate_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Batch eval: $batch_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Publish Foundry: $publish_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Red team: $redteam_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Route gate: $gate_value (match=$route_match_value, accuracy=$route_accuracy_value, threshold=$route_threshold_value)" >> "$GITHUB_STEP_SUMMARY"
           if [[ -f src/evaluation/results/evaluation_report.md ]]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "### Evaluation report preview" >> "$GITHUB_STEP_SUMMARY"

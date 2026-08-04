@@ -41,6 +41,11 @@ on:
         required: false
         default: false
         type: boolean
+      fail_on_redteam_error:
+        description: "Fail the workflow when red-team execution fails."
+        required: false
+        default: false
+        type: boolean
       redteam_flow:
         description: "Red-team flow: cloud-model or local-agent."
         required: false
@@ -77,6 +82,11 @@ on:
         required: false
         default: false
         type: boolean
+      fail_on_redteam_error:
+        description: "Fail the workflow when red-team execution fails."
+        required: false
+        default: false
+        type: boolean
       redteam_flow:
         description: "Red-team flow: cloud-model or local-agent."
         required: false
@@ -108,6 +118,7 @@ jobs:
       AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
       AZURE_OPENAI_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_CHAT_DEPLOYMENT }}
       AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT }}
+      AZURE_OPENAI_REDTEAM_CHAT_DEPLOYMENT: ${{ vars.AZURE_OPENAI_REDTEAM_CHAT_DEPLOYMENT }}
       AZURE_OPENAI_ROUTER_DEPLOYMENT: ${{ vars.AZURE_OPENAI_ROUTER_DEPLOYMENT }}
       AZURE_AI_PROJECT: ${{ secrets.AZURE_AI_PROJECT }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -221,8 +232,17 @@ jobs:
         run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
 
       - name: Run red-team safety scan
+        id: redteam
         if: ${{ inputs.run_redteam && steps.foundry_auth.outputs.foundry_auth == 'true' }}
+        continue-on-error: true
         run: uv run python -m evaluation.scripts.run_redteam --flow "${{ inputs.redteam_flow }}"
+
+      - name: Enforce red-team failure policy
+        if: ${{ inputs.run_redteam && inputs.fail_on_redteam_error && steps.redteam.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo "Red-team step failed and fail_on_redteam_error=true."
+          exit 1
 
       - name: Red-team skipped due to missing Azure auth
         if: ${{ inputs.run_redteam && steps.foundry_auth.outputs.foundry_auth != 'true' }}
@@ -254,6 +274,7 @@ jobs:
           batch_value='${{ inputs.run_batch_eval }}'
           publish_value='${{ inputs.publish_foundry }}'
           redteam_value='${{ inputs.run_redteam }}'
+          redteam_outcome='${{ steps.redteam.outcome || 'skipped' }}'
           gate_value='${{ steps.route_metrics.outputs.gate_passed }}'
           route_match_value='${{ steps.route_metrics.outputs.route_match }}'
           route_accuracy_value='${{ steps.route_metrics.outputs.route_accuracy }}'
@@ -263,7 +284,7 @@ jobs:
           printf '%s\n' "- Regenerate data: $regenerate_value" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Batch eval: $batch_value" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Publish Foundry: $publish_value" >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' "- Red team: $redteam_value" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Red team: $redteam_value (outcome=$redteam_outcome, fail_on_error=${{ inputs.fail_on_redteam_error }})" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Route gate: $gate_value (match=$route_match_value, accuracy=$route_accuracy_value, threshold=$route_threshold_value)" >> "$GITHUB_STEP_SUMMARY"
           if [[ -f src/evaluation/results/evaluation_report.md ]]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"

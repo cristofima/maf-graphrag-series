@@ -24,17 +24,18 @@ Use the root README for high-level stack families only. Exact dependency pins li
 | Agent Framework | `1.13.x`       | Agents, orchestration, and model clients |
 | FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
 
-| Part | Title                    | Status         | Folder/Module                                      |
-| ---- | ------------------------ | -------------- | -------------------------------------------------- |
-| 1    | GraphRAG Fundamentals    | ✅ Complete    | `src/core/`                                        |
-| 2    | GraphRAG MCP Server      | ✅ Complete    | `src/mcp_server/`                                  |
-| 3    | Supervisor Agent Pattern | ✅ Complete    | `src/agents/`                                      |
-| 4    | Workflow Patterns        | ✅ Complete    | `src/workflows/`                                   |
-| 5    | Agent Evaluation         | ✅ Complete    | `src/evaluation/`                                  |
-| 6    | Router SLM Integration   | 🚧 In-Progress | `src/agents/`, `src/workflows/`, `src/evaluation/` |
-| 7    | Human-in-the-Loop        | ⏳ Planned     | —                                                  |
-| 8    | Tool Registry            | ⏳ Planned     | —                                                  |
-| 9    | Production Deployment    | ⏳ Planned     | —                                                  |
+| Part | Title                            | Status      | Folder/Module                                      |
+| ---- | -------------------------------- | ----------- | -------------------------------------------------- |
+| 1    | GraphRAG Fundamentals            | ✅ Complete | `src/core/`                                        |
+| 2    | GraphRAG MCP Server              | ✅ Complete | `src/mcp_server/`                                  |
+| 3    | Supervisor Agent Pattern         | ✅ Complete | `src/agents/`                                      |
+| 4    | Workflow Patterns                | ✅ Complete | `src/workflows/`                                   |
+| 5    | Agent Evaluation                 | ✅ Complete | `src/evaluation/`                                  |
+| 6    | Router SLM Integration           | ✅ Complete | `src/agents/`, `src/workflows/`, `src/evaluation/` |
+| 7    | Conversational Session Readiness | ⏳ Planned  | —                                                  |
+| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                                  |
+| 9    | Tool Registry                    | ⏳ Planned  | —                                                  |
+| 10   | Production Deployment            | ⏳ Planned  | —                                                  |
 
 ## Part 1: GraphRAG Fundamentals
 

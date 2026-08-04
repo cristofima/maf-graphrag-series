@@ -96,8 +96,9 @@ Router evaluation now follows a staged policy:
 
 Workflow split:
 
-- `.github/workflows/ci.yml`: core lint/type/test pipeline; triggers full router evaluation only on `main` with relevant diffs.
+- `.github/workflows/ci.yml`: core lint/type/test pipeline for push and PR validation.
 - `.github/workflows/router-evaluation.yml`: reusable evaluator workflow (local, Foundry, optional red-team toggles).
+- `.github/workflows/router-main-evaluation.yml`: `main`-only workflow that runs full router evaluation with Foundry publish + red-team when relevant files changed.
 - `.github/workflows/router-pr-merge-gate.yml`: pre-merge PR gate (label or approval-triggered) that runs local router eval and reports deterministic pass/fail.
 
 This prevents per-commit evaluation spend during PR iteration while preserving merge-time quality enforcement.
@@ -127,5 +128,6 @@ These tests run under `uv run pytest tests/agents/test_router_classifier.py` and
 ## Deferred Follow-Ups
 
 - Align environment samples with portal-generated deployment names once the Foundry router is provisioned.
+- Execute `main` merge validation and confirm Foundry publish + Red Team run outcomes before final release/tag.
 - Add end-to-end evaluation traces exercising the router workflow after deployment to Foundry.
 - Expand telemetry dashboards to display `router_subset` facets when available.

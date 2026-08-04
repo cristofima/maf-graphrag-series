@@ -10,6 +10,8 @@ This document captures key insights, challenges, and solutions encountered durin
 4. **Multi-agent workflow patterns** — performance and concurrency (Challenges 14-16)
 5. **Agent evaluation (Part 5)** — monitoring, quality, safety, and Foundry integration (Challenges 17-21)
 
+Historical note: some challenge sections describe migration steps and interim APIs. For current runtime behavior, use module docs under `src/*/README.md` and [part6-implementation-notes.md](./part6-implementation-notes.md).
+
 ---
 
 ## Challenge 1: Azure Storage Account SKU Validation
@@ -647,7 +649,7 @@ To:
 
 ```python
 # After: Streamable HTTP transport
-app = mcp.streamable_http_app()
+app = mcp.http_app(...)
 ```
 
 Also updated the endpoint from `/sse` to `/mcp` for clarity.
@@ -657,7 +659,7 @@ Also updated the endpoint from `/sse` to `/mcp` for clarity.
 When integrating MCP servers with different clients:
 
 - **MCP Inspector / Browsers**: Use `sse_app()` on `/sse`
-- **Agent Framework / Code clients**: Use `streamable_http_app()` on `/mcp`
+- **Agent Framework / Code clients**: Use Streamable HTTP app endpoints such as `/mcp`
 - Production servers may need to expose both transports on different endpoints
 
 ---
@@ -1039,6 +1041,38 @@ In safety pipelines, "completed" is not enough. Enforce semantic success criteri
 
 ---
 
+## Challenge 22: CI Evaluation Cost Control vs Merge Safety
+
+### Problem
+
+Running router batch evaluation on every PR commit increased token/runtime cost and slowed iteration, but removing it entirely from PR checks risked merging regressions.
+
+### Root Cause
+
+A single CI strategy was being asked to satisfy two conflicting goals:
+
+- fast inner-loop developer feedback on each push
+- strong pre-merge guarantees for router behavior
+
+When heavy evaluation runs were tied to every commit, costs rose quickly. When they were removed from PR flow, merge protection became too weak unless teams remembered manual steps.
+
+### Solution
+
+Introduced a staged governance model:
+
+1. Keep core CI (`lint`, `typecheck`, `test`) on normal PR/push events.
+2. Run expensive router evaluation automatically on `main` only when relevant files changed.
+3. Add a dedicated PR merge gate workflow that runs local router batch evaluation on `ready-to-merge` label or PR approval events.
+4. Add a final reducer job that deterministically fails if evaluation was required but did not pass.
+
+This balances cost and quality: cheap per-commit checks, strict merge-time evaluation.
+
+### Key Insight
+
+For LLM-heavy systems, quality gates should be event-aware, not uniform. Tie expensive checks to merge intent and protected branches instead of every incremental commit.
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -1064,6 +1098,7 @@ In safety pipelines, "completed" is not enough. Enforce semantic success criteri
 19. ✅ **Standardize on New Foundry URL-only behavior for Step 4**
 20. ✅ **Treat Foundry publish as secondary to local result persistence**
 21. ✅ **Fail red team runs that return `0/0` evaluated attacks**
+22. ✅ **Split evaluation checks by lifecycle (PR local gate vs main full Foundry/red-team)**
 
 ### Final Architecture
 
@@ -1098,11 +1133,11 @@ In safety pipelines, "completed" is not enough. Enforce semantic success criteri
 6. ~~Implement Multi-Agent Workflow Patterns (Part 4)~~ ✅
 7. ~~Implement Agent Evaluation (Part 5)~~ ✅
 8. Strengthen Part 6 (Human-in-the-Loop) with eval regression gates
-9. Add CI quality gates for Part 5 (`generate_eval_data` + `run_batch_evaluation` smoke)
+9. ~~Add CI quality gates for Part 5 (`generate_eval_data` + `run_batch_evaluation` smoke)~~ ✅
 
 ---
 
-**Document Version**: 5.0
-**Last Updated**: March 29, 2026
+**Document Version**: 6.0
+**Last Updated**: August 3, 2026
 **Author**: Cristopher Coronado
-**Series**: MAF + GraphRAG - Parts 1, 2, 3, 4 & 5
+**Series**: MAF + GraphRAG - Parts 1, 2, 3, 4, 5 & 6

@@ -10,7 +10,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from workflows.base import WorkflowType
-from workflows.handoff import ExpertHandoffWorkflow, _create_router_and_experts, _parse_route
+from workflows.handoff import (
+    ExpertHandoffWorkflow,
+    _create_router_and_experts,
+    _parse_route,
+    _parse_route_classification,
+)
 
 
 class TestParseRoute:
@@ -31,6 +36,22 @@ class TestParseRoute:
 
     def test_unrecognized_output_defaults_to_both(self):
         assert _parse_route("I'm not sure") == "both"
+
+
+class TestParseRouteClassification:
+    def test_parses_structured_json_output(self):
+        result = _parse_route_classification('{"route": "themes", "confidence_score": 84, "reason": "Broad strategy"}')
+
+        assert result.decision == "themes"
+        assert result.confidence_score == 84
+        assert result.reason == "Broad strategy"
+
+    def test_falls_back_to_legacy_route_word(self):
+        result = _parse_route_classification("entity")
+
+        assert result.decision == "entity"
+        assert result.confidence_score is None
+        assert result.reason is None
 
 
 def _agent_stub(text: str) -> MagicMock:
@@ -98,6 +119,28 @@ class TestExpertHandoffWorkflowRun:
         router_step = result.steps[0]
         assert router_step.agent_name == "Router"
         assert router_step.metadata == {"route": "entity"}
+
+    async def test_structured_route_metadata_is_recorded(self):
+        workflow = _connected_workflow(
+            router_text='{"route": "both", "confidence_score": 81, "reason": "Need both detail and themes"}',
+        )
+
+        result = await workflow.run("query")
+
+        router_step = result.steps[0]
+        assert router_step.metadata["route"] == "both"
+        assert router_step.metadata["route_confidence_score"] == 81
+        assert router_step.metadata["route_reason"] == "Need both detail and themes"
+
+    async def test_router_normalizes_dict_payload_input(self):
+        workflow = _connected_workflow(router_text="entity", entity_text="entity answer")
+
+        result = await workflow.run({"input": "Who leads Project Alpha?"})
+
+        assert result.query == "Who leads Project Alpha?"
+        router_prompt = workflow._router.run.await_args.args[0]
+        assert "{'input':" not in router_prompt
+        assert "Who leads Project Alpha?" in router_prompt
 
 
 class TestCreateRouterAndExperts:

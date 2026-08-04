@@ -118,7 +118,7 @@ def _build_cloud_model_target(config: EvalConfig) -> dict[str, str]:
         Model target dictionary accepted by ``RedTeam.scan(target=...)``.
     """
     return {
-        "azure_endpoint": config.azure_endpoint,
+        "azure_endpoint": str(config.azure_endpoint),
         "api_key": config.api_key,
         "azure_deployment": config.chat_deployment,
         "api_version": config.api_version,
@@ -324,7 +324,7 @@ def _publish_new_foundry_redteam_reference(
     if not config.azure_ai_project:
         raise ValueError("AZURE_AI_PROJECT is required to publish New Foundry Step 4 references.")
 
-    base_url = f"{config.azure_ai_project.rstrip('/')}/openai/v1"
+    base_url = f"{str(config.azure_ai_project).rstrip('/')}/openai/v1"
     eval_name = f"graphrag-redteam-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
     mapped_strategies = _map_new_foundry_attack_strategies(strategies)
 

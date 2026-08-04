@@ -5,9 +5,8 @@ This module provides the Knowledge Captain agent that uses MCPStreamableHTTPTool
 to connect to the GraphRAG MCP Server. The agent decides which tool to use
 based on its system prompt (no separate routing logic needed).
 
-Supports multiple LLM providers via ``create_client()`` (Azure OpenAI, GitHub
-Models, OpenAI, Ollama) controlled by the ``API_HOST`` environment variable.
-Default is ``"azure"`` for backward compatibility.
+All chat traffic now routes through Microsoft Foundry model router deployments,
+so ``create_client()`` only targets Azure-hosted endpoints.
 
 See README.md for architecture diagrams and detailed documentation.
 
@@ -31,7 +30,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from agents.config import get_agent_config
-from agents.middleware import LoggingFunctionMiddleware, TimingAgentMiddleware, TokenCountingChatMiddleware
+from agents.middleware import (
+    LoggingFunctionMiddleware,
+    QueryRewritingChatMiddleware,
+    TimingAgentMiddleware,
+    TokenCountingChatMiddleware,
+)
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT, RESEARCH_DELEGATE_PROMPT
 
 if TYPE_CHECKING:
@@ -74,7 +78,8 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
     from agent_framework import MCPStreamableHTTPTool
 
     config = get_agent_config()
-    url = mcp_url or config.mcp_server_url
+    url_value = mcp_url or config.mcp_server_url
+    url = str(url_value)
 
     # Ensure URL ends with /mcp (not /sse)
     if url.endswith("/sse"):
@@ -83,37 +88,23 @@ def create_mcp_tool(mcp_url: str | None = None) -> "MCPStreamableHTTPTool":
         url = url.rstrip("/") + "/mcp"
 
     return MCPStreamableHTTPTool(
-        name="graphrag", url=url, description="Query the GraphRAG knowledge graph for entity and thematic information"
+        name="graphrag",
+        url=url,
+        description="Query the GraphRAG knowledge graph for entity and thematic information",
     )
 
 
 def create_client() -> "SupportsChatGetResponse":
-    """Create an LLM chat client based on the configured provider.
-
-    Dispatches to ``AzureOpenAIChatClient`` when ``api_host='azure'``,
-    or ``OpenAIChatClient`` for GitHub Models / OpenAI / Ollama.
-
-    Returns:
-        A chat client implementing ``SupportsChatGetResponse``.
-    """
+    """Create an LLM chat client for the configured Foundry deployment."""
     config = get_agent_config()
 
-    if config.api_host == "azure":
-        from agent_framework.openai import OpenAIChatCompletionClient
+    from agent_framework.openai import OpenAIChatCompletionClient
 
-        return OpenAIChatCompletionClient(
-            model=config.deployment_name,
-            base_url=config.provider_base_url,
-            api_key=config.api_key if not config.uses_azure_cli else None,
-            api_version=config.api_version,
-        )
-
-    from agent_framework.openai import OpenAIChatClient
-
-    return OpenAIChatClient(
-        model=config.model_id,
-        api_key=config.provider_api_key,
-        base_url=config.provider_base_url,
+    return OpenAIChatCompletionClient(
+        model=config.deployment_name,
+        base_url=config.azure_base_url,
+        api_key=config.api_key if not config.uses_azure_cli else None,
+        api_version=config.api_version,
     )
 
 
@@ -189,6 +180,7 @@ def _default_middleware() -> list["AgentMiddleware | ChatMiddleware | FunctionMi
     """
     return [
         TimingAgentMiddleware(),
+        QueryRewritingChatMiddleware(),
         TokenCountingChatMiddleware(),
         LoggingFunctionMiddleware(),
     ]

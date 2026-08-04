@@ -1,62 +1,24 @@
-"""
-Concurrent Workflow - Parallel Search
+"""Concurrent workflow pattern powered by WorkflowBuilder instrumentation."""
 
-Runs local search and global search simultaneously using ``asyncio.gather``,
-then passes both result sets to a synthesis agent for a comprehensive answer.
-
-Pipeline:
-                     ┌─────────────────────┐
-                     │  User Query         │
-                     └─────────┬───────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                                 ▼
-   ┌──────────────────┐             ┌──────────────────────┐
-   │  EntitySearcher  │             │  ThemesSearcher      │
-   │  (local_search)  │             │  (global_search)     │
-   │  entity details  │             │  organizational view │
-   └──────────┬───────┘             └──────────┬───────────┘
-              │   asyncio.gather()              │
-              └────────────────┬────────────────┘
-                               ▼
-                    ┌─────────────────────┐
-                    │  AnswerSynthesizer  │
-                    │  Merges both views  │
-                    └─────────────────────┘
-
-Usage:
-    from workflows.concurrent import ParallelSearchWorkflow
-
-    async with ParallelSearchWorkflow() as workflow:
-        result = await workflow.run("What are the main projects and who leads them?")
-        print(result.answer)
-        # result.steps[0] = EntitySearcher result
-        # result.steps[1] = ThemesSearcher result
-        # result.steps[2] = Synthesis result
-
-When to Use This Pattern:
-    - Questions that span both entity details AND organizational themes
-    - When you need speed: parallel steps are faster than sequential
-    - When a single search type does not give a complete picture
-    - "What are X and who does Y?" style questions
-
-Contrast with Sequential (Part 4):
-    | Aspect          | Sequential               | Concurrent                  |
-    |-----------------|--------------------------|-----------------------------|
-    | Flow            | Step 1 → 2 → 3           | Steps 1+2 in parallel → 3  |
-    | Speed           | Slower (waits for each)  | Faster (parallel I/O)       |
-    | Use case        | Complex decomposed plan  | Dual-perspective synthesis  |
-    | Steps           | 3 sequential             | 2 parallel + 1 synthesis   |
-"""
-
-import asyncio
 import logging
 import time
+from collections.abc import Callable
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+from agent_framework import Executor, WorkflowBuilder, WorkflowContext, handler
 
 from agents.supervisor import create_azure_client, create_mcp_tool
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.base import (
+    InstrumentedAgentExecutor,
+    StepTelemetry,
+    WorkflowGraphSupport,
+    WorkflowResult,
+    WorkflowType,
+    collect_tool_names,
+    ensure_text,
+)
 
 if TYPE_CHECKING:
     from agent_framework import Agent
@@ -169,29 +131,159 @@ def _create_parallel_agents(
     return entity_searcher, themes_searcher, answer_synthesizer
 
 
-class ParallelSearchWorkflow:
-    """Concurrent dual-search workflow with synthesis.
+@dataclass(slots=True)
+class SearchResultStage:
+    """Payload emitted by search executors before final synthesis."""
 
-    Runs entity search and thematic search in parallel using
-    ``asyncio.gather``, then combines both result sets with a synthesis agent.
+    query: str
+    result_type: Literal["entity", "themes"]
+    findings: str
+    tool_names: tuple[str, ...] = ()
 
-    Each parallel agent owns its own ``MCPStreamableHTTPTool`` connection
-    managed via Agent context managers (rc5+). Tool names are prefixed
-    with ``entity`` / ``themes`` to avoid duplicate-name errors.
 
-    Example:
-        async with ParallelSearchWorkflow() as workflow:
-            result = await workflow.run("What are the main projects and who leads them?")
-            print(result.answer)
-            print(result.step_summary())  # Shows parallel steps + synthesis
-    """
+class _QueryBroadcastExecutor(Executor):
+    """Entry executor that fans the query out to both searchers."""
 
-    def __init__(self, mcp_url: str | None = None):
-        """Initialize the workflow.
+    def __init__(self) -> None:
+        super().__init__(id="query_broadcast")
 
-        Args:
-            mcp_url: Optional override for the MCP server URL.
-        """
+    @handler
+    async def process(self, query: str, ctx: WorkflowContext[str]) -> None:
+        await ctx.send_message(query)
+
+
+class _EntitySearchExecutor(InstrumentedAgentExecutor):
+    """Executes local_search plan and streams telemetry."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="EntitySearcher", display_name="EntitySearcher", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(self, query: str, ctx: WorkflowContext[SearchResultStage]) -> None:
+        prompt = (
+            f"Find specific entity details that answer this question:\n\n{query}\n\n"
+            "Focus on people, projects, teams, and their direct relationships."
+        )
+        start = time.perf_counter()
+        response = await self._agent.run(prompt)
+        elapsed = time.perf_counter() - start
+        findings = ensure_text(response)
+        tool_names = collect_tool_names(self._agent)
+
+        metadata = {"parallel": True, "search_type": "local"}
+        if tool_names:
+            metadata["tools"] = tool_names
+
+        self._emit_step(
+            input_summary=f'Entity search for "{query[:60]}..."' if len(query) > 60 else f'Entity search for "{query}"',
+            output=findings,
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.send_message(
+            SearchResultStage(
+                query=query,
+                result_type="entity",
+                findings=findings,
+                tool_names=tuple(tool_names),
+            )
+        )
+
+
+class _ThemesSearchExecutor(InstrumentedAgentExecutor):
+    """Executes global_search plan and streams telemetry."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="ThemesSearcher", display_name="ThemesSearcher", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(self, query: str, ctx: WorkflowContext[SearchResultStage]) -> None:
+        prompt = (
+            f"Find organizational themes and patterns related to this question:\n\n{query}\n\n"
+            "Focus on strategic goals, cross-cutting initiatives, and structural patterns."
+        )
+        start = time.perf_counter()
+        response = await self._agent.run(prompt)
+        elapsed = time.perf_counter() - start
+        findings = ensure_text(response)
+        tool_names = collect_tool_names(self._agent)
+
+        metadata = {"parallel": True, "search_type": "global"}
+        if tool_names:
+            metadata["tools"] = tool_names
+
+        self._emit_step(
+            input_summary=f'Themes search for "{query[:60]}..."' if len(query) > 60 else f'Themes search for "{query}"',
+            output=findings,
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.send_message(
+            SearchResultStage(
+                query=query,
+                result_type="themes",
+                findings=findings,
+                tool_names=tuple(tool_names),
+            )
+        )
+
+
+class _AnswerSynthesizerExecutor(InstrumentedAgentExecutor):
+    """Combines search findings into the final report."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="AnswerSynthesizer", display_name="AnswerSynthesizer", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(
+        self, payloads: list[SearchResultStage], ctx: WorkflowContext[list[SearchResultStage], str]
+    ) -> None:
+        entity_payload = next((p for p in payloads if p.result_type == "entity"), None)
+        themes_payload = next((p for p in payloads if p.result_type == "themes"), None)
+
+        query_payload = entity_payload if entity_payload is not None else themes_payload
+        query = query_payload.query if query_payload is not None else ""
+        entity_findings = entity_payload.findings if entity_payload else "No entity findings."
+        themes_findings = themes_payload.findings if themes_payload else "No thematic findings."
+
+        prompt = (
+            f"Original question: {query}\n\n"
+            f"## Entity Details (from local search)\n{entity_findings}\n\n"
+            f"## Organizational Themes (from global search)\n{themes_findings}\n\n"
+            "Synthesize both perspectives into a single comprehensive answer."
+        )
+
+        start = time.perf_counter()
+        response = await self._agent.run(prompt)
+        elapsed = time.perf_counter() - start
+        final_answer = ensure_text(response)
+
+        sources = [payload.result_type for payload in payloads if payload.findings.strip()]
+        tool_names = sorted({tool for payload in payloads for tool in payload.tool_names})
+        metadata: dict[str, Any] = {"sources": sources}
+        if tool_names:
+            metadata["tools"] = tool_names
+
+        self._emit_step(
+            input_summary="Merge entity details with thematic patterns",
+            output=final_answer,
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.yield_output(final_answer)
+
+
+class ParallelSearchWorkflow(WorkflowGraphSupport):
+    """Concurrent workflow that surfaces DevUI-friendly telemetry."""
+
+    def __init__(self, mcp_url: str | None = None) -> None:
+        super().__init__(workflow_type=WorkflowType.CONCURRENT)
         self._mcp_url = mcp_url
         self._entity_searcher: Agent | None = None
         self._themes_searcher: Agent | None = None
@@ -199,117 +291,73 @@ class ParallelSearchWorkflow:
         self._exit_stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> "ParallelSearchWorkflow":
-        """Create agents and connect their MCP tools via Agent context managers."""
-        self._entity_searcher, self._themes_searcher, self._answer_synthesizer = _create_parallel_agents(
-            self._mcp_url,
-        )
+        self._entity_searcher, self._themes_searcher, self._answer_synthesizer = _create_parallel_agents(self._mcp_url)
 
         self._exit_stack = AsyncExitStack()
         await self._exit_stack.enter_async_context(self._entity_searcher)
         await self._exit_stack.enter_async_context(self._themes_searcher)
+        await self._exit_stack.enter_async_context(self._answer_synthesizer)
+        self._initialize_workflow()
         return self
 
-    async def __aexit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> None:
-        """Disconnect agents and their MCP tools via AsyncExitStack."""
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         if self._exit_stack:
             await self._exit_stack.aclose()
 
-    async def run(self, query: str) -> WorkflowResult:
-        """Run entity and thematic searches in parallel, then synthesize.
-
-        Args:
-            query: The question to answer using both search perspectives.
-
-        Returns:
-            WorkflowResult with merged answer and parallel step details.
-
-        Raises:
-            RuntimeError: If the workflow has not been entered as a context manager.
-        """
-        if not self._entity_searcher:
-            raise RuntimeError("Workflow not connected. Use 'async with ParallelSearchWorkflow()'")
+    def _initialize_workflow(self) -> None:
         assert self._entity_searcher is not None
         assert self._themes_searcher is not None
         assert self._answer_synthesizer is not None
 
-        steps: list[WorkflowStep] = []
-        workflow_start = time.time()
+        broadcast = _QueryBroadcastExecutor()
+        entity_executor = _EntitySearchExecutor(self._entity_searcher, self._record_step)
+        themes_executor = _ThemesSearchExecutor(self._themes_searcher, self._record_step)
+        synth_executor = _AnswerSynthesizerExecutor(self._answer_synthesizer, self._record_step)
 
-        # ------------------------------------------------------------------
-        # Steps 1+2 (parallel): Entity search AND thematic search
-        # ------------------------------------------------------------------
-        logger.info("Steps 1+2: EntitySearcher + ThemesSearcher running in parallel...")
-        entity_prompt = (
-            f"Find specific entity details that answer this question:\n\n{query}\n\n"
-            "Focus on people, projects, teams, and their direct relationships."
+        builder = WorkflowBuilder(
+            start_executor=broadcast,
+            output_from=[synth_executor],
+            intermediate_output_from="all_other",
         )
-        themes_prompt = (
-            f"Find organizational themes and patterns related to this question:\n\n{query}\n\n"
-            "Focus on strategic goals, cross-cutting initiatives, and structural patterns."
+        builder.add_fan_out_edges(broadcast, [entity_executor, themes_executor])
+        builder.add_fan_in_edges([entity_executor, themes_executor], synth_executor)
+
+        workflow = builder.build()
+        self._set_workflow(workflow, [broadcast, entity_executor, themes_executor, synth_executor])
+
+    async def run(
+        self,
+        query: str,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
+        workflow = self._workflow
+        if workflow is None:
+            if not all((self._entity_searcher, self._themes_searcher, self._answer_synthesizer)):
+                raise RuntimeError("Workflow not connected. Use 'async with ParallelSearchWorkflow()'")
+            self._initialize_workflow()
+            workflow = self._workflow
+        if workflow is None:
+            raise RuntimeError("Workflow graph initialization failed")
+
+        normalized_query = self.prepare_run(query)
+        logger.info("Executing concurrent workflow via WorkflowBuilder graph")
+
+        run_started = time.perf_counter()
+        run_result = await workflow.run(
+            normalized_query,
+            include_status_events=include_status_events,
+            **run_kwargs,
         )
-
-        parallel_start = time.time()
-        entity_task = self._entity_searcher.run(entity_prompt)
-        themes_task = self._themes_searcher.run(themes_prompt)
-
-        entity_result, themes_result = await asyncio.gather(entity_task, themes_task)
-        parallel_elapsed = time.time() - parallel_start
-
-        entity_findings = entity_result.text
-        themes_findings = themes_result.text
-        logger.info("Steps 1+2: Parallel searches completed (%.1fs)", parallel_elapsed)
-
-        # Record both parallel steps with the shared elapsed time
-        steps.append(
-            WorkflowStep(
-                agent_name="EntitySearcher",
-                input_summary=f'Entity search: "{query[:50]}..."' if len(query) > 50 else f'Entity search: "{query}"',
-                output=entity_findings,
-                elapsed_seconds=parallel_elapsed,
-                metadata={"parallel": True, "search_type": "local"},
-            )
-        )
-        steps.append(
-            WorkflowStep(
-                agent_name="ThemesSearcher",
-                input_summary=f'Themes search: "{query[:50]}..."' if len(query) > 50 else f'Themes search: "{query}"',
-                output=themes_findings,
-                elapsed_seconds=parallel_elapsed,
-                metadata={"parallel": True, "search_type": "global"},
-            )
-        )
-
-        # ------------------------------------------------------------------
-        # Step 3: Synthesize both perspectives into one answer
-        # ------------------------------------------------------------------
-        logger.info("Step 3: AnswerSynthesizer — merging perspectives...")
-        step3_start = time.time()
-        synthesis_prompt = (
-            f"Original question: {query}\n\n"
-            f"## Entity Details (from local search)\n{entity_findings}\n\n"
-            f"## Organizational Themes (from global search)\n{themes_findings}\n\n"
-            "Synthesize both perspectives into a single comprehensive answer."
-        )
-        synthesis_result = await self._answer_synthesizer.run(synthesis_prompt)
-        step3_elapsed = time.time() - step3_start
-        final_answer = synthesis_result.text
-        logger.info("Step 3: AnswerSynthesizer completed (%.1fs)", step3_elapsed)
-
-        steps.append(
-            WorkflowStep(
-                agent_name="AnswerSynthesizer",
-                input_summary="Merge entity details + thematic patterns",
-                output=final_answer,
-                elapsed_seconds=step3_elapsed,
-            )
-        )
-
-        total_elapsed = time.time() - workflow_start
-
-        return WorkflowResult(
-            answer=final_answer,
-            workflow_type=WorkflowType.CONCURRENT,
-            steps=steps,
-            total_elapsed_seconds=total_elapsed,
-            query=query,
+        total_elapsed = time.perf_counter() - run_started
+        return self.build_workflow_result(
+            normalized_query=normalized_query,
+            run_result=run_result,
+            total_elapsed=total_elapsed,
         )

@@ -1,47 +1,19 @@
-# GraphRAG MCP Server - Part 2
+# GraphRAG MCP Server
 
-Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for Microsoft Agent Framework integration.
+Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for agent and workflow integration.
 
 ## Architecture
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│                    Microsoft Agent Framework                   │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ ChatAgent with MCPStreamableHTTPTool                     │  │
-│  │ - Sends queries to MCP server                            │  │
-│  │ - Receives structured responses                          │  │
-│  └──────────────────┬───────────────────────────────────────┘  │
-└─────────────────────┼──────────────────────────────────────────┘
-                      │ Streamable HTTP (/mcp)
-                      ▼
-┌────────────────────────────────────────────────────────────────┐
-│              GraphRAG MCP Server (FastMCP)                     │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ MCP Tools:                                               │  │
-│  │ - search_knowledge_graph(query, type)                    │  │
-│  │ - local_search(query)                                    │  │
-│  │ - global_search(query)                                   │  │
-│  │ - list_entities(type, limit)                             │  │
-│  │ - get_entity(name)                                       │  │
-│  └──────────────────┬───────────────────────────────────────┘  │
-└─────────────────────┼──────────────────────────────────────────┘
-                      │
-                      ▼
-┌────────────────────────────────────────────────────────────────┐
-│           GraphRAG Knowledge Graph (core/)                     │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ - 147 entities                                           │  │
-│  │ - 263 relationships                                      │  │
-│  │ - 32 communities                                         │  │
-│  │ - 10 documents                                           │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    AF["Microsoft Agent Framework\nMCPStreamableHTTPTool client"] -->|"Streamable HTTP /mcp"| MCP
+    MCP["GraphRAG MCP Server (FastMCP)\nsearch_knowledge_graph\nlocal_search\nglobal_search\nlist_entities\nget_entity"] --> KG
+    KG["GraphRAG Knowledge Graph (core)\nentities\nrelationships\ncommunities\ndocuments"]
 ```
 
 ## Quick Start
 
-### 1. Start MCP Server
+### Start MCP Server
 
 ```bash
 # Using Python module
@@ -53,7 +25,9 @@ uv run python run_mcp_server.py
 
 Server will start at: `http://localhost:8011`
 
-### 2. Test Tools
+At startup, the server emits structured logs to console and to `logs/run_mcp_server_YYYYMMDD.log`.
+
+### Test Tools
 
 ```bash
 # Option A: Test in notebook (recommended, no server needed)
@@ -200,6 +174,12 @@ npx @modelcontextprotocol/inspector
 3. Reconnect Inspector and test affected tools
 4. Check the **Notifications** pane for server logs
 
+## Integration Notes
+
+- Agent and workflow runtimes connect to this server through the Streamable HTTP endpoint at `/mcp`.
+- Local interactive inspection can use MCP Inspector against the same server.
+- `local_search` preserves source traceability, while `global_search` returns synthesized community-level answers.
+
 ## Configuration
 
 Environment variables:
@@ -210,6 +190,13 @@ Environment variables:
 | `MCP_PORT`         | Server port                     | `8011`                  |
 | `GRAPHRAG_ROOT`    | GraphRAG root directory         | `.`                     |
 | `MCP_CORS_ORIGINS` | Comma-separated allowed origins | `http://127.0.0.1:8011` |
+
+Logging rotation knobs (optional):
+
+| Variable               | Description                               | Default    |
+| ---------------------- | ----------------------------------------- | ---------- |
+| `APP_LOG_MAX_BYTES`    | Maximum size per log file before rotation | `10485760` |
+| `APP_LOG_BACKUP_COUNT` | Number of rotated backup files to keep    | `5`        |
 
 ## Module Structure
 
@@ -233,7 +220,7 @@ mcp_server/
 ### Running Tests
 
 ```bash
-uv run pytest tests/test_mcp_config.py
+uv run pytest tests/mcp_server/test_config.py tests/mcp_server/test_server.py
 ```
 
 ### Adding New Tools
@@ -253,14 +240,9 @@ docker build -t graphrag-mcp .
 docker run -p 8011:8011 graphrag-mcp
 ```
 
-## Next: Part 3 - Supervisor Agent Pattern
-
-In Part 3, we'll integrate Microsoft Agent Framework to create a supervisor agent that orchestrates multiple MCP tools, building on this MCP server as the foundation.
-
 ## References
 
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [FastMCP Documentation](https://gofastmcp.com/)
 - [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector)
 - [Microsoft GraphRAG](https://github.com/microsoft/graphrag)
-

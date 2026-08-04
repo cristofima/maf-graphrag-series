@@ -29,7 +29,6 @@ wheels/
 # GraphRAG output (large files, regenerate locally)
 output/
 cache/
-logs/
 
 # Terraform
 infra/**/.terraform/
@@ -61,3 +60,6 @@ Thumbs.db
 
 # Local only files
 articles/*
+logs/
+devTools/
+*.log

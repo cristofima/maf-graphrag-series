@@ -1,86 +1,95 @@
-"""
-Evaluation Configuration.
+"""Evaluation configuration backed by Pydantic validation."""
 
-Configuration for Azure AI Evaluation SDK evaluators and optional
-Azure AI Foundry integration. Loads settings from environment variables
-with validation.
-"""
+from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from pathlib import Path
+
+from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError, field_validator
+
+DEFAULT_EVAL_API_VERSION = "2025-04-01-preview"
 
 
-@dataclass
-class EvalConfig:
-    """Configuration for the evaluation module.
+class EvalConfig(BaseModel):
+    """Configuration for evaluation and monitoring helpers."""
 
-    Required (Azure OpenAI as LLM-judge):
-        - AZURE_OPENAI_ENDPOINT: Azure OpenAI service endpoint
-        - AZURE_OPENAI_API_KEY: Azure OpenAI API key
-        - AZURE_OPENAI_CHAT_DEPLOYMENT: Chat model deployment name
+    azure_endpoint: AnyHttpUrl = Field(..., description="Azure OpenAI endpoint for evaluators")
+    api_key: str = Field(..., description="Azure OpenAI API key")
+    chat_deployment: str = Field(..., description="Default chat deployment name")
+    eval_chat_deployment: str = Field(..., description="Evaluator-specific deployment")
+    azure_ai_project: AnyHttpUrl | None = Field(
+        default=None,
+        description="Azure AI Foundry project URL",
+    )
+    app_insights_connection_string: str | None = Field(
+        default=None,
+        description="Application Insights connection string",
+    )
+    otel_tracing_endpoint: str = Field(
+        default="http://localhost:4317",
+        description="OTLP endpoint for tracing",
+    )
+    api_version: str = Field(default=DEFAULT_EVAL_API_VERSION, description="Evaluator API version")
+    entities_parquet_path: str = Field(
+        default="output/create_final_entities.parquet",
+        description="Entities parquet path",
+    )
+    relationships_parquet_path: str = Field(
+        default="output/create_final_relationships.parquet",
+        description="Relationships parquet path",
+    )
 
-    Optional (evaluation model override):
-        - AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT: Deployment used only by evaluators.
-          Defaults to AZURE_OPENAI_CHAT_DEPLOYMENT.
-                - AZURE_OPENAI_EVAL_API_VERSION: API version used only by evaluators.
-                    Defaults to 2025-04-01-preview for Azure AI Evaluation SDK compatibility.
+    @field_validator("api_key", "chat_deployment", "eval_chat_deployment")
+    @classmethod
+    def _ensure_non_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Value cannot be empty")
+        return value.strip()
 
-    Optional (Azure AI Foundry for red teaming + dashboard):
-        - AZURE_AI_PROJECT: Foundry project endpoint (e.g., https://account.services.ai.azure.com/api/projects/project)
+    @field_validator("otel_tracing_endpoint")
+    @classmethod
+    def _normalize_otel_endpoint(cls, value: str) -> str:
+        normalized = value.strip()
+        return normalized.rstrip("/") if normalized.endswith("/") else normalized
 
-    Optional (Monitoring):
-        - APPLICATIONINSIGHTS_CONNECTION_STRING: App Insights connection string
-        - OTEL_TRACING_ENDPOINT: Custom OTLP endpoint (default: Aspire at localhost:4317)
-    """
-
-    azure_endpoint: str
-    api_key: str
-    chat_deployment: str
-    eval_chat_deployment: str
-    azure_ai_project: str | None = None
-    app_insights_connection_string: str | None = None
-    otel_tracing_endpoint: str = "http://localhost:4317"
-    api_version: str = "2025-04-01-preview"
-    entities_parquet_path: str = field(default="output/create_final_entities.parquet")
-    relationships_parquet_path: str = field(default="output/create_final_relationships.parquet")
+    @field_validator("entities_parquet_path", "relationships_parquet_path")
+    @classmethod
+    def _normalize_path(cls, value: str) -> str:
+        return value.strip()
 
     @classmethod
-    def from_env(cls) -> "EvalConfig":
-        """Create configuration from environment variables.
+    def from_env(cls) -> EvalConfig:
+        """Create configuration from environment variables with strict validation."""
 
-        Raises:
-            ValueError: If required Azure OpenAI environment variables are missing.
-        """
-        azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-        api_key = os.environ.get("AZURE_OPENAI_API_KEY", "")
-        chat_deployment = os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
-        eval_chat_deployment = os.environ.get("AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT", chat_deployment)
-
-        if not azure_endpoint:
-            raise ValueError("AZURE_OPENAI_ENDPOINT is required for evaluation (LLM-as-judge)")
-        if not api_key:
-            raise ValueError("AZURE_OPENAI_API_KEY is required for evaluation (LLM-as-judge)")
-
-        return cls(
-            azure_endpoint=azure_endpoint,
-            api_key=api_key,
-            chat_deployment=chat_deployment,
-            eval_chat_deployment=eval_chat_deployment,
-            azure_ai_project=os.environ.get("AZURE_AI_PROJECT"),
-            app_insights_connection_string=os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"),
-            otel_tracing_endpoint=os.environ.get("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
-            api_version=os.environ.get("AZURE_OPENAI_EVAL_API_VERSION", "2025-04-01-preview"),
-            entities_parquet_path=os.environ.get("ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"),
-            relationships_parquet_path=os.environ.get(
+        data = {
+            "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+            "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+            "chat_deployment": os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
+            "eval_chat_deployment": os.getenv("AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT"),
+            "azure_ai_project": os.getenv("AZURE_AI_PROJECT"),
+            "app_insights_connection_string": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"),
+            "otel_tracing_endpoint": os.getenv("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
+            "api_version": os.getenv("AZURE_OPENAI_EVAL_API_VERSION", DEFAULT_EVAL_API_VERSION),
+            "entities_parquet_path": os.getenv("ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"),
+            "relationships_parquet_path": os.getenv(
                 "RELATIONSHIPS_PARQUET_PATH", "output/create_final_relationships.parquet"
             ),
-        )
+        }
+
+        if data["eval_chat_deployment"] is None:
+            data["eval_chat_deployment"] = data["chat_deployment"]
+
+        try:
+            return cls.model_validate(data)
+        except ValidationError as exc:  # pragma: no cover - defensive guard
+            raise ValueError(str(exc)) from exc
 
     @property
-    def model_config(self) -> dict[str, str]:
-        """Return model_config dict for Azure AI Evaluation SDK evaluators."""
+    def azure_model_config(self) -> dict[str, str]:
+        """Return model configuration dict for Azure AI Evaluation SDK evaluators."""
+
         return {
-            "azure_endpoint": self.azure_endpoint,
+            "azure_endpoint": str(self.azure_endpoint),
             "api_key": self.api_key,
             "azure_deployment": self.eval_chat_deployment,
             "api_version": self.api_version,
@@ -89,9 +98,23 @@ class EvalConfig:
     @property
     def has_foundry_project(self) -> bool:
         """Check if Azure AI Foundry project URL is configured (required for red teaming)."""
+
         return self.azure_ai_project is not None
 
     @property
     def has_app_insights(self) -> bool:
         """Check if Application Insights is configured for production monitoring."""
+
         return self.app_insights_connection_string is not None
+
+    @property
+    def entities_parquet_path_obj(self) -> Path:
+        """Return entities parquet path as ``Path`` instance."""
+
+        return Path(self.entities_parquet_path)
+
+    @property
+    def relationships_parquet_path_obj(self) -> Path:
+        """Return relationships parquet path as ``Path`` instance."""
+
+        return Path(self.relationships_parquet_path)

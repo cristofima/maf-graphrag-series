@@ -1,68 +1,90 @@
-"""Unit tests for agents/config.py — AgentConfig dataclass."""
+"""Unit tests for the Foundry-specific AgentConfig Pydantic model."""
 
 import dotenv
 import pytest
 
-from agents.config import AgentConfig
+from agents.config import DEFAULT_API_VERSION, AgentConfig
+
+
+def _seed_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+    monkeypatch.setenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "router-balanced")
+    monkeypatch.setenv("AZURE_OPENAI_ROUTER_DEPLOYMENT", "router-efficient")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
 
 
 class TestAgentConfig:
-    def test_defaults_with_endpoint(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.delenv("AZURE_OPENAI_CHAT_DEPLOYMENT", raising=False)
+    def test_defaults_with_required_env(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
         monkeypatch.delenv("AZURE_OPENAI_API_VERSION", raising=False)
         monkeypatch.delenv("MCP_SERVER_URL", raising=False)
+        monkeypatch.delenv("AZURE_OPENAI_ROUTER_SUBSET", raising=False)
 
-        config = AgentConfig()
+        config = AgentConfig.from_env()
 
-        assert config.azure_endpoint == "https://test.openai.azure.com/"
+        assert str(config.azure_endpoint) == "https://test.openai.azure.com/"
+        assert config.deployment_name == "router-balanced"
+        assert config.router_model == "router-efficient"
         assert config.api_key == "test-key"
-        assert config.deployment_name == "gpt-4o"
-        assert config.api_version == "2024-10-21"
-        assert config.mcp_server_url == "http://127.0.0.1:8011/mcp"
-        assert config.auth_method == "api_key"
+        assert config.api_version == DEFAULT_API_VERSION
+        assert str(config.mcp_server_url) == "http://127.0.0.1:8011/mcp"
+        assert config.router_subset is None
         assert not config.uses_azure_cli
 
-    def test_azure_cli_auth_when_no_api_key(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+    def test_switches_to_azure_cli_when_key_missing(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
 
-        config = AgentConfig()
+        config = AgentConfig.from_env()
 
-        assert config.auth_method == "azure_cli"
         assert config.uses_azure_cli
 
-    def test_raises_when_endpoint_missing(self, monkeypatch):
+    def test_missing_endpoint_raises(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
         monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
 
-        with pytest.raises(ValueError, match="AZURE_OPENAI_ENDPOINT"):
-            AgentConfig()
+        with pytest.raises(ValueError, match="azure_endpoint"):
+            AgentConfig.from_env()
+
+    def test_missing_deployment_raises(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
+        monkeypatch.delenv("AZURE_OPENAI_CHAT_DEPLOYMENT", raising=False)
+
+        with pytest.raises(ValueError, match="deployment_name"):
+            AgentConfig.from_env()
+
+    def test_missing_router_deployment_raises(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
+        monkeypatch.delenv("AZURE_OPENAI_ROUTER_DEPLOYMENT", raising=False)
+
+        with pytest.raises(ValueError, match="router_deployment"):
+            AgentConfig.from_env()
 
     def test_custom_mcp_url(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+        _seed_foundry_env(monkeypatch)
         monkeypatch.setenv("MCP_SERVER_URL", "http://localhost:9000/mcp")
 
-        config = AgentConfig()
+        config = AgentConfig.from_env()
 
-        assert config.mcp_server_url == "http://localhost:9000/mcp"
+        assert str(config.mcp_server_url) == "http://localhost:9000/mcp"
 
-    def test_validate_mcp_server_valid(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+    def test_azure_base_url_appends_openai_suffix(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://myproj.eastus2.openai.azure.com")
 
-        config = AgentConfig()
+        config = AgentConfig.from_env()
 
-        assert config.validate_mcp_server() is True
+        assert config.azure_base_url == "https://myproj.eastus2.openai.azure.com/openai/v1/"
 
-    def test_validate_mcp_server_invalid(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+    def test_validate_mcp_server_flags_invalid_value(self, monkeypatch):
+        _seed_foundry_env(monkeypatch)
 
-        config = AgentConfig()
+        config = AgentConfig.from_env()
         config.mcp_server_url = ""
 
         assert config.validate_mcp_server() is False
 
-    def test_from_env(self, monkeypatch):
+    def test_from_env_loads_dotenv(self, monkeypatch):
         load_calls: list[bool] = []
 
         def fake_load_dotenv(*, override: bool = False, **_kwargs: object) -> bool:
@@ -70,21 +92,10 @@ class TestAgentConfig:
             return True
 
         monkeypatch.setattr(dotenv, "load_dotenv", fake_load_dotenv)
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "my-key")
+        _seed_foundry_env(monkeypatch)
 
         config = AgentConfig.from_env()
 
         assert isinstance(config, AgentConfig)
         assert load_calls == [True]
-        assert config.azure_endpoint == "https://test.openai.azure.com/"
-
-    def test_provider_api_key_returns_api_key_for_openai_host(self, monkeypatch):
-        monkeypatch.setenv("API_HOST", "openai")
-        monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
-        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
-        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
-
-        config = AgentConfig()
-
-        assert config.provider_api_key == "openai-key"
+        assert str(config.azure_endpoint) == "https://test.openai.azure.com/"

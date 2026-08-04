@@ -1,53 +1,25 @@
-"""
-Handoff Workflow - Expert Routing
+"""Handoff workflow with WorkflowBuilder-driven telemetry traces."""
 
-A Router agent classifies the incoming query and hands off to the most
-suitable specialist. Unlike Part 3's system-prompt routing (where GPT-4o
-decides within a single agent), here the routing decision is a discrete,
-logged step performed by a dedicated Router agent.
-
-Pipeline:
-    1. Router      → Classifies query as "entity", "themes", or "both"
-    2a. EntityExpert  (if "entity") → in-depth entity analysis via local_search
-    2b. ThemesExpert  (if "themes") → broad thematic analysis via global_search
-    2c. Both experts  (if "both")   → run sequentially, then combine
-
-Usage:
-    from workflows.handoff import ExpertHandoffWorkflow
-
-    async with ExpertHandoffWorkflow() as workflow:
-        result = await workflow.run("Who leads Project Alpha?")
-        # Routes to EntityExpert (entity question)
-
-        result = await workflow.run("What are the main strategic initiatives?")
-        # Routes to ThemesExpert (themes question)
-
-When to Use This Pattern:
-    - When you have multiple specialist agents with different capabilities
-    - When routing logic should be explicit and auditable
-    - When specialist agents have very different configurations/tools/prompts
-    - When you want to add new specialists without changing existing ones
-
-Contrast with Part 3 (Single Agent):
-    | Aspect            | Part 3 Single Agent          | Part 4 Handoff               |
-    |-------------------|------------------------------|------------------------------|
-    | Routing           | Implicit via system prompt   | Explicit Router agent step   |
-    | Specialist depth  | Generalist                   | Dedicated specialist prompts |
-    | Traceability      | None (black box)             | Router decision is logged    |
-    | Adding experts    | Change system prompt         | Add new specialist class     |
-
-Why This Matters:
-    In production multi-agent systems with many specialists (SQL, GraphRAG,
-    web search, internal APIs), an explicit Router makes routing auditable
-    and extensible without growing a monolithic system prompt.
-"""
-
+import json
 import logging
 import time
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+from agent_framework import WorkflowBuilder, WorkflowContext, handler
 
 from agents.supervisor import create_azure_client
-from workflows.base import MCPWorkflowBase, WorkflowResult, WorkflowStep, WorkflowType
+from core.classification_utils import normalize_confidence_score
+from workflows.base import (
+    InstrumentedAgentExecutor,
+    MCPWorkflowBase,
+    StepTelemetry,
+    WorkflowResult,
+    WorkflowType,
+    collect_tool_names,
+    ensure_text,
+)
 
 if TYPE_CHECKING:
     from agent_framework import Agent, MCPStreamableHTTPTool
@@ -75,8 +47,13 @@ Your ONLY job is to classify an incoming query into one of three categories:
   Examples: "What are the projects and who leads them?", "Describe the leadership and strategy of TechVenture"
 
 ## Output Format
-Return ONLY a single word: entity, themes, or both.
-No explanation. No punctuation. Just the category word."""
+Return ONLY compact JSON with this schema:
+{
+    "route": "entity" | "themes" | "both",
+    "confidence_score": integer from 0 to 100,
+    "reason": "short explanation (<=30 words)"
+}
+No markdown. No extra text outside the JSON object."""
 
 
 _ENTITY_EXPERT_PROMPT = """You are the Entity Expert for TechVenture Inc's knowledge graph.
@@ -191,6 +168,277 @@ def _parse_route(router_output: str) -> RouteDecision:
     return "both"
 
 
+def _normalize_query_text(value: object) -> str:
+    """Return a clean query string from WorkflowBuilder payload shapes."""
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, dict):
+        for key in ("input", "query", "question", "text"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate
+        return ensure_text(value)
+
+    return ensure_text(value)
+
+
+@dataclass(slots=True)
+class RouteClassification:
+    """Parsed handoff router output with optional confidence signals."""
+
+    decision: RouteDecision
+    confidence_score: int | None = None
+    reason: str | None = None
+
+
+def _parse_route_classification(router_output: str) -> RouteClassification:
+    """Parse router output as JSON first, then fall back to legacy word parsing."""
+
+    payload = router_output.strip()
+    try:
+        parsed = json.loads(payload)
+    except Exception:
+        return RouteClassification(decision=_parse_route(router_output))
+
+    if not isinstance(parsed, dict):
+        return RouteClassification(decision=_parse_route(router_output))
+
+    route_value = parsed.get("route")
+    decision = _parse_route(route_value if isinstance(route_value, str) else router_output)
+    confidence_score = normalize_confidence_score(parsed.get("confidence_score"))
+    if confidence_score is None:
+        confidence_score = normalize_confidence_score(parsed.get("confidence"))
+    raw_reason = parsed.get("reason")
+    reason = raw_reason.strip() if isinstance(raw_reason, str) and raw_reason.strip() else None
+    return RouteClassification(decision=decision, confidence_score=confidence_score, reason=reason)
+
+
+@dataclass(slots=True)
+class RouteDecisionStage:
+    """Router output passed to specialist executors."""
+
+    query: str
+    decision: RouteDecision
+    raw_output: str
+    confidence_score: int | None = None
+    reason: str | None = None
+
+
+@dataclass(slots=True)
+class ExpertFindingStage:
+    """Payload emitted by specialists ahead of the composer."""
+
+    query: str
+    decision: RouteDecision
+    expert_type: Literal["entity", "themes"]
+    content: str
+    ran: bool
+    tool_names: tuple[str, ...] = ()
+
+
+class _RouterExecutor(InstrumentedAgentExecutor):
+    """Router agent executor that records decision telemetry."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="Router", display_name="Router", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(self, query: object, ctx: WorkflowContext[RouteDecisionStage]) -> None:
+        normalized_query = _normalize_query_text(query)
+        prompt = f"Classify this query: {normalized_query}"
+        start = time.perf_counter()
+        response = await self._agent.run(prompt)
+        elapsed = time.perf_counter() - start
+        raw_output = ensure_text(response)
+        classification = _parse_route_classification(raw_output)
+        metadata: dict[str, object] = {"route": classification.decision}
+        if classification.confidence_score is not None:
+            metadata["route_confidence_score"] = classification.confidence_score
+        if classification.reason:
+            metadata["route_reason"] = classification.reason
+
+        self._emit_step(
+            input_summary=(
+                f'Classify "{normalized_query[:60]}..."'
+                if len(normalized_query) > 60
+                else f'Classify "{normalized_query}"'
+            ),
+            output=f"Decision: {classification.decision} (raw: '{raw_output.strip()}')",
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.send_message(
+            RouteDecisionStage(
+                query=normalized_query,
+                decision=classification.decision,
+                raw_output=raw_output,
+                confidence_score=classification.confidence_score,
+                reason=classification.reason,
+            )
+        )
+
+
+class _EntityExpertExecutor(InstrumentedAgentExecutor):
+    """Runs the entity specialist when routing requires it."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="EntityExpert", display_name="EntityExpert", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(self, stage: RouteDecisionStage, ctx: WorkflowContext[ExpertFindingStage]) -> None:
+        should_run = stage.decision in ("entity", "both")
+        tool_names = collect_tool_names(self._agent)
+        metadata: dict[str, Any]
+
+        if should_run:
+            start = time.perf_counter()
+            response = await self._agent.run(stage.query)
+            elapsed = time.perf_counter() - start
+            content = ensure_text(response)
+            metadata = {
+                "handoff_from": "Router",
+                "search_type": "local",
+                "route": stage.decision,
+                "tools": tool_names,
+            }
+        else:
+            elapsed = 0.0
+            content = f"Skipped because router selected '{stage.decision}'."
+            metadata = {
+                "handoff_from": "Router",
+                "search_type": "local",
+                "route": stage.decision,
+                "skipped": True,
+            }
+
+        self._emit_step(
+            input_summary="Entity specialist analysis",
+            output=content,
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.send_message(
+            ExpertFindingStage(
+                query=stage.query,
+                decision=stage.decision,
+                expert_type="entity",
+                content=content,
+                ran=should_run,
+                tool_names=tuple(tool_names),
+            )
+        )
+
+
+class _ThemesExpertExecutor(InstrumentedAgentExecutor):
+    """Runs the themes specialist when routing requires it."""
+
+    def __init__(self, agent: "Agent", record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="ThemesExpert", display_name="ThemesExpert", record_step=record_step)
+        self._agent = agent
+
+    @handler
+    async def process(self, stage: RouteDecisionStage, ctx: WorkflowContext[ExpertFindingStage]) -> None:
+        should_run = stage.decision in ("themes", "both")
+        tool_names = collect_tool_names(self._agent)
+        metadata: dict[str, Any]
+
+        if should_run:
+            start = time.perf_counter()
+            response = await self._agent.run(stage.query)
+            elapsed = time.perf_counter() - start
+            content = ensure_text(response)
+            metadata = {
+                "handoff_from": "Router",
+                "search_type": "global",
+                "route": stage.decision,
+                "tools": tool_names,
+            }
+        else:
+            elapsed = 0.0
+            content = f"Skipped because router selected '{stage.decision}'."
+            metadata = {
+                "handoff_from": "Router",
+                "search_type": "global",
+                "route": stage.decision,
+                "skipped": True,
+            }
+
+        self._emit_step(
+            input_summary="Themes specialist analysis",
+            output=content,
+            elapsed=elapsed,
+            metadata=metadata,
+        )
+
+        await ctx.send_message(
+            ExpertFindingStage(
+                query=stage.query,
+                decision=stage.decision,
+                expert_type="themes",
+                content=content,
+                ran=should_run,
+                tool_names=tuple(tool_names),
+            )
+        )
+
+
+class _HandoffComposerExecutor(InstrumentedAgentExecutor):
+    """Composes specialist outputs into the final answer."""
+
+    def __init__(self, record_step: Callable[[StepTelemetry], None]) -> None:
+        super().__init__(executor_id="HandoffComposer", display_name="AnswerComposer", record_step=record_step)
+
+    @handler
+    async def process(
+        self, payloads: list[ExpertFindingStage], ctx: WorkflowContext[list[ExpertFindingStage], str]
+    ) -> None:
+        decision = payloads[0].decision if payloads else "both"
+        entity_payload = next((p for p in payloads if p.expert_type == "entity"), None)
+        themes_payload = next((p for p in payloads if p.expert_type == "themes"), None)
+
+        final_answer = self._compose_answer(decision, entity_payload, themes_payload)
+        elapsed = 0.0
+        experts_ran = [payload.expert_type for payload in payloads if payload.ran]
+
+        self._emit_step(
+            input_summary="Assemble router-selected findings",
+            output=final_answer,
+            elapsed=elapsed,
+            metadata={"decision": decision, "experts_ran": experts_ran},
+        )
+
+        await ctx.yield_output(final_answer)
+
+    @staticmethod
+    def _compose_answer(
+        decision: RouteDecision,
+        entity_payload: ExpertFindingStage | None,
+        themes_payload: ExpertFindingStage | None,
+    ) -> str:
+        entity_content = (
+            entity_payload.content
+            if entity_payload and entity_payload.ran and entity_payload.content.strip()
+            else "No entity findings."
+        )
+        themes_content = (
+            themes_payload.content
+            if themes_payload and themes_payload.ran and themes_payload.content.strip()
+            else "No thematic findings."
+        )
+
+        if decision == "entity":
+            return entity_content
+        if decision == "themes":
+            return themes_content
+        return "## Entity Details\n\n" + entity_content + "\n\n## Organizational Themes\n\n" + themes_content
+
+
 class ExpertHandoffWorkflow(MCPWorkflowBase):
     """Router-based expert handoff workflow.
 
@@ -218,7 +466,7 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
         Args:
             mcp_url: Optional override for the MCP server URL.
         """
-        super().__init__(mcp_url)
+        super().__init__(mcp_url=mcp_url, workflow_type=WorkflowType.HANDOFF)
         self._router: Agent | None = None
         self._entity_expert: Agent | None = None
         self._themes_expert: Agent | None = None
@@ -226,106 +474,64 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
     def _create_agents(self, mcp_tool: "MCPStreamableHTTPTool") -> None:
         """Create the router and specialist agents."""
         self._router, self._entity_expert, self._themes_expert = _create_router_and_experts(mcp_tool)
+        self._initialize_workflow()
 
-    async def run(self, query: str) -> WorkflowResult:
-        """Route the query to the appropriate specialist and return the answer.
+    def _initialize_workflow(self) -> None:
+        """Build the WorkflowBuilder graph with instrumented executors."""
 
-        Args:
-            query: Any question about TechVenture Inc.
-
-        Returns:
-            WorkflowResult including the Router's decision and the expert's answer.
-
-        Raises:
-            RuntimeError: If the workflow has not been entered as a context manager.
-        """
-        if not self._mcp_tool:
-            raise RuntimeError("Workflow not connected. Use 'async with ExpertHandoffWorkflow()'")
         assert self._router is not None
         assert self._entity_expert is not None
         assert self._themes_expert is not None
 
-        steps: list[WorkflowStep] = []
-        workflow_start = time.time()
+        router_executor = _RouterExecutor(self._router, self._record_step)
+        entity_executor = _EntityExpertExecutor(self._entity_expert, self._record_step)
+        themes_executor = _ThemesExpertExecutor(self._themes_expert, self._record_step)
+        composer_executor = _HandoffComposerExecutor(self._record_step)
 
-        # ------------------------------------------------------------------
-        # Step 1: Router classifies the query
-        # ------------------------------------------------------------------
-        logger.info("Step 1: Router — classifying query...")
-        step1_start = time.time()
-        route_result = await self._router.run(f"Classify this query: {query}")
-        step1_elapsed = time.time() - step1_start
-        route_decision = _parse_route(route_result.text)
-        logger.info("Step 1: Router decided '%s' (%.1fs)", route_decision, step1_elapsed)
+        builder = WorkflowBuilder(
+            start_executor=router_executor,
+            output_from=[composer_executor],
+            intermediate_output_from="all_other",
+        )
+        builder.add_fan_out_edges(router_executor, [entity_executor, themes_executor])
+        builder.add_fan_in_edges([entity_executor, themes_executor], composer_executor)
 
-        steps.append(
-            WorkflowStep(
-                agent_name="Router",
-                input_summary=f'Classify: "{query[:60]}..."' if len(query) > 60 else f'Classify: "{query}"',
-                output=f"Decision: {route_decision} (raw: '{route_result.text.strip()}')",
-                elapsed_seconds=step1_elapsed,
-                metadata={"route": route_decision},
-            )
+        workflow = builder.build()
+        self._set_workflow(
+            workflow,
+            [router_executor, entity_executor, themes_executor, composer_executor],
         )
 
-        # ------------------------------------------------------------------
-        # Step 2: Handoff to specialist(s)
-        # ------------------------------------------------------------------
-        final_answer_parts: list[str] = []
+    async def run(
+        self,
+        query: object,
+        *,
+        include_status_events: bool = True,
+        **run_kwargs: Any,
+    ) -> WorkflowResult:
+        """Execute the WorkflowBuilder graph and return routed telemetry."""
 
-        if route_decision in ("entity", "both"):
-            logger.info("Step 2: EntityExpert — local search...")
-            step2_start = time.time()
-            entity_result = await self._entity_expert.run(query)
-            step2_elapsed = time.time() - step2_start
-            final_answer_parts.append(entity_result.text)
-            logger.info("Step 2: EntityExpert completed (%.1fs)", step2_elapsed)
+        workflow = self._workflow
+        if workflow is None:
+            if not all((self._router, self._entity_expert, self._themes_expert)):
+                raise RuntimeError("Workflow not connected. Use 'async with ExpertHandoffWorkflow()'")
+            self._initialize_workflow()
+            workflow = self._workflow
+        if workflow is None:
+            raise RuntimeError("Workflow graph initialization failed")
 
-            steps.append(
-                WorkflowStep(
-                    agent_name="EntityExpert",
-                    input_summary="Entity-focused search for specific facts",
-                    output=entity_result.text,
-                    elapsed_seconds=step2_elapsed,
-                    metadata={"handoff_from": "Router", "search_type": "local"},
-                )
-            )
+        normalized_query = self.prepare_run(_normalize_query_text(query))
+        logger.info("Executing handoff workflow via WorkflowBuilder graph")
 
-        if route_decision in ("themes", "both"):
-            logger.info("Step %d: ThemesExpert — global search...", len(steps) + 1)
-            step3_start = time.time()
-            themes_result = await self._themes_expert.run(query)
-            step3_elapsed = time.time() - step3_start
-            final_answer_parts.append(themes_result.text)
-            logger.info("Step %d: ThemesExpert completed (%.1fs)", len(steps) + 1, step3_elapsed)
-
-            steps.append(
-                WorkflowStep(
-                    agent_name="ThemesExpert",
-                    input_summary="Thematic search for organizational patterns",
-                    output=themes_result.text,
-                    elapsed_seconds=step3_elapsed,
-                    metadata={"handoff_from": "Router", "search_type": "global"},
-                )
-            )
-
-        # Combine answers when both specialists ran
-        if route_decision == "both" and len(final_answer_parts) == 2:
-            final_answer = (
-                "## Entity Details\n\n"
-                + final_answer_parts[0]
-                + "\n\n## Organizational Themes\n\n"
-                + final_answer_parts[1]
-            )
-        else:
-            final_answer = final_answer_parts[0] if final_answer_parts else "No results found."
-
-        total_elapsed = time.time() - workflow_start
-
-        return WorkflowResult(
-            answer=final_answer,
-            workflow_type=WorkflowType.HANDOFF,
-            steps=steps,
-            total_elapsed_seconds=total_elapsed,
-            query=query,
+        run_started = time.perf_counter()
+        run_result = await workflow.run(
+            normalized_query,
+            include_status_events=include_status_events,
+            **run_kwargs,
+        )
+        total_elapsed = time.perf_counter() - run_started
+        return self.build_workflow_result(
+            normalized_query=normalized_query,
+            run_result=run_result,
+            total_elapsed=total_elapsed,
         )

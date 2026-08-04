@@ -1,0 +1,10 @@
+{"query": "Hi there", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}
+{"query": "Can you summarize our chat so far?", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}
+{"query": "Who leads Project Alpha?", "ground_truth": "Dr. Emily Harrison leads Project Alpha.", "expected_routed_workflow": "in_context", "accepted_routed_workflows": ["handoff", "sequential"]}
+{"query": "What is the strategic goal of Project Alpha?", "ground_truth": "Project Alpha advances enterprise AI innovation and market expansion.", "expected_routed_workflow": "in_context", "accepted_routed_workflows": ["handoff", "concurrent", "sequential"]}
+{"query": "Tell me a joke about cats", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}
+{"query": "What can you help me with?", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}
+{"query": "Thanks", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}
+{"query": "Who is Sarah Chen?", "ground_truth": "Sarah Chen is the CEO of TechVenture Inc.", "expected_routed_workflow": "in_context", "accepted_routed_workflows": ["handoff", "sequential"]}
+{"query": "Compare Project Alpha and Project Beta at a high level", "ground_truth": "Project Alpha and Beta are major projects with different focus areas.", "expected_routed_workflow": "in_context", "accepted_routed_workflows": ["handoff", "concurrent", "sequential"]}
+{"query": "What did I ask in my previous message?", "ground_truth": "Out-of-context guidance response", "expected_routed_workflow": "out_of_context", "accepted_routed_workflows": ["out_of_context"]}

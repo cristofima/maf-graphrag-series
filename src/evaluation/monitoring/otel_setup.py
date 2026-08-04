@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def setup_monitoring(config: EvalConfig | None = None, *, use_aspire: bool = True) -> None:
+def setup_monitoring(config: EvalConfig | None = None, *, use_aspire: bool = False) -> None:
     """Configure OpenTelemetry for agent observability.
 
     MAF agents automatically emit ``gen_ai.*`` spans — LLM calls,

@@ -47,10 +47,12 @@ from workflows.base import (
     WorkflowType,
     create_concurrent_workflow,
     create_handoff_workflow,
+    create_router_workflow,
     create_sequential_workflow,
 )
 from workflows.concurrent import ParallelSearchWorkflow
 from workflows.handoff import ExpertHandoffWorkflow
+from workflows.router import RouterWorkflow
 from workflows.sequential import ResearchPipelineWorkflow
 
 __all__ = [
@@ -62,8 +64,10 @@ __all__ = [
     "ResearchPipelineWorkflow",
     "ParallelSearchWorkflow",
     "ExpertHandoffWorkflow",
+    "RouterWorkflow",
     # Factory functions (state isolation)
     "create_sequential_workflow",
     "create_concurrent_workflow",
     "create_handoff_workflow",
+    "create_router_workflow",
 ]

@@ -6,14 +6,14 @@ tool creation is mocked, so no network connection or credentials are needed.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from workflows.base import MCPWorkflowBase
+from workflows.base import MCPWorkflowBase, WorkflowType
 
 
 class _StubWorkflow(MCPWorkflowBase):
     """Minimal concrete subclass to exercise the base lifecycle."""
 
     def __init__(self, mcp_url: str | None = None) -> None:
-        super().__init__(mcp_url)
+        super().__init__(mcp_url, workflow_type=WorkflowType.SEQUENTIAL)
         self.create_agents_calls: list[object] = []
 
     def _create_agents(self, mcp_tool: object) -> None:

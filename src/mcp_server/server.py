@@ -11,8 +11,6 @@ Usage:
     uv run uvicorn mcp_server.server:app --host 0.0.0.0 --port 8011
 """
 
-import logging
-
 from fastmcp import FastMCP
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
@@ -21,17 +19,6 @@ from core.search import DEFAULT_RESPONSE_TYPE
 from mcp_server.config import MCPConfig
 from mcp_server.tools import entity_query_tool, global_search_tool, local_search_tool
 from mcp_server.tools.types import EntityQueryResult, SearchResult, ToolError
-
-# ---------------------------------------------------------------------------
-# Suppress noisy INFO logs from LiteLLM and GraphRAG internals.
-# LiteLLM logs every Azure OpenAI API call at INFO level; global search
-# triggers 20+ parallel LLM calls producing massive terminal spam.
-# WARNING level preserves actionable messages (e.g. token-limit warnings).
-# uvicorn's own access/error logs remain at their configured level.
-# ---------------------------------------------------------------------------
-logging.basicConfig(level=logging.WARNING)
-for _logger_name in ("litellm", "graphrag", "httpx", "httpcore", "openai"):
-    logging.getLogger(_logger_name).setLevel(logging.WARNING)
 
 # Initialize configuration
 config = MCPConfig.from_env()

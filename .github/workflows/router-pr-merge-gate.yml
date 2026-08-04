@@ -1,0 +1,174 @@
+name: Router PR Merge Gate
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, reopened, synchronize, labeled]
+  pull_request_review:
+    types: [submitted]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "PR head SHA (optional for manual runs)."
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  router_eval_changes:
+    name: "Router Eval Change Detection (PR Merge Gate)"
+    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main' && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      run_eval: ${{ steps.detect.outputs.run_eval }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect router-evaluation-impacting changes
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" || true)"
+
+          echo "Changed files between $BASE_SHA and $HEAD_SHA:"
+          echo "$CHANGED_FILES"
+
+          if echo "$CHANGED_FILES" | grep -E '^(src/agents/|src/evaluation/|src/workflows/|\.github/workflows/(ci|router-evaluation|router-pr-merge-gate)\.yml|pyproject\.toml|uv\.lock)'; then
+            echo "run_eval=true" >> "$GITHUB_OUTPUT"
+            echo "Relevant changes detected."
+          else
+            echo "run_eval=false" >> "$GITHUB_OUTPUT"
+            echo "No relevant changes detected."
+          fi
+
+  router_evaluation:
+    name: "Router Evaluation (PR Local Pre-Merge)"
+    needs: [router_eval_changes]
+    if: ${{ needs.router_eval_changes.outputs.run_eval == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/router-evaluation.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      regenerate_data: true
+      run_batch_eval: true
+      publish_foundry: false
+      run_redteam: false
+      redteam_flow: "cloud-model"
+      min_route_accuracy: "0.95"
+    secrets: inherit
+
+  router_eval_pr_comment:
+    name: "Router Eval PR Comment"
+    needs: [router_eval_changes, router_evaluation]
+    if: ${{ always() && needs.router_eval_changes.outputs.run_eval == 'true' && (github.event_name == 'pull_request' || github.event_name == 'pull_request_review') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Upsert router evaluation comment
+        uses: actions/github-script@v7
+        env:
+          RUN_EVAL: ${{ needs.router_eval_changes.outputs.run_eval }}
+          EVAL_RESULT: ${{ needs.router_evaluation.result }}
+          ROUTE_MATCH: ${{ needs.router_evaluation.outputs.route_match }}
+          ROUTE_ACCURACY: ${{ needs.router_evaluation.outputs.route_accuracy }}
+          ROUTE_THRESHOLD: ${{ needs.router_evaluation.outputs.route_threshold }}
+          ROUTE_GATE_PASSED: ${{ needs.router_evaluation.outputs.route_gate_passed }}
+        with:
+          script: |
+            const marker = '<!-- router-eval-summary -->';
+            const prNumber = context.payload.pull_request?.number;
+            if (!prNumber) {
+              core.info('No pull_request context available. Skipping PR comment update.');
+              return;
+            }
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '## Router Evaluation (PR Local Pre-Merge)',
+              `- run_eval: \`${process.env.RUN_EVAL || 'false'}\``,
+              `- job result: \`${process.env.EVAL_RESULT || 'unknown'}\``,
+              `- route gate: \`${process.env.ROUTE_GATE_PASSED || 'unknown'}\``,
+              `- route match: \`${process.env.ROUTE_MATCH || 'n/a'}\``,
+              `- route accuracy: \`${process.env.ROUTE_ACCURACY || 'n/a'}\` (threshold: \`${process.env.ROUTE_THRESHOLD || 'n/a'}\`)`,
+              `- run details: ${runUrl}`,
+              '',
+              '_This comment is updated automatically by Router PR Merge Gate._',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.type === 'Bot' &&
+                typeof comment.body === 'string' &&
+                comment.body.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Updated existing router evaluation comment (${existing.id}).`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+              core.info('Created router evaluation comment.');
+            }
+
+  router_merge_gate:
+    name: "Router Merge Gate (PR Local Batch)"
+    needs: [router_eval_changes, router_evaluation, router_eval_pr_comment]
+    if: ${{ always() && ((github.event_name == 'pull_request' && github.base_ref == 'main' && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RUN_EVAL: ${{ needs.router_eval_changes.outputs.run_eval }}
+      EVAL_RESULT: ${{ needs.router_evaluation.result }}
+    steps:
+      - name: Decide merge gate result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$RUN_EVAL" != "true" ]]; then
+            echo "No router/evaluation-impacting changes detected; local router batch gate not required."
+            exit 0
+          fi
+
+          if [[ "$EVAL_RESULT" == "success" ]]; then
+            echo "Router local pre-merge evaluation passed."
+            exit 0
+          fi
+
+          echo "Router local pre-merge evaluation did not pass (result=$EVAL_RESULT)."
+          exit 1

@@ -1,6 +1,6 @@
 [project]
 name = "maf-graphrag-series"
-version = "4.0.0"
+version = "4.1.0"
 description = "MAF + GraphRAG: Enterprise Knowledge Agents - A tutorial series on building knowledge graph-powered AI agents with Microsoft Agent Framework"
 readme = "README.md"
 license = "MIT"
@@ -26,19 +26,22 @@ dependencies = [
     "graphrag>=3.0.9,<3.1.0",
     "pandas>=2.3.0,<3.0.0",
     "pyarrow>=22.0.0,<23.0.0",
+    "pydantic>=2.13.4,<3.0.0",
     "rich>=15.0.0,<16.0.0",
     "python-dotenv>=1.2.2,<2.0.0",
-    "fastmcp>=3.4.4,<4.0.0",
-    "uvicorn[standard]>=0.51.0,<0.52.0",
-    "agent-framework-core>=1.11.0,<2.0.0",
-    "agent-framework-openai>=1.10.1,<2.0.0",
+    "fastmcp>=3.4.5,<4.0.0",
+    "uvicorn[standard]>=0.52.0,<0.53.0",
+    "agent-framework-core>=1.13.0,<2.0.0",
+    "agent-framework-openai>=1.12.0,<2.0.0",
     "azure-identity>=1.25.3,<2.0.0",
     "httpx>=0.28.1,<0.29.0",
-    "agent-framework-orchestrations>=1.0.0,<2.0.0",
-    "azure-ai-evaluation>=1.18.1",
+    "agent-framework-orchestrations>=1.0.2,<2.0.0",
+    "azure-ai-evaluation>=1.18.3",
     "opentelemetry-api>=1.43.0,<1.44.0",
     "opentelemetry-sdk>=1.43.0,<1.44.0",
     "azure-monitor-opentelemetry-exporter>=1.0.0b55,<1.1.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.43.0,<1.44.0",
+    "agent-framework-devui>=1.0.0b260730",
 ]
 
 [project.urls]
@@ -60,7 +63,7 @@ dev = [
     "numpy<2.5.0",
 ]
 
-redteam = ["azure-ai-evaluation[redteam]>=1.18.1"]
+redteam = ["azure-ai-evaluation[redteam]>=1.18.3"]
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
@@ -110,6 +113,7 @@ ignore = [
 "__init__.py" = ["F401"]
 "src/workflows/base.py" = ["UP035"]
 "src/mcp_server/tools/types.py" = ["UP035"]
+"tests/**/*.py" = ["PLC0415", "RUF043"]
 
 [tool.mypy]
 python_version = "3.11"

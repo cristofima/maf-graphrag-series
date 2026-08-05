@@ -5,6 +5,7 @@ validation and result-reporting logic — no real GraphRAG indexing (which
 requires Azure OpenAI credentials and costs real credits) is performed.
 """
 
+from collections.abc import Coroutine
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -84,16 +85,27 @@ class TestRunIndexingHappyPath:
 class TestMain:
     def test_parses_args_and_runs_indexing(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["core.index", "--resume"])
-        mock_asyncio_run = MagicMock()
-        monkeypatch.setattr("core.index.asyncio.run", mock_asyncio_run)
+        captured: dict[str, object] = {}
+
+        def fake_asyncio_run(coro: Coroutine[object, object, object]) -> None:
+            captured["coroutine"] = coro
+            coro.close()
+
+        monkeypatch.setattr("core.index.asyncio.run", fake_asyncio_run)
 
         main()
 
-        mock_asyncio_run.assert_called_once()
+        coroutine = captured.get("coroutine")
+        assert coroutine is not None
 
     def test_exits_130_on_keyboard_interrupt(self, monkeypatch):
         monkeypatch.setattr("sys.argv", ["core.index"])
-        monkeypatch.setattr("core.index.asyncio.run", MagicMock(side_effect=KeyboardInterrupt))
+
+        def fake_asyncio_run(coro: Coroutine[object, object, object]) -> None:
+            coro.close()
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("core.index.asyncio.run", fake_asyncio_run)
 
         with pytest.raises(SystemExit) as exc_info:
             main()

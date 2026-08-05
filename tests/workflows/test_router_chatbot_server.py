@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
-from starlette.testclient import TestClient
 
 from workflows.router_chatbot_server import (
     RouterChatbotConfig,
@@ -55,6 +55,12 @@ def _sample_activity(text: str) -> dict[str, Any]:
         "recipient": {"id": "bot-1", "name": "RouterBot"},
         "text": text,
     }
+
+
+async def _request(app: Any, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        return await client.request(method, path, **kwargs)
 
 
 def test_extract_activity_text_from_text_field() -> None:
@@ -129,17 +135,18 @@ def test_status_text_from_event_uses_workflow_specific_executor_messages() -> No
     assert routed == "concurrent"
 
 
-def test_messages_endpoint_routes_to_router_service() -> None:
+async def test_messages_endpoint_routes_to_router_service() -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     stub = _StubRouterChatService()
     app.state.router_chat_service = stub
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/messages",
-            json=_sample_activity("Who leads Project Alpha?"),
-            headers={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
-        )
+    response = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=_sample_activity("Who leads Project Alpha?"),
+        headers={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -154,11 +161,10 @@ def test_messages_endpoint_routes_to_router_service() -> None:
     assert stub.calls == ["Who leads Project Alpha?"]
 
 
-def test_messages_endpoint_health_check_returns_ready() -> None:
+async def test_messages_endpoint_health_check_returns_ready() -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
 
-    with TestClient(app) as client:
-        response = client.get("/api/messages")
+    response = await _request(app, "GET", "/api/messages")
 
     assert response.status_code == 200
     payload = response.json()
@@ -167,7 +173,7 @@ def test_messages_endpoint_health_check_returns_ready() -> None:
     assert payload["endpoint"] == "/api/messages"
 
 
-def test_messages_endpoint_conversation_update_returns_welcome() -> None:
+async def test_messages_endpoint_conversation_update_returns_welcome() -> None:
     app = create_router_chatbot_app(RouterChatbotConfig(welcome_message="welcome from test"))
 
     activity = {
@@ -180,12 +186,13 @@ def test_messages_endpoint_conversation_update_returns_welcome() -> None:
         "recipient": {"id": "bot-1", "name": "RouterBot"},
     }
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/messages",
-            json=activity,
-            headers={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
-        )
+    response = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=activity,
+        headers={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -195,7 +202,7 @@ def test_messages_endpoint_conversation_update_returns_welcome() -> None:
     assert "traceparent" in response.headers
 
 
-def test_installation_update_uses_connector_delivery_for_welcome(monkeypatch: Any) -> None:
+async def test_installation_update_uses_connector_delivery_for_welcome(monkeypatch: Any) -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     delivery_mock = AsyncMock(return_value=True)
     monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
@@ -210,19 +217,20 @@ def test_installation_update_uses_connector_delivery_for_welcome(monkeypatch: An
         "recipient": {"id": "bot-1", "name": "RouterBot"},
     }
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/messages",
-            json=activity,
-            headers={"x-ms-agents-playground": "true"},
-        )
+    response = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=activity,
+        headers={"x-ms-agents-playground": "true"},
+    )
 
     assert response.status_code == 200
     assert response.json()["delivery"] == "connector"
     assert delivery_mock.await_count == 1
 
 
-def test_duplicate_welcome_is_suppressed_per_conversation(monkeypatch: Any) -> None:
+async def test_duplicate_welcome_is_suppressed_per_conversation(monkeypatch: Any) -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     delivery_mock = AsyncMock(return_value=True)
     monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
@@ -237,17 +245,20 @@ def test_duplicate_welcome_is_suppressed_per_conversation(monkeypatch: Any) -> N
         "recipient": {"id": "bot-1", "name": "RouterBot"},
     }
 
-    with TestClient(app) as client:
-        first = client.post(
-            "/api/messages",
-            json=activity,
-            headers={"x-ms-agents-playground": "true"},
-        )
-        second = client.post(
-            "/api/messages",
-            json=activity,
-            headers={"x-ms-agents-playground": "true"},
-        )
+    first = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=activity,
+        headers={"x-ms-agents-playground": "true"},
+    )
+    second = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=activity,
+        headers={"x-ms-agents-playground": "true"},
+    )
 
     assert first.status_code == 200
     assert first.json()["delivery"] == "connector"
@@ -269,7 +280,7 @@ def test_connector_delivery_candidates_build_reply_and_send_paths() -> None:
     ]
 
 
-def test_playground_request_uses_connector_delivery_when_available(monkeypatch: Any) -> None:
+async def test_playground_request_uses_connector_delivery_when_available(monkeypatch: Any) -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     stub = _StubRouterChatService()
     app.state.router_chat_service = stub
@@ -277,12 +288,13 @@ def test_playground_request_uses_connector_delivery_when_available(monkeypatch: 
     delivery_mock = AsyncMock(return_value=True)
     monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
 
-    with TestClient(app) as client:
-        response = client.post(
-            "/api/messages",
-            json=_sample_activity("Who leads Project Alpha?"),
-            headers={"x-ms-agents-playground": "true"},
-        )
+    response = await _request(
+        app,
+        "POST",
+        "/api/messages",
+        json=_sample_activity("Who leads Project Alpha?"),
+        headers={"x-ms-agents-playground": "true"},
+    )
 
     assert response.status_code == 200
     assert response.json()["delivery"] == "connector"
@@ -315,11 +327,10 @@ async def test_typing_keepalive_sends_until_stop_event(monkeypatch: Any) -> None
     assert dispatch_mock.await_count >= 1
 
 
-def test_messages_endpoint_rejects_empty_text() -> None:
+async def test_messages_endpoint_rejects_empty_text() -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
 
-    with TestClient(app) as client:
-        response = client.post("/api/messages", json=_sample_activity("   "))
+    response = await _request(app, "POST", "/api/messages", json=_sample_activity("   "))
 
     assert response.status_code == 400
     assert "missing non-empty text" in response.json()["error"]

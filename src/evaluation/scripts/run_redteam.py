@@ -465,9 +465,6 @@ async def run_redteam_scan(
     Raises:
         ValueError: If Azure AI Foundry project is not configured.
     """
-    from azure.ai.evaluation.red_team import AttackStrategy, RedTeam
-    from azure.identity import DefaultAzureCredential
-
     from evaluation.config import EvalConfig
 
     config = EvalConfig.from_env()
@@ -478,6 +475,9 @@ async def run_redteam_scan(
         raise ValueError(
             "Azure AI Foundry project required for red teaming. Set AZURE_AI_PROJECT environment variable."
         )
+
+    from azure.ai.evaluation.red_team import AttackStrategy, RedTeam
+    from azure.identity import DefaultAzureCredential
 
     strategy_map = _build_strategy_map(AttackStrategy)
     attack_strategies = _resolve_attack_strategies(strategies, strategy_map, AttackStrategy)

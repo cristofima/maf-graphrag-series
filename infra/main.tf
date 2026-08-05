@@ -31,10 +31,30 @@ resource "random_string" "suffix" {
   upper   = false
 }
 
+moved {
+  from = azurerm_cognitive_deployment.gpt4o
+  to   = azurerm_cognitive_deployment.gpt4o[0]
+}
+
 # -----------------------------------------------------------------------------
 # Local Variables
 # -----------------------------------------------------------------------------
 locals {
+  chat_deployments = {
+    main = {
+      name     = var.openai_main_chat_deployment_name
+      capacity = var.openai_main_chat_capacity
+    }
+    eval = {
+      name     = var.openai_eval_chat_deployment_name
+      capacity = var.openai_eval_chat_capacity
+    }
+    redteam = {
+      name     = var.openai_redteam_chat_deployment_name
+      capacity = var.openai_redteam_chat_capacity
+    }
+  }
+
   common_tags = merge(
     {
       Project     = var.project_name
@@ -106,8 +126,12 @@ resource "azapi_update_resource" "openai_project_management" {
 # Reference: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models
 # -----------------------------------------------------------------------------
 resource "azurerm_cognitive_deployment" "gpt4o" {
+  count = var.enable_legacy_chat_deployment ? 1 : 0
+
   name                 = var.openai_chat_deployment_name
   cognitive_account_id = azurerm_ai_services.openai.id
+
+  dynamic_throttling_enabled = false
 
   model {
     format  = "OpenAI"
@@ -118,6 +142,40 @@ resource "azurerm_cognitive_deployment" "gpt4o" {
   sku {
     name     = "Standard"
     capacity = var.openai_capacity
+  }
+
+  lifecycle {
+    ignore_changes = [dynamic_throttling_enabled, rai_policy_name]
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Azure OpenAI Model Deployments - GPT-4.1 family for app/eval/red-team
+# These are provisioned as separate deployments to isolate TPM/RPM pressure
+# while preserving apples-to-apples behavior across production, eval, and
+# red-team runs.
+# -----------------------------------------------------------------------------
+resource "azurerm_cognitive_deployment" "chat_variants" {
+  for_each = local.chat_deployments
+
+  name                 = each.value.name
+  cognitive_account_id = azurerm_ai_services.openai.id
+
+  dynamic_throttling_enabled = false
+
+  model {
+    format  = "OpenAI"
+    name    = var.openai_app_model_name
+    version = var.openai_app_model_version
+  }
+
+  sku {
+    name     = var.openai_app_deployment_sku_name
+    capacity = each.value.capacity
+  }
+
+  lifecycle {
+    ignore_changes = [dynamic_throttling_enabled, rai_policy_name]
   }
 }
 

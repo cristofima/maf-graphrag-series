@@ -48,14 +48,104 @@ variable "openai_chat_deployment_name" {
   default     = "gpt-4o"
 }
 
+variable "enable_legacy_chat_deployment" {
+  description = "Keep the existing GPT-4o chat deployment managed by Terraform. Disable only after migrating callers."
+  type        = bool
+  default     = true
+}
+
+variable "openai_main_chat_deployment_name" {
+  description = "The name for the primary application chat deployment (recommended: GPT-4.1)"
+  type        = string
+  default     = "graphrag-main-chat"
+}
+
+variable "openai_eval_chat_deployment_name" {
+  description = "The name for the evaluation judge deployment (recommended: GPT-4.1)"
+  type        = string
+  default     = "graphrag-main-eval"
+}
+
+variable "openai_redteam_chat_deployment_name" {
+  description = "The name for the red-team target deployment (recommended: GPT-4.1)"
+  type        = string
+  default     = "graphrag-main-redteam"
+}
+
+variable "openai_app_model_name" {
+  description = "Model family for the app, eval, and red-team chat deployments"
+  type        = string
+  default     = "gpt-4.1"
+}
+
+variable "openai_app_model_version" {
+  description = "Model version for the app, eval, and red-team chat deployments"
+  type        = string
+  default     = "2025-04-14"
+}
+
+variable "openai_app_deployment_sku_name" {
+  description = "SKU name for the app, eval, and red-team chat deployments"
+  type        = string
+  default     = "DataZoneStandard"
+
+  validation {
+    condition = contains([
+      "Standard",
+      "GlobalStandard",
+      "DataZoneStandard",
+    ], var.openai_app_deployment_sku_name)
+    error_message = "openai_app_deployment_sku_name must be Standard, GlobalStandard, or DataZoneStandard"
+  }
+}
+
+variable "openai_main_chat_capacity" {
+  description = "Capacity for the primary app deployment in thousands of TPM"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openai_main_chat_capacity >= 1 && var.openai_main_chat_capacity <= 450
+    error_message = "openai_main_chat_capacity must be between 1 and 450"
+  }
+}
+
+variable "openai_eval_chat_capacity" {
+  description = "Capacity for the evaluation deployment in thousands of TPM"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openai_eval_chat_capacity >= 1 && var.openai_eval_chat_capacity <= 450
+    error_message = "openai_eval_chat_capacity must be between 1 and 450"
+  }
+}
+
+variable "openai_redteam_chat_capacity" {
+  description = "Capacity for the red-team deployment in thousands of TPM"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.openai_redteam_chat_capacity >= 1 && var.openai_redteam_chat_capacity <= 450
+    error_message = "openai_redteam_chat_capacity must be between 1 and 450"
+  }
+}
+
 variable "openai_embedding_deployment_name" {
   description = "The name for the embedding model deployment"
   type        = string
   default     = "text-embedding-3-small"
 }
 
+variable "openai_router_deployment_name" {
+  description = "The name of the existing model-router deployment used by the agent router"
+  type        = string
+  default     = "model-router"
+}
+
 variable "openai_capacity" {
-  description = "OpenAI deployment capacity in thousands of tokens per minute (TPM). Default: 30K TPM"
+  description = "Legacy GPT-4o deployment capacity in thousands of TPM. Used only when enable_legacy_chat_deployment=true."
   type        = number
   default     = 30
 

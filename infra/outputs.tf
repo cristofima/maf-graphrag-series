@@ -22,13 +22,33 @@ output "openai_primary_key" {
 }
 
 output "openai_chat_deployment_name" {
-  description = "The name of the GPT-4o deployment"
-  value       = azurerm_cognitive_deployment.gpt4o.name
+  description = "The name of the primary application chat deployment"
+  value       = azurerm_cognitive_deployment.chat_variants["main"].name
+}
+
+output "openai_main_chat_deployment_name" {
+  description = "The name of the primary application chat deployment"
+  value       = azurerm_cognitive_deployment.chat_variants["main"].name
+}
+
+output "openai_eval_chat_deployment_name" {
+  description = "The name of the evaluation chat deployment"
+  value       = azurerm_cognitive_deployment.chat_variants["eval"].name
+}
+
+output "openai_redteam_chat_deployment_name" {
+  description = "The name of the red-team chat deployment"
+  value       = azurerm_cognitive_deployment.chat_variants["redteam"].name
 }
 
 output "openai_embedding_deployment_name" {
   description = "The name of the text-embedding-3-small deployment"
   value       = azurerm_cognitive_deployment.embedding.name
+}
+
+output "openai_router_deployment_name" {
+  description = "The name of the model-router deployment referenced by the agent router"
+  value       = var.openai_router_deployment_name
 }
 
 output "openai_resource_name" {
@@ -89,8 +109,11 @@ output "env_file_content" {
     # Azure OpenAI Configuration
     AZURE_OPENAI_ENDPOINT=${azurerm_ai_services.openai.endpoint}
     AZURE_OPENAI_API_KEY=${azurerm_ai_services.openai.primary_access_key}
-    AZURE_OPENAI_CHAT_DEPLOYMENT=${azurerm_cognitive_deployment.gpt4o.name}
+    AZURE_OPENAI_CHAT_DEPLOYMENT=${azurerm_cognitive_deployment.chat_variants["main"].name}
+    AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT=${azurerm_cognitive_deployment.chat_variants["eval"].name}
+    AZURE_OPENAI_REDTEAM_CHAT_DEPLOYMENT=${azurerm_cognitive_deployment.chat_variants["redteam"].name}
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${azurerm_cognitive_deployment.embedding.name}
+    AZURE_OPENAI_ROUTER_DEPLOYMENT=${var.openai_router_deployment_name}
     AZURE_OPENAI_API_VERSION=2024-08-01-preview
 
     # Azure Storage Configuration (optional - for Azure Blob output)

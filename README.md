@@ -63,7 +63,8 @@ Learn the basics of Microsoft GraphRAG - transforming documents into knowledge g
 - **Python 3.11+** (tested with 3.11 and 3.12)
 - **uv** for dependency and environment management
 - Azure OpenAI resource with:
-  - GPT-4o deployment (for entity extraction and queries)
+  - Chat deployment for indexing and queries (for example `graphrag-main-chat`)
+  - Optional legacy GPT-4o deployment during migration windows
   - text-embedding-3-small deployment (for embeddings)
 - Azure subscription
 
@@ -701,13 +702,15 @@ _Microsoft 365 Agents Playground conversation showing routed responses across Gr
 
 📖 **Part 6 Implementation Notes:** See [docs/part6-implementation-notes.md](docs/part6-implementation-notes.md) for routing policy, CI governance, and rollout details.
 
+📖 **Workflow Configuration Guide:** See [.github/workflows/README.md](.github/workflows/README.md) for router evaluation inputs, PR merge gate behavior, and main-branch evaluation orchestration.
+
 ---
 
 ## Azure AI Services Used
 
 | Service                  | Purpose                    | Tooling                       |
 | ------------------------ | -------------------------- | ----------------------------- |
-| **Azure OpenAI**         | Entity extraction, queries | GPT-4o                        |
+| **Azure OpenAI**         | Entity extraction, queries | GPT-4.1 family + model-router |
 | **Azure OpenAI**         | Document embeddings        | text-embedding-3-small        |
 | **Agent Framework**      | Multi-agent orchestration  | Agent Framework SDK           |
 | **Azure AI Evaluation**  | LLM-as-judge + red team    | Azure AI Evaluation SDK       |
@@ -733,6 +736,8 @@ The overall percentage moves as the suite grows — see the live **Coverage** ba
 
 Ruff (lint + format) and mypy run in CI alongside tests — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
+For workflow-level behavior (manual router runs, PR merge gate, and main post-merge router checks), see [.github/workflows/README.md](.github/workflows/README.md).
+
 ## Key Files
 
 | File              | Description                                               |
@@ -743,6 +748,7 @@ Ruff (lint + format) and mypy run in CI alongside tests — see [.github/workflo
 | `src/agents/`     | Knowledge Captain conversational agent                    |
 | `src/workflows/`  | Multi-agent workflow patterns                             |
 | `src/evaluation/` | Evaluation pipeline — evaluators, monitoring, scripts     |
+| `infra/README.md` | Terraform provisioning, deployments, and env outputs      |
 | `.env`            | Azure OpenAI credentials (create from .env.example)       |
 
 ## License

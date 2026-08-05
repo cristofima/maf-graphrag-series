@@ -10,7 +10,6 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/router-evaluation.yml"
       - ".github/workflows/router-main-evaluation.yml"
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

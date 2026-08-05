@@ -1,7 +1,10 @@
 """Unit tests for evaluation/scripts/run_redteam.py flow selection helpers."""
 
 import json
+import sys
 from pathlib import Path
+from types import ModuleType
+from typing import Any, cast
 
 import pytest
 
@@ -217,6 +220,18 @@ class _RedTeamFailure:
         raise RuntimeError("boom")
 
 
+def _install_fake_redteam_module(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    redteam_cls: type[Any],
+    attack_strategy_cls: type[Any],
+) -> None:
+    fake_module = cast(Any, ModuleType("azure.ai.evaluation.red_team"))
+    fake_module.RedTeam = redteam_cls
+    fake_module.AttackStrategy = attack_strategy_cls
+    monkeypatch.setitem(sys.modules, "azure.ai.evaluation.red_team", fake_module)
+
+
 @pytest.mark.asyncio
 class TestRunRedteamScan:
     @staticmethod
@@ -241,8 +256,11 @@ class TestRunRedteamScan:
 
     async def test_writes_failure_payload_on_scan_error(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
-        monkeypatch.setattr("azure.ai.evaluation.red_team.RedTeam", _RedTeamFailure, raising=False)
-        monkeypatch.setattr("azure.ai.evaluation.red_team.AttackStrategy", _FakeAttackStrategy, raising=False)
+        _install_fake_redteam_module(
+            monkeypatch,
+            redteam_cls=_RedTeamFailure,
+            attack_strategy_cls=_FakeAttackStrategy,
+        )
         monkeypatch.setattr("azure.identity.DefaultAzureCredential", lambda: object(), raising=False)
 
         with pytest.raises(RuntimeError, match="boom"):
@@ -256,8 +274,11 @@ class TestRunRedteamScan:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
-        monkeypatch.setattr("azure.ai.evaluation.red_team.RedTeam", _RedTeamSuccess, raising=False)
-        monkeypatch.setattr("azure.ai.evaluation.red_team.AttackStrategy", _FakeAttackStrategy, raising=False)
+        _install_fake_redteam_module(
+            monkeypatch,
+            redteam_cls=_RedTeamSuccess,
+            attack_strategy_cls=_FakeAttackStrategy,
+        )
         monkeypatch.setattr("azure.identity.DefaultAzureCredential", lambda: object(), raising=False)
         monkeypatch.setattr(
             "evaluation.scripts.run_redteam._publish_new_foundry_redteam_reference",

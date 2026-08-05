@@ -387,7 +387,9 @@ class TestMCPWorkflowRunner:
         assert blueprint["name"] == "Sequential"
         assert blueprint["id"] == "maf-workflow-sequential"
 
-    def test_build_dynamic_blueprint_uses_mcp_workflow_base(self):
+    def test_build_dynamic_blueprint_uses_mcp_workflow_base(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr("agents.supervisor.create_mcp_tool", lambda _mcp_url=None: object())
+
         runner = MCPWorkflowRunner(
             lambda _mcp_url: _MinimalMCPWorkflow(),
             workflow_type=WorkflowType.SEQUENTIAL,

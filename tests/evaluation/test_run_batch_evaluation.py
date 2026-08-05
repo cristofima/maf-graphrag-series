@@ -8,6 +8,7 @@ import pytest
 
 from evaluation.scripts.run_batch_evaluation import (
     DATASETS_DIR,
+    _build_new_foundry_testing_criteria,
     _compute_route_summary,
     _resolve_cli_data_path,
     _select_foundry_evaluator_names,
@@ -61,6 +62,23 @@ class TestSelectFoundryEvaluatorNames:
         selected = _select_foundry_evaluator_names({"entity_accuracy": object(), "foo": object()})
 
         assert selected == set()
+
+
+class TestBuildNewFoundryTestingCriteria:
+    def test_maps_tool_definitions_for_task_and_intent(self) -> None:
+        criteria = _build_new_foundry_testing_criteria(
+            {"task_adherence", "intent_resolution"},
+            model_deployment="graphrag-main-eval",
+            has_structured_tool_calls=False,
+        )
+
+        by_name = {item["name"]: item for item in criteria}
+
+        task_mapping = cast(dict[str, str], by_name["task_adherence"]["data_mapping"])
+        intent_mapping = cast(dict[str, str], by_name["intent_resolution"]["data_mapping"])
+
+        assert task_mapping["tool_definitions"] == "{{item.tool_definitions}}"
+        assert intent_mapping["tool_definitions"] == "{{item.tool_definitions}}"
 
 
 class TestComputeRouteSummary:

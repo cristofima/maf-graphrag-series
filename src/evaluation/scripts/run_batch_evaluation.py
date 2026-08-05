@@ -452,7 +452,11 @@ def _build_new_foundry_testing_criteria(
                 "name": "task_adherence",
                 "evaluator_name": "builtin.task_adherence",
                 "initialization_parameters": {"deployment_name": model_deployment},
-                "data_mapping": {"query": ITEM_QUERY_TEMPLATE, "response": ITEM_RESPONSE_TEMPLATE},
+                "data_mapping": {
+                    "query": ITEM_QUERY_TEMPLATE,
+                    "response": ITEM_RESPONSE_TEMPLATE,
+                    "tool_definitions": ITEM_TOOL_DEFINITIONS_TEMPLATE,
+                },
             }
         )
 
@@ -463,7 +467,11 @@ def _build_new_foundry_testing_criteria(
                 "name": "intent_resolution",
                 "evaluator_name": "builtin.intent_resolution",
                 "initialization_parameters": {"deployment_name": model_deployment},
-                "data_mapping": {"query": ITEM_QUERY_TEMPLATE, "response": ITEM_RESPONSE_TEMPLATE},
+                "data_mapping": {
+                    "query": ITEM_QUERY_TEMPLATE,
+                    "response": ITEM_RESPONSE_TEMPLATE,
+                    "tool_definitions": ITEM_TOOL_DEFINITIONS_TEMPLATE,
+                },
             }
         )
 

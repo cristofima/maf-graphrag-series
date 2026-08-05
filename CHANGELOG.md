@@ -5,13 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.1.0] - 2026-08-03
+## [4.1.0] - 2026-08-05
 
 ### Added
 
 - **Router-first runtime**: Production router runtime with `RouterClassifier` and `RouterWorkflow`, including retry, fallback, and confidence-based routing. ([19dc6c4](https://github.com/cristofima/maf-graphrag-series/commit/19dc6c4))
 - **Out-of-context routing path**: Router `out_of_context` branch and dedicated chatbot endpoint for Agents Playground validation. ([5b4aed6](https://github.com/cristofima/maf-graphrag-series/commit/5b4aed6))
 - **Router evaluation stack**: Reusable evaluation workflow and PR merge gate with local, Foundry, and optional red-team modes. ([4b9bfd3](https://github.com/cristofima/maf-graphrag-series/commit/4b9bfd3))
+- **Foundry evaluator data mapping**: Extended evaluation data mapping to include tool definitions for Foundry criteria. ([f0e32a5](https://github.com/cristofima/maf-graphrag-series/commit/f0e32a5))
+- **Dedicated red-team deployment lane**: Added red-team chat deployment configuration and split chat/eval/red-team workload lanes in infrastructure and evaluation flows. ([455ede0](https://github.com/cristofima/maf-graphrag-series/commit/455ede0), [44cfce9](https://github.com/cristofima/maf-graphrag-series/commit/44cfce9))
 
 ### Changed
 
@@ -23,14 +25,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Runtime reliability**: Error-handling hardening in workflow execution and response processing, plus confidence score normalization for router decisions. ([e154b45](https://github.com/cristofima/maf-graphrag-series/commit/e154b45), [41f0f95](https://github.com/cristofima/maf-graphrag-series/commit/41f0f95), [9157583](https://github.com/cristofima/maf-graphrag-series/commit/9157583), [3b754f1](https://github.com/cristofima/maf-graphrag-series/commit/3b754f1))
 - **CI reliability**: Reusable-workflow deadlock removal by dropping nested concurrency and reduced cache-save collisions in parallel uv setup jobs. ([1c1a414](https://github.com/cristofima/maf-graphrag-series/commit/1c1a414))
+- **Evaluation publish resilience**: Foundry batch publish errors are now handled with explicit warning paths instead of hard failures. ([3b94149](https://github.com/cristofima/maf-graphrag-series/commit/3b94149))
+- **Test reliability in constrained CI envs**: Router chatbot tests moved to async request patterns and workflow blueprint tests now isolate MCP tool construction for deterministic behavior. ([7b714d7](https://github.com/cristofima/maf-graphrag-series/commit/7b714d7), [36a64f3](https://github.com/cristofima/maf-graphrag-series/commit/36a64f3))
 
 ### Documentation
 
 - Router integration, evaluation-governance, and release-note documentation updates for the router workflow stack. ([7e4748d](https://github.com/cristofima/maf-graphrag-series/commit/7e4748d), [66cb27d](https://github.com/cristofima/maf-graphrag-series/commit/66cb27d), [ec658fe](https://github.com/cristofima/maf-graphrag-series/commit/ec658fe))
+- Workflow operations guide and Part 6 migration-safety lessons expanded for router-era governance. ([12baaa8](https://github.com/cristofima/maf-graphrag-series/commit/12baaa8), [755dc70](https://github.com/cristofima/maf-graphrag-series/commit/755dc70))
 
 ### Internal
 
 - CI/release automation alignment: Node 24-compatible GitHub Actions runtime updates, reusable workflow permission fixes, and branch trigger coverage for feature/refactor branches. ([af9b7a7](https://github.com/cristofima/maf-graphrag-series/commit/af9b7a7), [f17a6d3](https://github.com/cristofima/maf-graphrag-series/commit/f17a6d3), [5d57f57](https://github.com/cristofima/maf-graphrag-series/commit/5d57f57))
+- **Router evaluation governance hardening**: Main-evaluation trigger simplification, fail-on-redteam control, and stronger auth/install checks in reusable evaluation workflows. ([f03a24e](https://github.com/cristofima/maf-graphrag-series/commit/f03a24e), [52f9e16](https://github.com/cristofima/maf-graphrag-series/commit/52f9e16), [aa33ff9](https://github.com/cristofima/maf-graphrag-series/commit/aa33ff9))
+- **Type-check policy for tests**: Added targeted mypy overrides allowing untyped test definitions while keeping stricter source checks. ([7fd6b29](https://github.com/cristofima/maf-graphrag-series/commit/7fd6b29))
+- **Coverage expansion**: Added focused unit tests for classification utilities, evaluation scripts, and workflow base orchestration contracts. ([7d8aabd](https://github.com/cristofima/maf-graphrag-series/commit/7d8aabd))
+- **Tooling and release housekeeping**: Linting-test ignores, router workflow formatting pass, env template refresh for router/observability, and release metadata refresh for 4.1.0. ([0ae384b](https://github.com/cristofima/maf-graphrag-series/commit/0ae384b), [8b470ea](https://github.com/cristofima/maf-graphrag-series/commit/8b470ea), [83a9d7b](https://github.com/cristofima/maf-graphrag-series/commit/83a9d7b), [1cb99c4](https://github.com/cristofima/maf-graphrag-series/commit/1cb99c4), [4c536c1](https://github.com/cristofima/maf-graphrag-series/commit/4c536c1))
+- **Codebase consistency cleanup**: Cross-file readability and consistency refactors with no behavior-contract changes. ([6d0a0f1](https://github.com/cristofima/maf-graphrag-series/commit/6d0a0f1))
 
 ---
 

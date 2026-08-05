@@ -101,6 +101,12 @@ Workflow split:
 - `.github/workflows/router-main-evaluation.yml`: `main`-only workflow that runs full router evaluation with Foundry publish + red-team when relevant files changed.
 - `.github/workflows/router-pr-merge-gate.yml`: required PR gate workflow triggered on PR lifecycle updates (`opened`, `reopened`, `synchronize`, `labeled`) and review submissions; expensive router evaluation remains conditional.
 
+Execution surface policy:
+
+- Manual runs use `.github/workflows/router-evaluation.yml`.
+- `.github/workflows/router-main-evaluation.yml` is push-only and intentionally has no manual dispatch inputs.
+- Workflow configuration and cost profiles are documented in `.github/workflows/README.md`.
+
 Gate behavior in PRs:
 
 - The required gate workflow is present on new PR commits so merge checks are not left in a missing/stale state.
@@ -108,6 +114,20 @@ Gate behavior in PRs:
 - Doc-only or otherwise non-relevant updates can still complete the gate without running token-heavy evaluation steps.
 
 This preserves deterministic merge enforcement while reducing unnecessary evaluation spend.
+
+---
+
+## Infrastructure Alignment
+
+Terraform now provisions dedicated chat deployments for router-era workloads:
+
+- `graphrag-main-chat` (application runtime)
+- `graphrag-main-eval` (batch evaluator judge)
+- `graphrag-main-redteam` (red-team target)
+
+The stack also keeps optional legacy GPT-4o deployment support behind `enable_legacy_chat_deployment`, enabling safe migration without hard cutovers.
+
+Router deployment naming is explicit through `AZURE_OPENAI_ROUTER_DEPLOYMENT` and currently references an existing manual `model-router` deployment (unmanaged by Terraform state).
 
 ---
 

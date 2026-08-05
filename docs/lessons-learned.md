@@ -1073,6 +1073,74 @@ For LLM-heavy systems, quality gates should be event-aware, not uniform. Tie exp
 
 ---
 
+## Challenge 23: Safe Migration Required Split Deployments Instead of In-Place Replacement
+
+### Problem
+
+Moving directly from a single GPT-4o deployment to a new model setup risked runtime regressions, evaluator instability, and rollback complexity.
+
+### Root Cause
+
+One shared deployment was handling heterogeneous workloads:
+
+- application chat traffic
+- batch evaluator judge traffic
+- red-team target traffic
+
+This coupling amplified quota pressure and made migration changes high-risk.
+
+### Solution
+
+Refactored Terraform to provision dedicated chat deployments:
+
+- `graphrag-main-chat`
+- `graphrag-main-eval`
+- `graphrag-main-redteam`
+
+and retained a controlled compatibility switch:
+
+- `enable_legacy_chat_deployment` for optional GPT-4o continuity during migration.
+
+The generated `.env` now exports explicit variables for each workload path (`AZURE_OPENAI_CHAT_DEPLOYMENT`, `AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT`, `AZURE_OPENAI_REDTEAM_CHAT_DEPLOYMENT`) plus `AZURE_OPENAI_ROUTER_DEPLOYMENT`.
+
+### Key Insight
+
+For GenAI systems, migration safety improves when deployments are split by workload first, then legacy is retired behind a feature flag after validation.
+
+---
+
+## Challenge 24: Foundry Validation Tightened Required Data Mapping for Tool-Aware Evaluators
+
+### Problem
+
+Foundry batch publish runs began failing with validation errors even though local batch evaluation succeeded.
+
+Observed failure pattern:
+
+```
+EvalValidationFailed: missing required data mappings for evaluators
+'builtin.task_adherence', 'builtin.intent_resolution'
+```
+
+### Root Cause
+
+Inline dataset rows included `tool_definitions`, but evaluator `data_mapping` for `task_adherence` and `intent_resolution` did not pass that field explicitly. Service-side validation became stricter.
+
+### Solution
+
+Updated Foundry testing criteria generation in `run_batch_evaluation.py`:
+
+- add `"tool_definitions": "{{item.tool_definitions}}"` to `task_adherence` mapping
+- add `"tool_definitions": "{{item.tool_definitions}}"` to `intent_resolution` mapping
+
+Added regression coverage in `tests/evaluation/test_run_batch_evaluation.py` to lock this mapping contract.
+
+### Key Insight
+
+Cloud evaluation validators can evolve independently from local execution paths. Keep mapping contracts explicit and test them as first-class compatibility surface.
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -1099,27 +1167,21 @@ For LLM-heavy systems, quality gates should be event-aware, not uniform. Tie exp
 20. ✅ **Treat Foundry publish as secondary to local result persistence**
 21. ✅ **Fail red team runs that return `0/0` evaluated attacks**
 22. ✅ **Split evaluation checks by lifecycle (PR local gate vs main full Foundry/red-team)**
+23. ✅ **Split chat/eval/red-team deployments before retiring legacy GPT-4o**
+24. ✅ **Map `tool_definitions` explicitly for Foundry tool-aware evaluators**
 
 ### Final Architecture
 
-| Component                | Region           | Model/SKU                       | Rationale                                         |
-| ------------------------ | ---------------- | ------------------------------- | ------------------------------------------------- |
-| Azure OpenAI             | westus           | GPT-4o + text-embedding-3-small | Model availability, lower demand                  |
-| Storage Account          | southcentralus   | Standard LRS                    | Quota availability                                |
-| App Services             | southcentralus   | TBD                             | Quota availability, proximity to storage          |
-| Azure AI Foundry Project | westus/eastus2\* | New Foundry project endpoint    | Step 3/4 eval visibility and red team integration |
-| Application Insights     | southcentralus   | Workspace-based                 | Production OpenTelemetry traces                   |
-| GraphRAG                 | —                | v3.0.1 (migrated from v1.2.0)   | numpy 2.x compat, agent-framework support         |
+| Component                | Region (current defaults) | Model/SKU                                          | Rationale                                                        |
+| ------------------------ | ------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
+| Azure AI Services/OpenAI | eastus2                   | GPT-4.1 split deployments + optional legacy GPT-4o | Workload isolation for app, eval, and red-team                   |
+| Storage Account          | eastus2                   | Standard tier + LRS replication                    | Low-cost state and GraphRAG artifact storage                     |
+| Azure AI Foundry Project | eastus2                   | Project endpoint from Terraform output             | Step 3/4 eval visibility and red-team integration                |
+| Application Insights     | eastus2                   | Workspace-based                                    | Production OpenTelemetry traces                                  |
+| Router deployment        | referenced by name        | `model-router` (currently unmanaged)               | Preserves router compatibility while Terraform ownership evolves |
+| GraphRAG                 | —                         | v3.0.1 (migrated from v1.2.0)                      | numpy 2.x compat, agent-framework support                        |
 
-\*Region must support required evaluation and safety capabilities.
-
-**Estimated Monthly Cost** (based on 30K TPM, moderate usage):
-
-- Azure OpenAI: ~$150-300
-- Storage Account: ~$20-50
-- **Total**: ~$170-350/month
-
-**Cost Savings**: ~$176/month from text-embedding-3-small selection
+Cost is now primarily driven by deployment capacities and run cadence (`main`, `eval`, `redteam`) rather than a single shared deployment estimate.
 
 ---
 

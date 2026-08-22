@@ -37,7 +37,7 @@ Usage:
     uv run python run_agent.py
 """
 
-from agents.config import AgentConfig, get_agent_config
+from agents.config import AgentConfig, SessionConfig, get_agent_config, get_session_config
 from agents.middleware import (
     LoggingFunctionMiddleware,
     QueryRewritingChatMiddleware,
@@ -45,6 +45,13 @@ from agents.middleware import (
     TokenCountingChatMiddleware,
 )
 from agents.prompts import KNOWLEDGE_CAPTAIN_PROMPT, RESEARCH_DELEGATE_PROMPT, SIMPLE_ASSISTANT_PROMPT
+from agents.session_store import (
+    InMemorySessionStore,
+    SessionCompactionDiagnostics,
+    SessionKey,
+    SessionRecord,
+    SessionStoreMetrics,
+)
 from agents.supervisor import (
     AgentResponse,
     KnowledgeCaptainRunner,
@@ -59,7 +66,9 @@ from agents.tools import extract_key_entities, format_as_table
 __all__ = [
     # Configuration
     "AgentConfig",
+    "SessionConfig",
     "get_agent_config",
+    "get_session_config",
     # Middleware
     "TimingAgentMiddleware",
     "TokenCountingChatMiddleware",
@@ -69,6 +78,12 @@ __all__ = [
     "KNOWLEDGE_CAPTAIN_PROMPT",
     "SIMPLE_ASSISTANT_PROMPT",
     "RESEARCH_DELEGATE_PROMPT",
+    # Session store
+    "SessionKey",
+    "SessionRecord",
+    "SessionCompactionDiagnostics",
+    "SessionStoreMetrics",
+    "InMemorySessionStore",
     # Supervisor
     "KnowledgeCaptainRunner",
     "create_knowledge_captain",

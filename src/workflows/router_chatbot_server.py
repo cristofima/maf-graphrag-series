@@ -821,7 +821,7 @@ async def _handle_message_activity(
     )
 
     session_key = _resolve_session_key(payload)
-    session_record, _ = session_store.get_or_create(session_key.session_id)
+    session_record, _ = await session_store.get_or_create(session_key.session_id)
 
     typing_task: asyncio.Task[None] | None = None
     typing_stop_event: asyncio.Event | None = None

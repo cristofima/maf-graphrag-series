@@ -131,7 +131,7 @@ async def test_router_chat_service_preserves_multi_turn_context(monkeypatch: pyt
     service = RouterChatService(mcp_url=None, request_timeout_seconds=30.0, session_store=session_store)
 
     key = SessionKey.create(channel_id="msteams", conversation_id="conv-1", user_id="user-1")
-    record, _ = session_store.get_or_create(key.session_id)
+    record, _ = await session_store.get_or_create(key.session_id)
 
     reply_one = await service.answer("My name is Ana.", session_record=record)
     reply_two = await service.answer("What is my name?", session_record=record)

@@ -119,7 +119,7 @@ class InMemorySessionStore(SessionStore):
         )
 
         # Bootstrap or retrieve session
-        record, created = store.get_or_create(session_id)
+        record, created = await store.get_or_create(session_id)
 
         # Append turn with history management
         diagnostics = store.append_turn(
@@ -184,7 +184,7 @@ class InMemorySessionStore(SessionStore):
 
     async def get(self, session_id: str) -> AgentSession | None:
         """Get AgentSession, checking TTL and refreshing expiration."""
-        self._run_cleanup_if_needed()
+        await self._run_cleanup_if_needed()
 
         # For backward compat, we maintain both:
         # - Parent class storage (_sessions dict from framework)
@@ -212,7 +212,7 @@ class InMemorySessionStore(SessionStore):
 
     async def set(self, session_id: str, session: AgentSession) -> None:
         """Set AgentSession and track metadata."""
-        self._run_cleanup_if_needed()
+        await self._run_cleanup_if_needed()
         now = self._clock()
 
         # Ensure we have a SessionRecord for this session_id
@@ -227,7 +227,7 @@ class InMemorySessionStore(SessionStore):
             self._refresh_record(self._records[session_id], now)
 
         await super().set(session_id, session)
-        self._enforce_capacity(skip_session_id=session_id)
+        await self._enforce_capacity(skip_session_id=session_id)
         self._metrics.active_sessions = len(self._records)
 
     async def delete(self, session_id: str) -> None:
@@ -242,13 +242,13 @@ class InMemorySessionStore(SessionStore):
     # Application convenience methods
     # ========================================================================
 
-    def get_record(self, session_id: str) -> SessionRecord | None:
+    async def get_record(self, session_id: str) -> SessionRecord | None:
         """Return the live SessionRecord for *session_id*, or None if absent/expired.
 
         Unlike ``get_or_create``, this never creates a new record; it is a read-only
         peek used by callers that only want to inspect existing session state.
         """
-        self._run_cleanup_if_needed()
+        await self._run_cleanup_if_needed()
         record = self._records.get(session_id)
         if record is None:
             return None
@@ -256,6 +256,7 @@ class InMemorySessionStore(SessionStore):
         now = self._clock()
         if record.expires_at_monotonic <= now:
             del self._records[session_id]
+            await super().delete(session_id)
             self._metrics.ttl_expirations += 1
             logger.debug(f"Session {session_id} expired (TTL)")
             self._metrics.active_sessions = len(self._records)
@@ -265,11 +266,12 @@ class InMemorySessionStore(SessionStore):
         self._metrics.active_sessions = len(self._records)
         return record
 
-    def get_or_create(self, session_id: str) -> tuple[SessionRecord, bool]:
+    async def get_or_create(self, session_id: str) -> tuple[SessionRecord, bool]:
         """Return existing record or create one. Bool=True if created.
 
-        NOTE: This is SYNC to maintain backward compatibility with existing code.
+        Cleanup and eviction are async so native AgentSession entries remain in sync.
         """
+        await self._run_cleanup_if_needed()
         existing = self._records.get(session_id)
         if existing is not None:
             now = self._clock()
@@ -280,6 +282,7 @@ class InMemorySessionStore(SessionStore):
             else:
                 # Expired
                 del self._records[session_id]
+                await super().delete(session_id)
                 self._metrics.ttl_expirations += 1
                 logger.debug(f"Session {session_id} expired during get_or_create")
 
@@ -291,7 +294,7 @@ class InMemorySessionStore(SessionStore):
             expires_at_monotonic=now + self._ttl_seconds,
         )
         self._records[session_id] = created
-        self._enforce_capacity(skip_session_id=session_id)
+        await self._enforce_capacity(skip_session_id=session_id)
         self._metrics.active_sessions = len(self._records)
         return created, True
 
@@ -339,7 +342,7 @@ class InMemorySessionStore(SessionStore):
         record.updated_at_monotonic = now
         record.expires_at_monotonic = now + self._ttl_seconds
 
-    def _run_cleanup_if_needed(self) -> None:
+    async def _run_cleanup_if_needed(self) -> None:
         """Run cleanup periodically if needed."""
         now = self._clock()
         if now - self._last_cleanup_monotonic < self._cleanup_interval_seconds:
@@ -352,15 +355,16 @@ class InMemorySessionStore(SessionStore):
 
         for key in expired_keys:
             del self._records[key]
+            await super().delete(key)
 
         if expired_keys:
             self._metrics.ttl_expirations += len(expired_keys)
             logger.debug(f"Cleanup: expired {len(expired_keys)} sessions")
 
-        self._enforce_capacity()
+        await self._enforce_capacity()
         self._metrics.active_sessions = len(self._records)
 
-    def _enforce_capacity(self, skip_session_id: str | None = None) -> None:
+    async def _enforce_capacity(self, skip_session_id: str | None = None) -> None:
         """Evict LRU sessions if over capacity."""
         while len(self._records) > self._max_count:
             candidates = [
@@ -374,5 +378,6 @@ class InMemorySessionStore(SessionStore):
 
             evict_key, _ = min(candidates, key=lambda item: item[1].updated_at_monotonic)
             del self._records[evict_key]
+            await super().delete(evict_key)
             self._metrics.evictions += 1
             logger.debug(f"Capacity eviction: removed {evict_key}")

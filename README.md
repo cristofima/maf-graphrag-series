@@ -21,21 +21,21 @@ Use the root README for high-level stack families only. Exact dependency pins li
 | Technology      | Version Family | Purpose                                  |
 | --------------- | -------------- | ---------------------------------------- |
 | GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval   |
-| Agent Framework | `1.13.x`       | Agents, orchestration, and model clients |
+| Agent Framework | `1.15.x`       | Agents, orchestration, and model clients |
 | FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
 
-| Part | Title                            | Status      | Folder/Module                                      |
-| ---- | -------------------------------- | ----------- | -------------------------------------------------- |
-| 1    | GraphRAG Fundamentals            | ✅ Complete | `src/core/`                                        |
-| 2    | GraphRAG MCP Server              | ✅ Complete | `src/mcp_server/`                                  |
-| 3    | Supervisor Agent Pattern         | ✅ Complete | `src/agents/`                                      |
-| 4    | Workflow Patterns                | ✅ Complete | `src/workflows/`                                   |
-| 5    | Agent Evaluation                 | ✅ Complete | `src/evaluation/`                                  |
-| 6    | Router SLM Integration           | ✅ Complete | `src/agents/`, `src/workflows/`, `src/evaluation/` |
-| 7    | Conversational Session Readiness | ⏳ Planned  | —                                                  |
-| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                                  |
-| 9    | Tool Registry                    | ⏳ Planned  | —                                                  |
-| 10   | Production Deployment            | ⏳ Planned  | —                                                  |
+| Part | Title                            | Status         | Folder/Module                                      |
+| ---- | -------------------------------- | -------------- | -------------------------------------------------- |
+| 1    | GraphRAG Fundamentals            | ✅ Complete    | `src/core/`                                        |
+| 2    | GraphRAG MCP Server              | ✅ Complete    | `src/mcp_server/`                                  |
+| 3    | Supervisor Agent Pattern         | ✅ Complete    | `src/agents/`                                      |
+| 4    | Workflow Patterns                | ✅ Complete    | `src/workflows/`                                   |
+| 5    | Agent Evaluation                 | ✅ Complete    | `src/evaluation/`                                  |
+| 6    | Router SLM Integration           | ✅ Complete    | `src/agents/`, `src/workflows/`, `src/evaluation/` |
+| 7    | Conversational Session Readiness | 🚧 In Progress | `src/agents/`, `src/workflows/`                    |
+| 8    | Human-in-the-Loop                | ⏳ Planned     | —                                                  |
+| 9    | Tool Registry                    | ⏳ Planned     | —                                                  |
+| 10   | Production Deployment            | ⏳ Planned     | —                                                  |
 
 ## Part 1: GraphRAG Fundamentals
 
@@ -703,6 +703,28 @@ _Microsoft 365 Agents Playground conversation showing routed responses across Gr
 📖 **Part 6 Implementation Notes:** See [docs/part6-implementation-notes.md](docs/part6-implementation-notes.md) for routing policy, CI governance, and rollout details.
 
 📖 **Workflow Configuration Guide:** See [.github/workflows/README.md](.github/workflows/README.md) for router evaluation inputs, PR merge gate behavior, and main-branch evaluation orchestration.
+
+---
+
+## Part 7: Conversational Session Readiness (In Progress)
+
+Adds multi-turn session support on top of the Part 6 router-first architecture, without changing routing policy or the router metadata contract.
+
+### What's Implemented So Far
+
+- `InMemorySessionStore` extending the native `agent_framework.SessionStore` protocol, with TTL expiration, bounded capacity (LRU eviction), and opportunistic cleanup.
+- Deterministic session identity from channel + conversation + user, with a per-session `asyncio.Lock` to serialize same-session requests.
+- Session-aware query composition: bounded conversation history is prepended to follow-up turns before routing/classification.
+- Session and lock diagnostics (`session_id`, `turn_index`, `memory_hits`, `compaction_events`, `lock_wait_ms`, `lock_hold_ms`) propagated into router span attributes/events and structured logs, without changing required router metadata fields.
+- `RouterWorkflowAgentAdapter`: an agent-style facade over `RouterWorkflow` for future non-chatbot consumers (not yet wired into any entry point).
+
+### Still In Progress
+
+- DevUI multi-turn validation (the `/api/messages` connector path is validated; DevUI still runs the legacy Knowledge Captain path).
+- Workflow checkpoint/resume support (session record currently only carries a placeholder checkpoint id).
+- Migrating DevUI/evaluation consumers off Knowledge Captain onto the router-agent path, then removing Knowledge Captain.
+
+Implementation notes and manual-validation evidence will be published in [docs/part7-implementation-notes.md](docs/part7-implementation-notes.md) once the surfaces above are closed out.
 
 ---
 

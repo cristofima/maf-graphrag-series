@@ -177,3 +177,13 @@ variable "enable_foundry" {
   type        = bool
   default     = true
 }
+
+variable "foundry_user_principal_ids" {
+  description = <<-EOT
+    Entra object IDs (users, groups, or service principals) granted the "Foundry User"
+    role on the Foundry project scope. Required for local New Foundry evals publish
+    (run_batch_evaluation.py --foundry) via DefaultAzureCredential.
+  EOT
+  type        = list(string)
+  default     = []
+}

@@ -61,6 +61,9 @@ _EVENT_EXECUTOR_INVOKED = "executor_invoked"
 _EVENT_EXECUTOR_COMPLETED = "executor_completed"
 _EVENT_OUTPUT = "output"
 _ROUTER_ROUTED_WORKFLOW_EVENT_KEY = "router.routed_workflow"
+_ROUTER_LOCK_CONTENTION_WARN_MS = 100.0
+_ROUTER_LOCK_WAIT_MS_KEY = "router.lock_wait_ms"
+_ROUTER_LOCK_HOLD_MS_KEY = "router.lock_hold_ms"
 
 
 def _supports_keyword_argument(callable_obj: Callable[..., Any], keyword: str) -> bool:
@@ -219,6 +222,7 @@ class RouterWorkflow:
         query: str,
         router_outcome: RouterOutcome,
         routed_workflow: str,
+        session_telemetry: Mapping[str, object] | None = None,
         response_output: str | None = None,
     ) -> None:
         """Emit explicit routing span attributes for observability dashboards."""
@@ -240,6 +244,17 @@ class RouterWorkflow:
             self._span_set_if_present(span, "router.reason", router_outcome.classification.reason)
             self._span_set_if_present(span, "router.fallback_reason", router_outcome.fallback_reason)
             self._span_set_if_present(span, "router.classifier_error", router_outcome.classifier_error)
+            if session_telemetry:
+                self._span_set_if_present(span, "router.session_id", session_telemetry.get("session_id"))
+                self._span_set_if_present(span, "router.turn_index", session_telemetry.get("turn_index"))
+                self._span_set_if_present(span, "router.memory_hits", session_telemetry.get("memory_hits"))
+                self._span_set_if_present(
+                    span,
+                    "router.compaction_events",
+                    session_telemetry.get("compaction_events"),
+                )
+                self._span_set_if_present(span, _ROUTER_LOCK_WAIT_MS_KEY, session_telemetry.get("lock_wait_ms"))
+                self._span_set_if_present(span, _ROUTER_LOCK_HOLD_MS_KEY, session_telemetry.get("lock_hold_ms"))
             self._span_set_if_present(
                 span,
                 "router.response_preview",
@@ -257,8 +272,26 @@ class RouterWorkflow:
                     "router.confidence_score": router_outcome.classification.confidence_score,
                     "router.fallback_reason": router_outcome.fallback_reason,
                     "router.classifier_status": router_outcome.classifier_status,
+                    "router.session_id": session_telemetry.get("session_id") if session_telemetry else None,
+                    "router.turn_index": session_telemetry.get("turn_index") if session_telemetry else None,
+                    "router.memory_hits": session_telemetry.get("memory_hits") if session_telemetry else None,
+                    _ROUTER_LOCK_WAIT_MS_KEY: session_telemetry.get("lock_wait_ms") if session_telemetry else None,
+                    _ROUTER_LOCK_HOLD_MS_KEY: session_telemetry.get("lock_hold_ms") if session_telemetry else None,
                 },
             )
+            if session_telemetry:
+                lock_wait_ms = session_telemetry.get("lock_wait_ms")
+                lock_hold_ms = session_telemetry.get("lock_hold_ms")
+                if isinstance(lock_wait_ms, (int, float)) and lock_wait_ms > _ROUTER_LOCK_CONTENTION_WARN_MS:
+                    self._span_add_event(
+                        span,
+                        "router.session_lock_contention",
+                        {
+                            _ROUTER_LOCK_WAIT_MS_KEY: lock_wait_ms,
+                            _ROUTER_LOCK_HOLD_MS_KEY: lock_hold_ms,
+                            "router.warn_threshold_ms": _ROUTER_LOCK_CONTENTION_WARN_MS,
+                        },
+                    )
             if response_output:
                 self._span_add_event(
                     span,
@@ -274,6 +307,7 @@ class RouterWorkflow:
         normalized_query: str,
         *,
         include_status_events: bool = True,
+        session_telemetry: Mapping[str, object] | None = None,
         **run_kwargs: Any,
     ) -> tuple[Any, Callable[[], Awaitable[WorkflowResult]]]:
         """Return a stream adapter and finalize callback for DevUI streaming."""
@@ -287,6 +321,7 @@ class RouterWorkflow:
                 query=normalized_query,
                 router_outcome=router_outcome,
                 routed_workflow=_OUT_OF_CONTEXT_ROUTE,
+                session_telemetry=session_telemetry,
                 response_output=_OUT_OF_CONTEXT_MESSAGE,
             )
             progress_payload = {
@@ -328,6 +363,7 @@ class RouterWorkflow:
                 normalized_query,
                 router_outcome,
                 include_status_events=include_status_events,
+                session_telemetry=session_telemetry,
             )
 
         decision = self._resolve_workflow_decision(router_outcome)
@@ -335,6 +371,7 @@ class RouterWorkflow:
             query=normalized_query,
             router_outcome=router_outcome,
             routed_workflow=decision.value,
+            session_telemetry=session_telemetry,
         )
         factory = self._workflow_factories.get(decision) or create_sequential_workflow
 
@@ -368,6 +405,7 @@ class RouterWorkflow:
             normalized_query=normalized_query,
             router_outcome=router_outcome,
             decision=decision,
+            session_telemetry=session_telemetry,
             finalize_inner=finalize_inner,
             exit_stack=exit_stack,
         )
@@ -377,6 +415,7 @@ class RouterWorkflow:
         query: str,
         *,
         include_status_events: bool = True,
+        session_telemetry: Mapping[str, object] | None = None,
         **run_kwargs: Any,
     ) -> WorkflowResult:
         if not self._entered:
@@ -389,12 +428,14 @@ class RouterWorkflow:
                 query=normalized_query,
                 router_outcome=router_outcome,
                 routed_workflow=_OUT_OF_CONTEXT_ROUTE,
+                session_telemetry=session_telemetry,
                 response_output=_OUT_OF_CONTEXT_MESSAGE,
             )
             return self._build_out_of_context_result(
                 normalized_query,
                 router_outcome,
                 include_status_events=include_status_events,
+                session_telemetry=session_telemetry,
             )
 
         decision = self._resolve_workflow_decision(router_outcome)
@@ -402,6 +443,7 @@ class RouterWorkflow:
             query=normalized_query,
             router_outcome=router_outcome,
             routed_workflow=decision.value,
+            session_telemetry=session_telemetry,
         )
         factory = self._workflow_factories.get(decision) or create_sequential_workflow
 
@@ -418,6 +460,7 @@ class RouterWorkflow:
             router_outcome=router_outcome,
             decision=decision,
             inner_result=inner_result,
+            session_telemetry=session_telemetry,
         )
 
     async def _classify(self, query: str) -> RouterOutcome:
@@ -556,6 +599,18 @@ class RouterWorkflow:
             metadata["router_subset"] = classification.router_subset
         return metadata
 
+    @staticmethod
+    def _apply_session_telemetry(
+        metadata: dict[str, object],
+        session_telemetry: Mapping[str, object] | None,
+    ) -> None:
+        if not session_telemetry:
+            return
+        for key in ("session_id", "turn_index", "memory_hits", "compaction_events"):
+            value = session_telemetry.get(key)
+            if value is not None:
+                metadata[key] = value
+
     def _combine_results(
         self,
         *,
@@ -563,6 +618,7 @@ class RouterWorkflow:
         router_outcome: RouterOutcome,
         decision: WorkflowType,
         inner_result: WorkflowResult,
+        session_telemetry: Mapping[str, object] | None = None,
     ) -> WorkflowResult:
         router_step = WorkflowStep(
             agent_name="WorkflowRouter",
@@ -577,6 +633,7 @@ class RouterWorkflow:
             router_step.metadata["fallback_reason"] = router_outcome.fallback_reason
         if router_outcome.classifier_error:
             router_step.metadata["classifier_error"] = router_outcome.classifier_error
+        self._apply_session_telemetry(router_step.metadata, session_telemetry)
 
         combined_steps = [router_step, *inner_result.steps]
         total_elapsed = router_outcome.elapsed_seconds + inner_result.total_elapsed_seconds
@@ -595,12 +652,14 @@ class RouterWorkflow:
         router_outcome: RouterOutcome,
         *,
         include_status_events: bool,
+        session_telemetry: Mapping[str, object] | None,
     ) -> Callable[[], Awaitable[WorkflowResult]]:
         def finalize() -> Awaitable[WorkflowResult]:
             result = self._build_out_of_context_result(
                 normalized_query,
                 router_outcome,
                 include_status_events=include_status_events,
+                session_telemetry=session_telemetry,
             )
             return asyncio.sleep(0, result=result)
 
@@ -612,6 +671,7 @@ class RouterWorkflow:
         normalized_query: str,
         router_outcome: RouterOutcome,
         decision: WorkflowType,
+        session_telemetry: Mapping[str, object] | None,
         finalize_inner: Callable[[], Awaitable[WorkflowResult]],
         exit_stack: AsyncExitStack,
     ) -> Callable[[], Awaitable[WorkflowResult]]:
@@ -624,6 +684,7 @@ class RouterWorkflow:
                         router_outcome=router_outcome,
                         decision=decision,
                         inner_result=inner_result,
+                        session_telemetry=session_telemetry,
                     )
                 finally:
                     await exit_stack.aclose()
@@ -638,6 +699,7 @@ class RouterWorkflow:
         router_outcome: RouterOutcome,
         *,
         include_status_events: bool,
+        session_telemetry: Mapping[str, object] | None = None,
     ) -> WorkflowResult:
         classification = router_outcome.classification
         router_step = WorkflowStep(
@@ -651,6 +713,7 @@ class RouterWorkflow:
         router_step.metadata["classifier_status"] = router_outcome.classifier_status
         router_step.metadata["classifier_attempts"] = router_outcome.classifier_attempts
         router_step.metadata["fallback_reason"] = "out_of_context"
+        self._apply_session_telemetry(router_step.metadata, session_telemetry)
         if include_status_events:
             router_step.metadata["status"] = "completed"
 

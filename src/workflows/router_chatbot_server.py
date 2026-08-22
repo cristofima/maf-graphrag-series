@@ -28,7 +28,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from agents.config import SessionConfig
+from agents.session_store import InMemorySessionStore, SessionKey, SessionRecord
 from workflows.base import create_router_workflow
+
+# NOTE: InMemorySessionStore now extends agent_framework.SessionStore
+# SessionKey is maintained for backward compatibility (generates session_id via SHA256)
+# SessionRecord holds metadata and history for multi-turn conversations
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +100,7 @@ _TYPING_ACTIVITY_TYPE = "typing"
 _CONVERSATION_UPDATE_ACTIVITY_TYPE = "conversationUpdate"
 _INSTALLATION_UPDATE_ACTIVITY_TYPE = "installationUpdate"
 _ROUTER_CHANNEL_DATA_TYPE = "router"
+_LOCK_CONTENTION_WARN_MS = 100.0
 
 
 class RouterChatbotConfig(BaseModel):
@@ -110,6 +117,10 @@ class RouterChatbotConfig(BaseModel):
     typing_keepalive_slow_after_seconds: float = Field(default=20.0, gt=1.0)
     progress_status_after_seconds: float = Field(default=8.0, ge=0.0)
     progress_status_min_interval_seconds: float = Field(default=6.0, gt=0.2)
+    session_ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    session_max_count: int = Field(default=1000, ge=1, le=50000)
+    session_cleanup_interval_seconds: int = Field(default=60, ge=1, le=3600)
+    session_max_history_groups: int = Field(default=12, ge=1, le=200)
 
     @classmethod
     def from_env(cls) -> RouterChatbotConfig:
@@ -132,6 +143,10 @@ class RouterChatbotConfig(BaseModel):
                 "ROUTER_CHATBOT_PROGRESS_STATUS_MIN_INTERVAL_SECONDS",
                 "6",
             ),
+            "session_ttl_seconds": os.getenv("SESSION_TTL_SECONDS", "1800"),
+            "session_max_count": os.getenv("SESSION_MAX_COUNT", "1000"),
+            "session_cleanup_interval_seconds": os.getenv("SESSION_CLEANUP_INTERVAL_SECONDS", "60"),
+            "session_max_history_groups": os.getenv("SESSION_MAX_HISTORY_GROUPS", "12"),
         }
         try:
             return cls.model_validate(data)
@@ -142,24 +157,51 @@ class RouterChatbotConfig(BaseModel):
 class RouterChatService:
     """Async facade that executes RouterWorkflow for a single user message."""
 
-    def __init__(self, *, mcp_url: str | None, request_timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        *,
+        mcp_url: str | None,
+        request_timeout_seconds: float,
+        session_store: InMemorySessionStore,
+    ) -> None:
         self._mcp_url = mcp_url
         self._request_timeout_seconds = request_timeout_seconds
+        self._session_store = session_store
 
     async def answer(
         self,
         text: str,
         *,
+        session_record: SessionRecord | None = None,
         on_progress: Callable[[str], Awaitable[None]] | None = None,
+        lock_wait_ms: float | None = None,
     ) -> RouterChatReply:
         """Return the router workflow answer for a user text input."""
 
+        session_id: str | None = None
+        turn_index = 1
+        memory_hits = 0
+        query_text = text
+
+        if session_record is not None:
+            session_id = session_record.session_id
+            turn_index = session_record.turn_index + 1
+            memory_hits = len(session_record.history_groups)
+            query_text = self._build_session_aware_query(text, session_record)
+
         async with asyncio.timeout(self._request_timeout_seconds):
             async with create_router_workflow(self._mcp_url) as workflow:
-                normalized_query = workflow.prepare_run(text)
+                normalized_query = workflow.prepare_run(query_text)
                 stream, finalize = await workflow.create_stream(
                     normalized_query,
                     include_status_events=True,
+                    session_telemetry={
+                        "session_id": session_id,
+                        "turn_index": turn_index,
+                        "memory_hits": memory_hits,
+                        "compaction_events": 0,
+                        "lock_wait_ms": lock_wait_ms,
+                    },
                 )
 
                 if on_progress is not None:
@@ -179,6 +221,15 @@ class RouterChatService:
 
                 result = await finalize()
 
+        compaction_events = 0
+        if session_record is not None:
+            diagnostics = self._session_store.append_turn(
+                session_record,
+                user_text=text,
+                assistant_text=result.answer,
+            )
+            compaction_events = diagnostics.compacted_groups
+
         routed_workflow: str | None = None
         classifier_status: str | None = None
         fallback_reason: str | None = None
@@ -197,7 +248,33 @@ class RouterChatService:
             classifier_status=classifier_status,
             fallback_reason=fallback_reason,
             total_elapsed_seconds=result.total_elapsed_seconds,
+            session_id=session_id,
+            turn_index=turn_index,
+            memory_hits=memory_hits,
+            compaction_events=compaction_events,
         )
+
+    @staticmethod
+    def _build_session_aware_query(text: str, session_record: SessionRecord) -> str:
+        """Build a bounded history prompt to preserve multi-turn context."""
+
+        if not session_record.history_groups:
+            return text
+
+        history_lines: list[str] = []
+        for group in session_record.history_groups:
+            user_text = group.get("user", "")
+            assistant_text = group.get("assistant", "")
+            if user_text:
+                history_lines.append(f"User: {user_text}")
+            if assistant_text:
+                history_lines.append(f"Assistant: {assistant_text}")
+
+        if not history_lines:
+            return text
+
+        history_block = "\n".join(history_lines)
+        return f"Conversation context (latest turns):\n{history_block}\n\nCurrent user message:\n{text}"
 
 
 @dataclass(slots=True)
@@ -209,6 +286,12 @@ class RouterChatReply:
     classifier_status: str | None = None
     fallback_reason: str | None = None
     total_elapsed_seconds: float | None = None
+    session_id: str | None = None
+    turn_index: int | None = None
+    memory_hits: int | None = None
+    compaction_events: int | None = None
+    lock_wait_ms: float | None = None
+    lock_hold_ms: float | None = None
 
 
 def _copy_activity_context(request_activity: Mapping[str, Any], response: dict[str, Any]) -> dict[str, Any]:
@@ -246,6 +329,27 @@ def _log_json(level: int, event: str, **fields: Any) -> None:
         if value is not None:
             payload[key] = value
     logger.log(level, json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+
+
+def _emit_lock_span_diagnostics(lock_wait_ms: float, lock_hold_ms: float) -> None:
+    """Emit lock timing attributes/events to the active request span."""
+
+    span = trace.get_current_span()
+    if not span.get_span_context().is_valid:
+        return
+
+    span.set_attribute("router.lock_wait_ms", lock_wait_ms)
+    span.set_attribute("router.lock_hold_ms", lock_hold_ms)
+
+    if lock_wait_ms > _LOCK_CONTENTION_WARN_MS:
+        span.add_event(
+            "router.session_lock_contention",
+            {
+                "router.lock_wait_ms": lock_wait_ms,
+                "router.lock_hold_ms": lock_hold_ms,
+                "router.warn_threshold_ms": _LOCK_CONTENTION_WARN_MS,
+            },
+        )
 
 
 def _inject_trace_headers(response_headers: dict[str, str]) -> None:
@@ -352,6 +456,25 @@ def _conversation_id(activity: Mapping[str, Any]) -> str:
         if isinstance(candidate_id, str):
             return candidate_id
     return ""
+
+
+def _resolve_session_key(activity: Mapping[str, Any]) -> SessionKey:
+    """Resolve a deterministic session key from channel, conversation, and user."""
+
+    channel_id = activity.get("channelId")
+    conversation_id = _conversation_id(activity)
+    sender = activity.get("from")
+    user_id = ""
+    if isinstance(sender, Mapping):
+        candidate = sender.get("id")
+        if isinstance(candidate, str):
+            user_id = candidate
+
+    return SessionKey.create(
+        channel_id=channel_id if isinstance(channel_id, str) else "",
+        conversation_id=conversation_id,
+        user_id=user_id,
+    )
 
 
 def _connector_delivery_candidates(activity: Mapping[str, Any]) -> list[str]:
@@ -512,6 +635,25 @@ def build_reply_activity(request_activity: Mapping[str, Any], reply: RouterChatR
     if router_metadata:
         response["channelData"] = {"router": router_metadata}
 
+    session_metadata: dict[str, Any] = {}
+    if reply.session_id is not None:
+        session_metadata["session_id"] = reply.session_id
+    if reply.turn_index is not None:
+        session_metadata["turn_index"] = reply.turn_index
+    if reply.memory_hits is not None:
+        session_metadata["memory_hits"] = reply.memory_hits
+    if reply.compaction_events is not None:
+        session_metadata["compaction_events"] = reply.compaction_events
+    if reply.lock_wait_ms is not None:
+        session_metadata["lock_wait_ms"] = round(reply.lock_wait_ms, 3)
+    if reply.lock_hold_ms is not None:
+        session_metadata["lock_hold_ms"] = round(reply.lock_hold_ms, 3)
+
+    if session_metadata:
+        channel_data = response.setdefault("channelData", {})
+        if isinstance(channel_data, dict):
+            channel_data["session"] = session_metadata
+
     for key in ("channelId", "serviceUrl", "conversation"):
         value = request_activity.get(key)
         if value is not None:
@@ -570,6 +712,7 @@ async def _messages_handler(request: Request) -> JSONResponse:
 
     service: RouterChatService = request.app.state.router_chat_service
     config: RouterChatbotConfig = request.app.state.router_chatbot_config
+    session_store: InMemorySessionStore = request.app.state.session_store
     welcomed_conversation_ids: set[str] = request.app.state.welcomed_conversation_ids
     try:
         payload = await request.json()
@@ -592,7 +735,7 @@ async def _messages_handler(request: Request) -> JSONResponse:
         if activity_type != _MESSAGE_ACTIVITY_TYPE:
             return _handle_unsupported_activity(payload)
 
-        return await _handle_message_activity(payload, service, config, incoming_headers)
+        return await _handle_message_activity(payload, service, session_store, config, incoming_headers)
 
 
 async def _handle_welcome_activity(
@@ -657,6 +800,7 @@ def _handle_unsupported_activity(payload: Mapping[str, Any]) -> JSONResponse:
 async def _handle_message_activity(
     payload: Mapping[str, Any],
     service: RouterChatService,
+    session_store: InMemorySessionStore,
     config: RouterChatbotConfig,
     incoming_headers: Mapping[str, str],
 ) -> JSONResponse:
@@ -675,6 +819,9 @@ async def _handle_message_activity(
         message_id=message_id_text,
         text=text,
     )
+
+    session_key = _resolve_session_key(payload)
+    session_record, _ = session_store.get_or_create(session_key.session_id)
 
     typing_task: asyncio.Task[None] | None = None
     typing_stop_event: asyncio.Event | None = None
@@ -704,9 +851,27 @@ async def _handle_message_activity(
     typing_stop_event, typing_task = await _start_playground_typing(payload, incoming_headers, config)
 
     started = time.perf_counter()
+    lock_wait_started = time.perf_counter()
+    lock_wait_ms = 0.0
+    lock_hold_ms = 0.0
 
     try:
-        reply = await service.answer(text, on_progress=_on_progress)
+        async with session_record.lock:
+            lock_wait_ms = (time.perf_counter() - lock_wait_started) * 1000
+            lock_hold_started = time.perf_counter()
+            try:
+                reply = await service.answer(
+                    text,
+                    session_record=session_record,
+                    on_progress=_on_progress,
+                    lock_wait_ms=lock_wait_ms,
+                )
+            finally:
+                # Measure hold time on both success and failure so contention is never
+                # under-reported for the request that actually triggered the error.
+                lock_hold_ms = (time.perf_counter() - lock_hold_started) * 1000
+            reply.lock_wait_ms = lock_wait_ms
+            reply.lock_hold_ms = lock_hold_ms
     except Exception as exc:
         _log_json(
             logging.ERROR,
@@ -717,6 +882,9 @@ async def _handle_message_activity(
             error=str(exc),
         )
         reply = RouterChatReply(answer=_LOCAL_ERROR_MESSAGE, classifier_status="error")
+        reply.session_id = session_key.session_id
+        reply.lock_wait_ms = lock_wait_ms
+        reply.lock_hold_ms = lock_hold_ms
     finally:
         await _finalize_message_processing(
             payload=payload,
@@ -729,6 +897,8 @@ async def _handle_message_activity(
             typing_task=typing_task,
         )
 
+    _emit_lock_span_diagnostics(lock_wait_ms=lock_wait_ms, lock_hold_ms=lock_hold_ms)
+
     elapsed_ms = (time.perf_counter() - started) * 1000
     _log_json(
         logging.INFO,
@@ -738,6 +908,16 @@ async def _handle_message_activity(
         routed_workflow=reply.routed_workflow,
         classifier_status=reply.classifier_status,
         fallback_reason=reply.fallback_reason,
+        session_id=reply.session_id,
+        turn_index=reply.turn_index,
+        memory_hits=reply.memory_hits,
+        compaction_events=reply.compaction_events,
+        lock_wait_ms=round(lock_wait_ms, 3),
+        lock_hold_ms=round(lock_hold_ms, 3),
+        active_sessions=session_store.metrics.active_sessions,
+        session_evictions=session_store.metrics.evictions,
+        session_ttl_expirations=session_store.metrics.ttl_expirations,
+        session_cleanup_runs=session_store.metrics.cleanup_runs,
         elapsed_ms=round(elapsed_ms, 1),
     )
 
@@ -892,9 +1072,22 @@ def create_router_chatbot_app(config: RouterChatbotConfig | None = None) -> Star
     """Create an ASGI app exposing RouterWorkflow as a single chatbot endpoint."""
 
     resolved = config or RouterChatbotConfig.from_env()
+    session_config = SessionConfig(
+        ttl_seconds=resolved.session_ttl_seconds,
+        max_count=resolved.session_max_count,
+        cleanup_interval_seconds=resolved.session_cleanup_interval_seconds,
+        max_history_groups=resolved.session_max_history_groups,
+    )
+    session_store = InMemorySessionStore(
+        ttl_seconds=session_config.ttl_seconds,
+        max_count=session_config.max_count,
+        cleanup_interval_seconds=session_config.cleanup_interval_seconds,
+        max_history_groups=session_config.max_history_groups,
+    )
     service = RouterChatService(
         mcp_url=resolved.mcp_url,
         request_timeout_seconds=resolved.request_timeout_seconds,
+        session_store=session_store,
     )
 
     app = Starlette(
@@ -906,5 +1099,6 @@ def create_router_chatbot_app(config: RouterChatbotConfig | None = None) -> Star
     )
     app.state.router_chat_service = service
     app.state.router_chatbot_config = resolved
+    app.state.session_store = session_store
     app.state.welcomed_conversation_ids = set()
     return app

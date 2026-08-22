@@ -30,7 +30,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
-from agent_framework import AgentMiddleware, ChatMiddleware, FunctionMiddleware
+from agent_framework import AgentMiddleware, ChatMiddleware, FunctionMiddleware, MiddlewareFailure
 
 if TYPE_CHECKING:
     from agent_framework import AgentContext, ChatContext, FunctionInvocationContext
@@ -156,13 +156,20 @@ class LoggingFunctionMiddleware(FunctionMiddleware):
         """Log tool call name, arguments, and execution time."""
         func_name = context.function.name
         args = context.arguments
-        logger.info("Invoking tool: %s(%s)", func_name, args)
+        try:
+            logger.info("Invoking tool: %s(%s)", func_name, args)
+        except Exception as exc:
+            # A broken logging/instrumentation layer must fail closed, not masquerade as a tool error.
+            raise MiddlewareFailure("LoggingFunctionMiddleware failed before tool invocation") from exc
 
         start = time.perf_counter()
         await call_next()
         elapsed = time.perf_counter() - start
 
-        logger.info("Tool %s completed in %.2fs", func_name, elapsed)
+        try:
+            logger.info("Tool %s completed in %.2fs", func_name, elapsed)
+        except Exception as exc:
+            raise MiddlewareFailure("LoggingFunctionMiddleware failed after tool invocation") from exc
 
 
 class QueryRewritingChatMiddleware(ChatMiddleware):

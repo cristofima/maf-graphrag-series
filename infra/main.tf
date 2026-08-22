@@ -310,3 +310,18 @@ resource "azurerm_cognitive_account_project" "main" {
 
   depends_on = [azapi_update_resource.openai_project_management]
 }
+
+# -----------------------------------------------------------------------------
+# Foundry User role assignments (New Foundry project scope)
+# Required for local New Foundry evals publish (run_batch_evaluation.py --foundry)
+# via DefaultAzureCredential. Without this, POST {project}/openai/v1/evals fails
+# with 403 "does not have permissions for Microsoft.Ma...".
+# Reference: https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/rbac-azure-ai-foundry
+# -----------------------------------------------------------------------------
+resource "azurerm_role_assignment" "foundry_user" {
+  for_each = var.enable_foundry ? toset(var.foundry_user_principal_ids) : toset([])
+
+  scope                = azurerm_cognitive_account_project.main[0].id
+  role_definition_name = "Foundry User"
+  principal_id         = each.value
+}

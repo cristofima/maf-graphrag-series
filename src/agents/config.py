@@ -136,7 +136,38 @@ class AgentConfig(BaseModel):
         return self.mcp_server_url.startswith("http")
 
 
+class SessionConfig(BaseModel):
+    """Runtime session settings for chatbot multi-turn memory behavior."""
+
+    ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    max_count: int = Field(default=1000, ge=1, le=50000)
+    cleanup_interval_seconds: int = Field(default=60, ge=1, le=3600)
+    max_history_groups: int = Field(default=12, ge=1, le=200)
+
+    @classmethod
+    def from_env(cls) -> SessionConfig:
+        """Create validated session settings from environment variables."""
+
+        data = {
+            "ttl_seconds": os.getenv("SESSION_TTL_SECONDS", "1800"),
+            "max_count": os.getenv("SESSION_MAX_COUNT", "1000"),
+            "cleanup_interval_seconds": os.getenv("SESSION_CLEANUP_INTERVAL_SECONDS", "60"),
+            "max_history_groups": os.getenv("SESSION_MAX_HISTORY_GROUPS", "12"),
+        }
+
+        try:
+            return cls.model_validate(data)
+        except ValidationError as exc:  # pragma: no cover - defensive guard
+            raise ValueError(str(exc)) from exc
+
+
 def get_agent_config() -> AgentConfig:
     """Get validated agent configuration from environment."""
 
     return AgentConfig.from_env()
+
+
+def get_session_config() -> SessionConfig:
+    """Get validated runtime session settings from environment."""
+
+    return SessionConfig.from_env()

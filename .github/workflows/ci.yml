@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main", "feature/*", "refactor/*"]
+    branches: ["main", "develop", "feature/*", "refactor/*"]
     paths:
       - "**.py"
       - "pyproject.toml"
@@ -10,7 +10,7 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/router-evaluation.yml"
   pull_request:
-    branches: ["main"]
+    branches: ["main", "develop"]
     types: [opened, reopened, ready_for_review]
     paths:
       - "**.py"

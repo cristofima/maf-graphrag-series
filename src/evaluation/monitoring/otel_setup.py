@@ -33,6 +33,8 @@ def setup_monitoring(config: EvalConfig | None = None, *, use_aspire: bool = Fal
     from environment variables:
     - ``OTEL_EXPORTER_OTLP_ENDPOINT`` for Aspire Dashboard
     - ``APPLICATIONINSIGHTS_CONNECTION_STRING`` for Application Insights
+    - ``OTEL_SEMCONV_STABILITY_OPT_IN`` for GenAI semantic-convention version
+      (this project defaults to the stable v1.36.0 baseline unless already set)
 
     Args:
         config: Evaluation config with telemetry settings. If None,
@@ -46,6 +48,11 @@ def setup_monitoring(config: EvalConfig | None = None, *, use_aspire: bool = Fal
         endpoint = config.otel_tracing_endpoint if config else "http://localhost:4317"
         os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint)
         logger.info("OpenTelemetry: Aspire Dashboard endpoint set to %s", endpoint)
+
+    # Pin the stable v1.36.0 GenAI semantic conventions (empty opt-in list) instead of
+    # agent-framework's default of the conventions above that baseline, unless the
+    # operator has already set the env var explicitly.
+    os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "")
 
     configure_otel_providers()
 

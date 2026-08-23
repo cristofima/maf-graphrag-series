@@ -21,9 +21,10 @@ runtime entry points and active usage, use:
 | 4    | [part4-implementation-notes.md](./part4-implementation-notes.md) | Workflow Patterns (Sequential, Concurrent, Handoff) |
 | 5    | [part5-implementation-notes.md](./part5-implementation-notes.md) | Monitoring, Evaluation & Safety                     |
 | 6    | [part6-implementation-notes.md](./part6-implementation-notes.md) | Production Router Integration                       |
-| 7    | _Coming soon_                                                    | Human-in-the-Loop                                   |
-| 8    | _Coming soon_                                                    | Tool Registry                                       |
-| 9    | _Coming soon_                                                    | Production Deployment                               |
+| 7    | [part7-implementation-notes.md](./part7-implementation-notes.md) | Conversational Session Readiness                    |
+| 8    | _Coming soon_                                                    | Human-in-the-Loop                                   |
+| 9    | _Coming soon_                                                    | Tool Registry                                       |
+| 10   | _Coming soon_                                                    | Production Deployment                               |
 
 ### Reference Documents
 
@@ -46,11 +47,11 @@ These documents serve as:
 
 ## Contributing
 
-As this series progresses through Part 7-9, additional documentation will be added:
+As this series progresses through Part 8-10, additional documentation will be added:
 
-- Part 7: Human-in-the-Loop
-- Part 8: Tool Registry
-- Part 9: Production Deployment
+- Part 8: Human-in-the-Loop
+- Part 9: Tool Registry
+- Part 10: Production Deployment
 
 ## Related Resources
 
@@ -60,6 +61,6 @@ As this series progresses through Part 7-9, additional documentation will be add
 
 ---
 
-**Series**: GraphRAG + Azure OpenAI (9-Part Series)
-**Parts**: 1-6 complete (GraphRAG Fundamentals, MCP Server, Supervisor Agent, Workflow Patterns, Agent Evaluation, Router Integration)
+**Series**: GraphRAG + Azure OpenAI (10-Part Series)
+**Parts**: 1-6 complete, Part 7 in validation (Session Readiness)
 **Author**: Cristopher Coronado

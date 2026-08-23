@@ -1,7 +1,7 @@
 """
-Generate evaluation data by running the agent on golden questions.
+Generate evaluation data by running the router workflow on golden questions.
 
-Runs the Knowledge Captain agent on each test case in golden_questions.jsonl,
+Runs the router workflow on each test case in golden_questions.jsonl,
 converts the conversation to evaluator format, and writes results to
 eval_data.jsonl for batch evaluation.
 
@@ -45,10 +45,8 @@ async def generate_eval_data(
     Returns:
         Number of test cases processed.
     """
-    from agent_framework import AgentSession
-
-    from agents.supervisor import create_knowledge_captain
-    from evaluation.evaluators.builtin import GRAPHRAG_TOOL_DEFINITIONS, convert_to_evaluator_messages
+    from evaluation.evaluators.builtin import GRAPHRAG_TOOL_DEFINITIONS
+    from workflows.router_agent import RouterWorkflowAgentAdapter
 
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -66,29 +64,26 @@ async def generate_eval_data(
 
     # Run agent on each test case; collect records in memory, then flush once
     records: list[str] = []
-    agent = create_knowledge_captain()
-    async with agent:
-        for i, case in enumerate(test_cases, 1):
-            query = case["query"]
-            logger.info("[%d/%d] Processing: %s", i, len(test_cases), query)
+    adapter = RouterWorkflowAgentAdapter()
+    for i, case in enumerate(test_cases, 1):
+        query = case["query"]
+        logger.info("[%d/%d] Processing: %s", i, len(test_cases), query)
 
-            session = AgentSession()
-            result = await agent.run(query, session=session)
+        result = await adapter.run(query)
 
-            session_msgs = list(session.state.get("messages", []))
-            response_msgs = list(result.messages) if result.messages else []
-            all_msgs = session_msgs + [m for m in response_msgs if m not in session_msgs]
+        messages = [
+            {"role": "user", "content": query},
+            {"role": "assistant", "content": result.answer},
+        ]
 
-            messages = convert_to_evaluator_messages(all_msgs)
+        eval_record = {
+            "query": query,
+            "response": messages,
+            "ground_truth": case.get("ground_truth", ""),
+            "tool_definitions": GRAPHRAG_TOOL_DEFINITIONS,
+        }
 
-            eval_record = {
-                "query": query,
-                "response": messages,
-                "ground_truth": case.get("ground_truth", ""),
-                "tool_definitions": GRAPHRAG_TOOL_DEFINITIONS,
-            }
-
-            records.append(json.dumps(eval_record, ensure_ascii=False) + "\n")
+        records.append(json.dumps(eval_record, ensure_ascii=False) + "\n")
 
     processed = len(records)
 

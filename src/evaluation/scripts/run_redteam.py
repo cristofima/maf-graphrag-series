@@ -143,7 +143,7 @@ def _resolve_scan_target(config: EvalConfig, flow: str) -> Any:
         )
         return _build_cloud_model_target(config)
 
-    logger.info("Running Step 4 in local-agent flow against Knowledge Captain callback target.")
+    logger.info("Running Step 4 in local-agent flow against router workflow callback target.")
     return _graphrag_agent_target
 
 
@@ -179,16 +179,12 @@ def _extract_query_from_messages(messages: list[object]) -> str:
 
 
 async def _run_agent_query(query: str) -> str:
-    """Run the Knowledge Captain agent for one query and return plain text."""
-    from agent_framework import AgentSession
+    """Run the router workflow for one query and return plain text."""
+    from workflows.router_agent import RouterWorkflowAgentAdapter
 
-    from agents.supervisor import create_knowledge_captain
-
-    agent = create_knowledge_captain()
-    async with agent:
-        session = AgentSession()
-        result = await agent.run(query, session=session)
-    return result.text if hasattr(result, "text") else str(result)
+    adapter = RouterWorkflowAgentAdapter()
+    result = await adapter.run(query)
+    return result.answer
 
 
 async def _graphrag_agent_target(

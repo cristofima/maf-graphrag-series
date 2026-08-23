@@ -23,6 +23,7 @@ from agents.middleware import (
 )
 from agents.prompts import RESEARCH_DELEGATE_PROMPT, SIMPLE_ASSISTANT_PROMPT
 from agents.session_store import (
+    ActiveWorkflowRun,
     InMemorySessionStore,
     SessionCompactionDiagnostics,
     SessionKey,
@@ -57,6 +58,7 @@ __all__ = [
     "SessionCompactionDiagnostics",
     "SessionStoreMetrics",
     "InMemorySessionStore",
+    "ActiveWorkflowRun",
     # Supervisor
     "create_client",
     "create_azure_client",

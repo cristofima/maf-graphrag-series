@@ -75,6 +75,23 @@ class SessionCompactionDiagnostics:
 
 
 @dataclass(slots=True)
+class ActiveWorkflowRun:
+    """Process-local checkpoint correlation for an interrupted workflow run.
+
+    Tracks the native framework checkpoint ID (opaque str) alongside run metadata
+    so a failed or interrupted workflow can be resumed without replaying completed
+    eligible steps. Kept separate from ``SessionRecord.history_groups`` to avoid
+    mixing execution state with conversational history.
+    """
+
+    workflow_run_id: str
+    checkpoint_id: str  # CheckpointID (str) returned by CheckpointStorage.save()
+    workflow_type: str  # e.g. "sequential", "concurrent", "handoff"
+    status: str = "interrupted"
+    last_step: str | None = None
+
+
+@dataclass(slots=True)
 class SessionRecord:
     """Backward-compatibility wrapper for session metadata and history.
 
@@ -90,8 +107,8 @@ class SessionRecord:
     history_groups: list[dict[str, str]] = field(default_factory=list)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     diagnostics: SessionCompactionDiagnostics = field(default_factory=SessionCompactionDiagnostics)
-    # Correlates this record with a native workflow checkpoint without duplicating checkpoint storage.
-    active_checkpoint_id: str | None = None
+    # Correlates this record with an interrupted workflow run's native checkpoint.
+    active_workflow_run: ActiveWorkflowRun | None = None
 
 
 @dataclass(slots=True)

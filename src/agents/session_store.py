@@ -201,7 +201,7 @@ class InMemorySessionStore(SessionStore):
             await super().delete(session_id)
             del self._records[session_id]
             self._metrics.ttl_expirations += 1
-            logger.debug(f"Session {session_id} expired (TTL)")
+            logger.debug("Session %s expired (TTL)", session_id)
             return None
 
         if record is not None:
@@ -284,8 +284,7 @@ class InMemorySessionStore(SessionStore):
                 del self._records[session_id]
                 await super().delete(session_id)
                 self._metrics.ttl_expirations += 1
-                logger.debug(f"Session {session_id} expired during get_or_create")
-
+            logger.debug("Session %s expired during get_or_create", session_id)
         now = self._clock()
         created = SessionRecord(
             session_id=session_id,
@@ -315,8 +314,10 @@ class InMemorySessionStore(SessionStore):
             compacted_groups = pre_count - self._max_history_groups
             record.history_groups = record.history_groups[-self._max_history_groups :]
             logger.debug(
-                f"Session {record.session_id}: compacted {compacted_groups} groups, "
-                f"keeping {len(record.history_groups)}"
+                "Session %s: compacted %d groups, keeping %d",
+                record.session_id,
+                compacted_groups,
+                len(record.history_groups),
             )
 
         diagnostics = SessionCompactionDiagnostics(
@@ -359,7 +360,7 @@ class InMemorySessionStore(SessionStore):
 
         if expired_keys:
             self._metrics.ttl_expirations += len(expired_keys)
-            logger.debug(f"Cleanup: expired {len(expired_keys)} sessions")
+            logger.debug("Cleanup: expired %d sessions", len(expired_keys))
 
         await self._enforce_capacity()
         self._metrics.active_sessions = len(self._records)
@@ -380,4 +381,4 @@ class InMemorySessionStore(SessionStore):
             del self._records[evict_key]
             await super().delete(evict_key)
             self._metrics.evictions += 1
-            logger.debug(f"Capacity eviction: removed {evict_key}")
+            logger.debug("Capacity eviction: removed %s", evict_key)

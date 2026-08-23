@@ -28,9 +28,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from agents.config import SessionConfig
 from agents.session_store import InMemorySessionStore, SessionKey, SessionRecord
-from workflows.base import create_router_workflow
+from workflows.router_agent import RouterWorkflowAgentAdapter
 
 # NOTE: InMemorySessionStore now extends agent_framework.SessionStore
 # SessionKey is maintained for backward compatibility (generates session_id via SHA256)
@@ -163,10 +162,11 @@ class RouterChatService:
         mcp_url: str | None,
         request_timeout_seconds: float,
         session_store: InMemorySessionStore,
+        adapter: RouterWorkflowAgentAdapter | None = None,
     ) -> None:
-        self._mcp_url = mcp_url
         self._request_timeout_seconds = request_timeout_seconds
         self._session_store = session_store
+        self._adapter = adapter if adapter is not None else RouterWorkflowAgentAdapter(mcp_url=mcp_url)
 
     async def answer(
         self,
@@ -189,37 +189,33 @@ class RouterChatService:
             memory_hits = len(session_record.history_groups)
             query_text = self._build_session_aware_query(text, session_record)
 
+        runtime_telemetry: dict[str, object] | None = None
+        if lock_wait_ms is not None:
+            runtime_telemetry = {"lock_wait_ms": lock_wait_ms}
+
         async with asyncio.timeout(self._request_timeout_seconds):
-            async with create_router_workflow(self._mcp_url) as workflow:
-                normalized_query = workflow.prepare_run(query_text)
-                stream, finalize = await workflow.create_stream(
-                    normalized_query,
-                    include_status_events=True,
-                    session_telemetry={
-                        "session_id": session_id,
-                        "turn_index": turn_index,
-                        "memory_hits": memory_hits,
-                        "compaction_events": 0,
-                        "lock_wait_ms": lock_wait_ms,
-                    },
+            stream, finalize = await self._adapter.create_stream(
+                query_text,
+                session_record=session_record,
+                session_telemetry=runtime_telemetry,
+            )
+
+            if on_progress is not None:
+                await on_progress(_ROUTING_STATUS_MESSAGE)
+
+            stream_routed_workflow: str | None = None
+            async for event in stream:
+                if on_progress is None:
+                    continue
+                status_text, stream_routed_workflow = _status_text_from_event(
+                    event,
+                    routed_workflow=stream_routed_workflow,
                 )
+                if status_text is None:
+                    continue
+                await on_progress(status_text)
 
-                if on_progress is not None:
-                    await on_progress(_ROUTING_STATUS_MESSAGE)
-
-                stream_routed_workflow: str | None = None
-                async for event in stream:
-                    if on_progress is None:
-                        continue
-                    status_text, stream_routed_workflow = _status_text_from_event(
-                        event,
-                        routed_workflow=stream_routed_workflow,
-                    )
-                    if status_text is None:
-                        continue
-                    await on_progress(status_text)
-
-                result = await finalize()
+            result = await finalize()
 
         compaction_events = 0
         if session_record is not None:
@@ -1072,17 +1068,11 @@ def create_router_chatbot_app(config: RouterChatbotConfig | None = None) -> Star
     """Create an ASGI app exposing RouterWorkflow as a single chatbot endpoint."""
 
     resolved = config or RouterChatbotConfig.from_env()
-    session_config = SessionConfig(
+    session_store = InMemorySessionStore(
         ttl_seconds=resolved.session_ttl_seconds,
         max_count=resolved.session_max_count,
         cleanup_interval_seconds=resolved.session_cleanup_interval_seconds,
         max_history_groups=resolved.session_max_history_groups,
-    )
-    session_store = InMemorySessionStore(
-        ttl_seconds=session_config.ttl_seconds,
-        max_count=session_config.max_count,
-        cleanup_interval_seconds=session_config.cleanup_interval_seconds,
-        max_history_groups=session_config.max_history_groups,
     )
     service = RouterChatService(
         mcp_url=resolved.mcp_url,

@@ -11,6 +11,7 @@ import pytest
 
 from agents.session_store import InMemorySessionStore, SessionKey
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from workflows.router_agent import RouterWorkflowAgentAdapter
 from workflows.router_chatbot_server import (
     RouterChatbotConfig,
     RouterChatReply,
@@ -67,7 +68,10 @@ class _FakeRouterWorkflow:
                 elapsed_seconds=0.01,
                 metadata={
                     "routed_workflow": "sequential",
+                    "classified_workflow": "sequential",
                     "classifier_status": "success",
+                    "classifier_attempts": 1,
+                    "fallback_reason": None,
                 },
             )
             return WorkflowResult(
@@ -113,22 +117,26 @@ class _DelayedStubService:
 
 
 @pytest.mark.asyncio
-async def test_router_chat_service_preserves_multi_turn_context(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_router_chat_service_preserves_multi_turn_context() -> None:
     captured_queries: list[str] = []
     answers = ["First answer", "Second answer", "Third answer"]
 
     def _workflow_factory(_mcp_url: str | None) -> _FakeRouterWorkflow:
         return _FakeRouterWorkflow(captured_queries, answers)
 
-    monkeypatch.setattr("workflows.router_chatbot_server.create_router_workflow", _workflow_factory)
-
+    adapter = RouterWorkflowAgentAdapter(workflow_factory=_workflow_factory)
     session_store = InMemorySessionStore(
         ttl_seconds=300,
         max_count=100,
         cleanup_interval_seconds=60,
         max_history_groups=2,
     )
-    service = RouterChatService(mcp_url=None, request_timeout_seconds=30.0, session_store=session_store)
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        adapter=adapter,
+    )
 
     key = SessionKey.create(channel_id="msteams", conversation_id="conv-1", user_id="user-1")
     record, _ = await session_store.get_or_create(key.session_id)

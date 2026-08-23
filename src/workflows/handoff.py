@@ -489,6 +489,7 @@ class ExpertHandoffWorkflow(MCPWorkflowBase):
         composer_executor = _HandoffComposerExecutor(self._record_step)
 
         builder = WorkflowBuilder(
+            name="handoff",
             start_executor=router_executor,
             output_from=[composer_executor],
             intermediate_output_from="all_other",

@@ -7,7 +7,7 @@ import asyncio
 import pytest
 from agent_framework import AgentSession, InMemoryCheckpointStorage, WorkflowCheckpoint
 
-from agents.session_store import InMemorySessionStore, SessionKey
+from agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
 
 
 class _Clock:
@@ -122,7 +122,7 @@ async def test_append_turn_applies_sliding_window_and_compaction_diagnostics() -
 
 
 @pytest.mark.asyncio
-async def test_native_workflow_checkpoint_storage_is_separate_from_history() -> None:
+async def test_active_workflow_run_is_separate_from_history() -> None:
     store = InMemorySessionStore(
         ttl_seconds=100,
         max_count=10,
@@ -132,15 +132,45 @@ async def test_native_workflow_checkpoint_storage_is_separate_from_history() -> 
     key = SessionKey.create(channel_id="msteams", conversation_id="c1", user_id="u1")
     record, _ = await store.get_or_create(key.session_id)
     checkpoint_storage = InMemoryCheckpointStorage()
-    checkpoint = WorkflowCheckpoint(workflow_name="router", graph_signature_hash="test-graph")
+    checkpoint = WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-1")
     checkpoint_id = await checkpoint_storage.save(checkpoint)
-    record.active_checkpoint_id = str(checkpoint_id)
+    record.active_workflow_run = ActiveWorkflowRun(
+        workflow_run_id="run-001",
+        checkpoint_id=checkpoint_id,
+        workflow_type="sequential",
+        status="interrupted",
+    )
 
     assert record.history_groups == []
-    assert record.active_checkpoint_id == str(checkpoint_id)
+    assert record.active_workflow_run is not None
+    assert record.active_workflow_run.checkpoint_id == checkpoint_id
     restored = await checkpoint_storage.load(checkpoint_id)
-    assert restored.workflow_name == "router"
-    assert await checkpoint_storage.list_checkpoints(workflow_name="router")
+    assert restored.workflow_name == "sequential"
+    assert await checkpoint_storage.list_checkpoints(workflow_name="sequential")
+
+
+@pytest.mark.asyncio
+async def test_session_record_can_hold_active_workflow_run_alongside_history() -> None:
+    """A stale checkpoint_id does not exist in storage; history should not be corrupted."""
+    store = InMemorySessionStore(
+        ttl_seconds=100,
+        max_count=10,
+        cleanup_interval_seconds=100,
+        max_history_groups=4,
+    )
+    key = SessionKey.create(channel_id="msteams", conversation_id="c1", user_id="u1")
+    record, _ = await store.get_or_create(key.session_id)
+
+    store.append_turn(record, user_text="who are you?", assistant_text="I am a bot.")
+    record.active_workflow_run = ActiveWorkflowRun(
+        workflow_run_id="run-stale",
+        checkpoint_id="does-not-exist",
+        workflow_type="sequential",
+        status="interrupted",
+    )
+
+    assert len(record.history_groups) == 1
+    assert record.active_workflow_run is not None
 
 
 @pytest.mark.asyncio

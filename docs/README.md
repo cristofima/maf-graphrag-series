@@ -62,5 +62,5 @@ As this series progresses through Part 8-10, additional documentation will be ad
 ---
 
 **Series**: GraphRAG + Azure OpenAI (10-Part Series)
-**Parts**: 1-6 complete, Part 7 in validation (Session Readiness)
+**Parts**: 1-7 complete (manual induced-timeout checkpoint run deferred with automated coverage), 8-10 pending
 **Author**: Cristopher Coronado

@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
+from agent_framework import CheckpointStorage, InMemoryCheckpointStorage, WorkflowCheckpointException
 from opentelemetry import trace
 from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind
@@ -28,7 +30,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from agents.session_store import InMemorySessionStore, SessionKey, SessionRecord
+from agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey, SessionRecord
 from workflows.router_agent import RouterWorkflowAgentAdapter
 
 # NOTE: InMemorySessionStore now extends agent_framework.SessionStore
@@ -163,10 +165,12 @@ class RouterChatService:
         request_timeout_seconds: float,
         session_store: InMemorySessionStore,
         adapter: RouterWorkflowAgentAdapter | None = None,
+        checkpoint_storage: CheckpointStorage | None = None,
     ) -> None:
         self._request_timeout_seconds = request_timeout_seconds
         self._session_store = session_store
         self._adapter = adapter if adapter is not None else RouterWorkflowAgentAdapter(mcp_url=mcp_url)
+        self._checkpoint_storage = checkpoint_storage
 
     async def answer(
         self,
@@ -193,29 +197,35 @@ class RouterChatService:
         if lock_wait_ms is not None:
             runtime_telemetry = {"lock_wait_ms": lock_wait_ms}
 
-        async with asyncio.timeout(self._request_timeout_seconds):
-            stream, finalize = await self._adapter.create_stream(
-                query_text,
-                session_record=session_record,
-                session_telemetry=runtime_telemetry,
-            )
+        # Validate and resolve checkpoint for resume
+        resume_checkpoint_id: str | None = None
+        if session_record is not None and session_record.active_workflow_run is not None:
+            resume_checkpoint_id = await self._resolve_resume_checkpoint(session_record.active_workflow_run)
+            if resume_checkpoint_id is None:
+                session_record.active_workflow_run = None  # stale or incompatible — discard
 
-            if on_progress is not None:
-                await on_progress(_ROUTING_STATUS_MESSAGE)
+        stream_kwargs: dict[str, Any] = {}
+        if self._checkpoint_storage is not None:
+            stream_kwargs["checkpoint_storage"] = self._checkpoint_storage
+        if resume_checkpoint_id is not None:
+            stream_kwargs["checkpoint_id"] = resume_checkpoint_id
 
-            stream_routed_workflow: str | None = None
-            async for event in stream:
-                if on_progress is None:
-                    continue
-                status_text, stream_routed_workflow = _status_text_from_event(
-                    event,
-                    routed_workflow=stream_routed_workflow,
+        try:
+            async with asyncio.timeout(self._request_timeout_seconds):
+                stream, finalize = await self._adapter.create_stream(
+                    query_text,
+                    session_record=session_record,
+                    session_telemetry=runtime_telemetry,
+                    **stream_kwargs,
                 )
-                if status_text is None:
-                    continue
-                await on_progress(status_text)
-
-            result = await finalize()
+                if on_progress is not None:
+                    await on_progress(_ROUTING_STATUS_MESSAGE)
+                await _drain_stream(stream, on_progress)
+                result = await finalize()
+        except TimeoutError:
+            if session_record is not None:
+                await self._save_checkpoint_after_interruption(session_record)
+            raise
 
         compaction_events = 0
         if session_record is not None:
@@ -225,18 +235,10 @@ class RouterChatService:
                 assistant_text=result.answer,
             )
             compaction_events = diagnostics.compacted_groups
+            # Clear any pending workflow run on successful completion.
+            session_record.active_workflow_run = None
 
-        routed_workflow: str | None = None
-        classifier_status: str | None = None
-        fallback_reason: str | None = None
-        if result.steps:
-            metadata = result.steps[0].metadata
-            routed = metadata.get("routed_workflow")
-            status = metadata.get("classifier_status")
-            fallback = metadata.get("fallback_reason")
-            routed_workflow = routed if isinstance(routed, str) else None
-            classifier_status = status if isinstance(status, str) else None
-            fallback_reason = fallback if isinstance(fallback, str) else None
+        routed_workflow, classifier_status, fallback_reason = _extract_router_metadata(result)
 
         return RouterChatReply(
             answer=result.answer,
@@ -248,7 +250,49 @@ class RouterChatService:
             turn_index=turn_index,
             memory_hits=memory_hits,
             compaction_events=compaction_events,
+            resumed_from_checkpoint=resume_checkpoint_id is not None,
+            checkpoint_id_used=resume_checkpoint_id,
         )
+
+    async def _resolve_resume_checkpoint(self, run: ActiveWorkflowRun) -> str | None:
+        """Validate a stored checkpoint and return its ID for resume, or None if stale/incompatible."""
+        if self._checkpoint_storage is None:
+            return None
+        try:
+            loaded = await self._checkpoint_storage.load(run.checkpoint_id)
+            # Reject if the checkpoint was saved for a different workflow type.
+            if loaded.workflow_name != run.workflow_type:
+                logger.debug(
+                    "Checkpoint %s incompatible (workflow %s != %s); discarding",
+                    run.checkpoint_id,
+                    loaded.workflow_name,
+                    run.workflow_type,
+                )
+                return None
+            logger.info("Resuming from checkpoint %s (workflow=%s)", run.checkpoint_id, run.workflow_type)
+            return run.checkpoint_id
+        except WorkflowCheckpointException:
+            logger.debug("Checkpoint %s is stale; discarding", run.checkpoint_id)
+            return None
+
+    async def _save_checkpoint_after_interruption(self, session_record: SessionRecord) -> None:
+        """Capture the latest superstep checkpoint into the session after a timeout."""
+        if self._checkpoint_storage is None:
+            return
+        for workflow_type in ("sequential", "concurrent", "handoff"):
+            checkpoint = await self._checkpoint_storage.get_latest(workflow_name=workflow_type)
+            if checkpoint is not None:
+                session_record.active_workflow_run = ActiveWorkflowRun(
+                    workflow_run_id=str(uuid.uuid4()),
+                    checkpoint_id=checkpoint.checkpoint_id,
+                    workflow_type=workflow_type,
+                )
+                logger.info(
+                    "Captured checkpoint %s after timeout (workflow=%s)",
+                    checkpoint.checkpoint_id,
+                    workflow_type,
+                )
+                return
 
     @staticmethod
     def _build_session_aware_query(text: str, session_record: SessionRecord) -> str:
@@ -288,6 +332,8 @@ class RouterChatReply:
     compaction_events: int | None = None
     lock_wait_ms: float | None = None
     lock_hold_ms: float | None = None
+    resumed_from_checkpoint: bool = False
+    checkpoint_id_used: str | None = None
 
 
 def _copy_activity_context(request_activity: Mapping[str, Any], response: dict[str, Any]) -> dict[str, Any]:
@@ -435,6 +481,35 @@ def _status_text_for_executor(event: Any, routed_workflow: str | None) -> tuple[
     if generic_message is not None:
         return generic_message, routed_workflow
     return None, routed_workflow
+
+
+async def _drain_stream(
+    stream: Any,
+    on_progress: Callable[[str], Awaitable[None]] | None,
+) -> None:
+    """Drain workflow stream events, forwarding progress messages when provided."""
+    routed_workflow: str | None = None
+    async for event in stream:
+        if on_progress is None:
+            continue
+        status_text, routed_workflow = _status_text_from_event(event, routed_workflow=routed_workflow)
+        if status_text is not None:
+            await on_progress(status_text)
+
+
+def _extract_router_metadata(result: Any) -> tuple[str | None, str | None, str | None]:
+    """Extract routed_workflow, classifier_status, fallback_reason from the first step."""
+    if not result.steps:
+        return None, None, None
+    metadata = result.steps[0].metadata
+    routed = metadata.get("routed_workflow")
+    status = metadata.get("classifier_status")
+    fallback = metadata.get("fallback_reason")
+    return (
+        routed if isinstance(routed, str) else None,
+        status if isinstance(status, str) else None,
+        fallback if isinstance(fallback, str) else None,
+    )
 
 
 def _is_playground_request(headers: Mapping[str, str]) -> bool:
@@ -611,56 +686,56 @@ def extract_activity_text(activity: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _build_router_metadata(reply: RouterChatReply) -> dict[str, Any]:
+    """Build the router section of channelData from reply fields."""
+    metadata: dict[str, Any] = {}
+    if reply.routed_workflow is not None:
+        metadata["routed_workflow"] = reply.routed_workflow
+    if reply.classifier_status is not None:
+        metadata["classifier_status"] = reply.classifier_status
+    if reply.fallback_reason is not None:
+        metadata["fallback_reason"] = reply.fallback_reason
+    if reply.total_elapsed_seconds is not None:
+        metadata["elapsed_seconds"] = round(reply.total_elapsed_seconds, 3)
+    return metadata
+
+
+def _build_session_metadata(reply: RouterChatReply) -> dict[str, Any]:
+    """Build the session section of channelData from reply fields."""
+    metadata: dict[str, Any] = {}
+    if reply.session_id is not None:
+        metadata["session_id"] = reply.session_id
+    if reply.turn_index is not None:
+        metadata["turn_index"] = reply.turn_index
+    if reply.memory_hits is not None:
+        metadata["memory_hits"] = reply.memory_hits
+    if reply.compaction_events is not None:
+        metadata["compaction_events"] = reply.compaction_events
+    if reply.lock_wait_ms is not None:
+        metadata["lock_wait_ms"] = round(reply.lock_wait_ms, 3)
+    if reply.lock_hold_ms is not None:
+        metadata["lock_hold_ms"] = round(reply.lock_hold_ms, 3)
+    if reply.resumed_from_checkpoint:
+        metadata["resumed_from_checkpoint"] = True
+    if reply.checkpoint_id_used is not None:
+        metadata["checkpoint_id_used"] = reply.checkpoint_id_used
+    return metadata
+
+
 def build_reply_activity(request_activity: Mapping[str, Any], reply: RouterChatReply) -> dict[str, Any]:
     """Build a minimal reply activity compatible with local playground clients."""
 
-    response: dict[str, Any] = {
-        "type": "message",
-        "text": reply.answer,
-    }
+    response: dict[str, Any] = {"type": "message", "text": reply.answer}
 
-    router_metadata: dict[str, Any] = {}
-    if reply.routed_workflow is not None:
-        router_metadata["routed_workflow"] = reply.routed_workflow
-    if reply.classifier_status is not None:
-        router_metadata["classifier_status"] = reply.classifier_status
-    if reply.fallback_reason is not None:
-        router_metadata["fallback_reason"] = reply.fallback_reason
-    if reply.total_elapsed_seconds is not None:
-        router_metadata["elapsed_seconds"] = round(reply.total_elapsed_seconds, 3)
+    router_metadata = _build_router_metadata(reply)
     if router_metadata:
         response["channelData"] = {"router": router_metadata}
 
-    session_metadata: dict[str, Any] = {}
-    if reply.session_id is not None:
-        session_metadata["session_id"] = reply.session_id
-    if reply.turn_index is not None:
-        session_metadata["turn_index"] = reply.turn_index
-    if reply.memory_hits is not None:
-        session_metadata["memory_hits"] = reply.memory_hits
-    if reply.compaction_events is not None:
-        session_metadata["compaction_events"] = reply.compaction_events
-    if reply.lock_wait_ms is not None:
-        session_metadata["lock_wait_ms"] = round(reply.lock_wait_ms, 3)
-    if reply.lock_hold_ms is not None:
-        session_metadata["lock_hold_ms"] = round(reply.lock_hold_ms, 3)
-
+    session_metadata = _build_session_metadata(reply)
     if session_metadata:
-        channel_data = response.setdefault("channelData", {})
-        if isinstance(channel_data, dict):
-            channel_data["session"] = session_metadata
+        response.setdefault("channelData", {})["session"] = session_metadata
 
-    for key in ("channelId", "serviceUrl", "conversation"):
-        value = request_activity.get(key)
-        if value is not None:
-            response[key] = value
-
-    sender = request_activity.get("from")
-    recipient = request_activity.get("recipient")
-    if isinstance(recipient, Mapping):
-        response["from"] = dict(recipient)
-    if isinstance(sender, Mapping):
-        response["recipient"] = dict(sender)
+    _copy_activity_context(request_activity, response)
 
     reply_to = request_activity.get("id")
     if isinstance(reply_to, str) and reply_to:
@@ -908,6 +983,8 @@ async def _handle_message_activity(
         turn_index=reply.turn_index,
         memory_hits=reply.memory_hits,
         compaction_events=reply.compaction_events,
+        resumed_from_checkpoint=reply.resumed_from_checkpoint or None,
+        checkpoint_id_used=reply.checkpoint_id_used,
         lock_wait_ms=round(lock_wait_ms, 3),
         lock_hold_ms=round(lock_hold_ms, 3),
         active_sessions=session_store.metrics.active_sessions,
@@ -1074,10 +1151,12 @@ def create_router_chatbot_app(config: RouterChatbotConfig | None = None) -> Star
         cleanup_interval_seconds=resolved.session_cleanup_interval_seconds,
         max_history_groups=resolved.session_max_history_groups,
     )
+    checkpoint_storage = InMemoryCheckpointStorage()
     service = RouterChatService(
         mcp_url=resolved.mcp_url,
         request_timeout_seconds=resolved.request_timeout_seconds,
         session_store=session_store,
+        checkpoint_storage=checkpoint_storage,
     )
 
     app = Starlette(
@@ -1090,5 +1169,6 @@ def create_router_chatbot_app(config: RouterChatbotConfig | None = None) -> Star
     app.state.router_chat_service = service
     app.state.router_chatbot_config = resolved
     app.state.session_store = session_store
+    app.state.checkpoint_storage = checkpoint_storage
     app.state.welcomed_conversation_ids = set()
     return app

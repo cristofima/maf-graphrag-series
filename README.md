@@ -20,18 +20,18 @@ Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, an
 
 ## Series Overview
 
-| Part | Title                            | Status         | Module                                             |
-| ---- | -------------------------------- | -------------- | -------------------------------------------------- |
-| 1    | GraphRAG Fundamentals            | ✅ Complete    | `src/core/`                                        |
-| 2    | GraphRAG MCP Server              | ✅ Complete    | `src/mcp_server/`                                  |
-| 3    | Agent Framework Patterns         | ✅ Complete    | `src/agents/`                                      |
-| 4    | Workflow Patterns                | ✅ Complete    | `src/workflows/`                                   |
-| 5    | Agent Evaluation                 | ✅ Complete    | `src/evaluation/`                                  |
-| 6    | Router SLM Integration           | ✅ Complete    | `src/agents/`, `src/workflows/`, `src/evaluation/` |
-| 7    | Conversational Session Readiness | 🚧 In Progress | `src/agents/`, `src/workflows/`                    |
-| 8    | Human-in-the-Loop                | ⏳ Planned     | —                                                  |
-| 9    | Tool Registry                    | ⏳ Planned     | —                                                  |
-| 10   | Production Deployment            | ⏳ Planned     | —                                                  |
+| Part | Title                            | Status      | Module                                             |
+| ---- | -------------------------------- | ----------- | -------------------------------------------------- |
+| 1    | GraphRAG Fundamentals            | ✅ Complete | `src/core/`                                        |
+| 2    | GraphRAG MCP Server              | ✅ Complete | `src/mcp_server/`                                  |
+| 3    | Agent Framework Patterns         | ✅ Complete | `src/agents/`                                      |
+| 4    | Workflow Patterns                | ✅ Complete | `src/workflows/`                                   |
+| 5    | Agent Evaluation                 | ✅ Complete | `src/evaluation/`                                  |
+| 6    | Router SLM Integration           | ✅ Complete | `src/agents/`, `src/workflows/`, `src/evaluation/` |
+| 7    | Conversational Session Readiness | ✅ Complete | `src/agents/`, `src/workflows/`                    |
+| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                                  |
+| 9    | Tool Registry                    | ⏳ Planned  | —                                                  |
+| 10   | Production Deployment            | ⏳ Planned  | —                                                  |
 
 ## Current Architecture
 
@@ -242,9 +242,9 @@ agentsplayground -e http://localhost:3978/api/messages -c msteams
 
 ---
 
-## Part 7 — Conversational Session Readiness (In Progress)
+## Part 7 — Conversational Session Readiness
 
-Adds multi-turn session management on top of the Part 6 router architecture without changing routing policy or the metadata contract.
+Delivers multi-turn session management on top of the Part 6 router architecture without changing routing policy or the metadata contract.
 
 ### Implemented
 
@@ -254,11 +254,30 @@ Adds multi-turn session management on top of the Part 6 router architecture with
 - Session and lock diagnostics propagated into router span attributes and structured logs.
 - `RouterWorkflowAgentAdapter`: agent-style facade over `RouterWorkflow` with optional `CheckpointStorage` — used by `RouterChatService` for the chatbot connector path.
 - Knowledge Captain removed; `RouterWorkflow` is the sole production conversational entry point.
+- **Process-local checkpoint/resume**:
+  - `ActiveWorkflowRun` dataclass tracking `checkpoint_id`, `workflow_type`, and resume status.
+  - `InMemoryCheckpointStorage` threaded to `Workflow.run()` at call time; sub-workflows have fixed `WorkflowBuilder(name=...)` for reliable `get_latest()` queries.
+  - After a session timeout, the latest superstep checkpoint is captured and stored in `session_record.active_workflow_run`.
+  - On the next request, the checkpoint is validated (stale and incompatible types rejected) and passed as `checkpoint_id` to the workflow for resume.
+  - `resumed_from_checkpoint` and `checkpoint_id_used` are observable in structured logs and `channelData.session` in the Playground Activity Viewer.
+- Manual session continuity validated on 2026-08-22 and 2026-08-23 against Microsoft 365 Agents Playground — see conversation.md, conversation 2.md, logs/run_router_chatbot_20260822.log, and logs/run_router_chatbot_20260823.log for transcripts, diagnostics, and router metadata across multi-turn conversations. Snapshot of the structured log payload recorded for the second turn on 2026-08-23:
 
-### Still In Progress
+```json
+{
+  "event": "router_chatbot.message_processed",
+  "session_id": "d3da5e5b654a04d618464fc80e9a3a2c",
+  "turn_index": 2,
+  "memory_hits": 1,
+  "lock_wait_ms": 0.004,
+  "lock_hold_ms": 20482.723,
+  "resumed_from_checkpoint": false,
+  "checkpoint_id_used": null
+}
+```
 
-- Workflow checkpoint/resume: `active_checkpoint_id` placeholder only; no resume/rejection logic wired yet.
-- Final DevUI validation evidence and Part 7 implementation notes.
+### Deferred considerations
+
+- Induced-timeout checkpoint resume validation is out of scope for this release due to operational complexity; automated tests cover checkpoint acceptance/rejection paths.
 
 ---
 

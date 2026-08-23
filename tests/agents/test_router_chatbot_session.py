@@ -8,8 +8,9 @@ from typing import Any
 
 import httpx
 import pytest
+from agent_framework import InMemoryCheckpointStorage, WorkflowCheckpoint
 
-from agents.session_store import InMemorySessionStore, SessionKey
+from agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
 from workflows.router_agent import RouterWorkflowAgentAdapter
 from workflows.router_chatbot_server import (
@@ -24,6 +25,7 @@ class _FakeRouterWorkflow:
     def __init__(self, captured_queries: list[str], answers: list[str]) -> None:
         self._captured_queries = captured_queries
         self._answers = answers
+        self.last_stream_kwargs: dict[str, Any] = {}
 
     async def __aenter__(self) -> _FakeRouterWorkflow:
         return self
@@ -47,7 +49,10 @@ class _FakeRouterWorkflow:
         *,
         include_status_events: bool = True,
         session_telemetry: dict[str, object] | None = None,
+        **kwargs: Any,
     ) -> tuple[Any, Any]:
+        self.last_stream_kwargs = kwargs
+
         async def _stream() -> Any:
             if include_status_events:
                 yield SimpleNamespace(
@@ -186,3 +191,209 @@ async def test_same_session_near_simultaneous_requests_are_serialized() -> None:
     assert response_one.status_code == 200
     assert response_two.status_code == 200
     assert delayed_service.max_inflight == 1
+
+
+@pytest.mark.asyncio
+async def test_valid_checkpoint_passed_to_adapter_on_resume() -> None:
+    """When active_workflow_run has a valid checkpoint_id, adapter receives checkpoint_id + storage."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+    checkpoint = WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-1")
+    checkpoint_id = await checkpoint_storage.save(checkpoint)
+
+    captured_queries: list[str] = []
+    captured_fake: list[_FakeRouterWorkflow] = []
+    answers = ["Resume answer"]
+
+    def _workflow_factory(_mcp_url: str | None) -> _FakeRouterWorkflow:
+        fake = _FakeRouterWorkflow(captured_queries, answers)
+        captured_fake.append(fake)
+        return fake
+
+    adapter = RouterWorkflowAgentAdapter(workflow_factory=_workflow_factory)
+    session_store = InMemorySessionStore(
+        ttl_seconds=300,
+        max_count=100,
+        cleanup_interval_seconds=60,
+        max_history_groups=4,
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        adapter=adapter,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-resume", user_id="user-r")
+    record, _ = await session_store.get_or_create(key.session_id)
+    record.active_workflow_run = ActiveWorkflowRun(
+        workflow_run_id="run-001",
+        checkpoint_id=checkpoint_id,
+        workflow_type="sequential",
+    )
+
+    await service.answer("Resume from where we left off.", session_record=record)
+
+    assert len(captured_fake) == 1
+    kwargs = captured_fake[0].last_stream_kwargs
+    assert kwargs.get("checkpoint_id") == checkpoint_id
+    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    # Cleared after successful completion
+    assert record.active_workflow_run is None
+
+
+@pytest.mark.asyncio
+async def test_stale_checkpoint_rejected_proceeds_without_checkpoint_id() -> None:
+    """When active_workflow_run has a stale checkpoint_id, it is discarded and run proceeds fresh."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+
+    captured_queries: list[str] = []
+    captured_fake: list[_FakeRouterWorkflow] = []
+    answers = ["Fresh answer"]
+
+    def _workflow_factory(_mcp_url: str | None) -> _FakeRouterWorkflow:
+        fake = _FakeRouterWorkflow(captured_queries, answers)
+        captured_fake.append(fake)
+        return fake
+
+    adapter = RouterWorkflowAgentAdapter(workflow_factory=_workflow_factory)
+    session_store = InMemorySessionStore(
+        ttl_seconds=300,
+        max_count=100,
+        cleanup_interval_seconds=60,
+        max_history_groups=4,
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        adapter=adapter,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-stale", user_id="user-s")
+    record, _ = await session_store.get_or_create(key.session_id)
+    session_store.append_turn(record, user_text="previous turn", assistant_text="previous reply")
+    record.active_workflow_run = ActiveWorkflowRun(
+        workflow_run_id="run-stale",
+        checkpoint_id="nonexistent-checkpoint-id",
+        workflow_type="sequential",
+    )
+
+    await service.answer("New question.", session_record=record)
+
+    assert len(captured_fake) == 1
+    kwargs = captured_fake[0].last_stream_kwargs
+    # No checkpoint_id passed — stale checkpoint discarded
+    assert "checkpoint_id" not in kwargs
+    # Checkpoint_storage is still threaded through for future runs
+    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    # Session history preserved; active_workflow_run cleared
+    assert record.active_workflow_run is None
+    assert len(record.history_groups) == 2  # previous + new turn
+
+
+@pytest.mark.asyncio
+async def test_incompatible_checkpoint_rejected_proceeds_without_checkpoint_id() -> None:
+    """A checkpoint whose workflow_name doesn't match workflow_type is rejected as incompatible."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+    # Saved as "concurrent" but the session expects a "sequential" resume.
+    checkpoint = WorkflowCheckpoint(workflow_name="concurrent", graph_signature_hash="hash-2")
+    checkpoint_id = await checkpoint_storage.save(checkpoint)
+
+    captured_queries: list[str] = []
+    captured_fake: list[_FakeRouterWorkflow] = []
+    answers = ["Fresh answer"]
+
+    def _workflow_factory(_mcp_url: str | None) -> _FakeRouterWorkflow:
+        fake = _FakeRouterWorkflow(captured_queries, answers)
+        captured_fake.append(fake)
+        return fake
+
+    adapter = RouterWorkflowAgentAdapter(workflow_factory=_workflow_factory)
+    session_store = InMemorySessionStore(
+        ttl_seconds=300,
+        max_count=100,
+        cleanup_interval_seconds=60,
+        max_history_groups=4,
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        adapter=adapter,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-incompat", user_id="user-i")
+    record, _ = await session_store.get_or_create(key.session_id)
+    session_store.append_turn(record, user_text="prior question", assistant_text="prior answer")
+    record.active_workflow_run = ActiveWorkflowRun(
+        workflow_run_id="run-incompat",
+        checkpoint_id=checkpoint_id,
+        workflow_type="sequential",  # mismatches checkpoint's workflow_name="concurrent"
+    )
+
+    await service.answer("Next question.", session_record=record)
+
+    assert len(captured_fake) == 1
+    kwargs = captured_fake[0].last_stream_kwargs
+    # Incompatible checkpoint must not be passed through
+    assert "checkpoint_id" not in kwargs
+    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    # History preserved and active_workflow_run cleared
+    assert record.active_workflow_run is None
+    assert len(record.history_groups) == 2
+
+
+@pytest.mark.asyncio
+async def test_save_checkpoint_after_interruption_captures_sequential_checkpoint() -> None:
+    """After a timeout the latest sequential checkpoint is saved to active_workflow_run."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+    checkpoint = WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-t1")
+    checkpoint_id = await checkpoint_storage.save(checkpoint)
+
+    session_store = InMemorySessionStore(
+        ttl_seconds=300, max_count=100, cleanup_interval_seconds=60, max_history_groups=4
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-t", user_id="user-t")
+    record, _ = await session_store.get_or_create(key.session_id)
+    session_store.append_turn(record, user_text="q", assistant_text="a")
+
+    await service._save_checkpoint_after_interruption(record)
+
+    assert record.active_workflow_run is not None
+    assert record.active_workflow_run.checkpoint_id == checkpoint_id
+    assert record.active_workflow_run.workflow_type == "sequential"
+    # History is unaffected by checkpoint capture
+    assert len(record.history_groups) == 1
+
+
+@pytest.mark.asyncio
+async def test_save_checkpoint_after_interruption_noop_when_storage_empty() -> None:
+    """If no checkpoint exists in storage the session record is left unchanged."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+
+    session_store = InMemorySessionStore(
+        ttl_seconds=300, max_count=100, cleanup_interval_seconds=60, max_history_groups=4
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-empty", user_id="user-e")
+    record, _ = await session_store.get_or_create(key.session_id)
+
+    await service._save_checkpoint_after_interruption(record)
+
+    assert record.active_workflow_run is None

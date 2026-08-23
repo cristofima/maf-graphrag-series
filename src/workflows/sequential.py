@@ -358,7 +358,7 @@ class ResearchPipelineWorkflow(MCPWorkflowBase):
         search_executor = _KnowledgeSearchExecutor(self._knowledge_searcher, self._record_step)
         report_executor = _ReportWriterExecutor(self._report_writer, self._record_step)
 
-        builder = WorkflowBuilder(start_executor=query_executor)
+        builder = WorkflowBuilder(name="sequential", start_executor=query_executor)
         builder.add_chain([query_executor, search_executor, report_executor])
 
         workflow = builder.build()

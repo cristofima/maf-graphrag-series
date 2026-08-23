@@ -2,7 +2,7 @@ name: Router PR Merge Gate
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "develop"]
     types: [opened, reopened, synchronize, labeled]
   pull_request_review:
     types: [submitted]
@@ -22,7 +22,7 @@ permissions: {}
 jobs:
   router_eval_changes:
     name: "Router Eval Change Detection (PR Merge Gate)"
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main' && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && github.event.pull_request.base.ref == 'main') }}
+    if: ${{ (github.event_name == 'pull_request' && contains(fromJSON('["main", "develop"]'), github.base_ref) && contains(github.event.pull_request.labels.*.name, 'ready-to-merge')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved' && contains(fromJSON('["main", "develop"]'), github.event.pull_request.base.ref)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -62,6 +62,13 @@ flowchart TD
     DW --> R["Answer + audited router step"]
 ```
 
+#### Session-aware routing and checkpoint readiness
+
+- Session identity is deterministic per channel + conversation + user. `RouterWorkflow` consumes the bounded history supplied by `RouterChatService` to keep follow-up turns contextual.
+- Structured session diagnostics (`session_id`, `turn_index`, `memory_hits`, lock timings, cleanup counters) flow through router span attributes, logs, and connector payloads. This gives Auditors the same trace whether they review logs or channel data.
+- Checkpoint storage is threaded through the router and its delegated workflows. On timeout, the latest superstep checkpoint is persisted and automatically offered for the next turn; stale or incompatible checkpoints are rejected safely before execution.
+- Manual induced-timeout validation is deferred for now due to operational overhead. Automated tests cover checkpoint acceptance/rejection paths, so no workflow changes are required when that surface is exercised later.
+
 ### DevUI Graph Metadata (tutorial-only tradeoff)
 
 For the DevUI demo we instantiate each WorkflowBuilder graph when metadata is requested so we can reuse the Agent Framework `workflow.to_dict()` output (it includes internal executor aliases used by the sample UI). This spins up the agents, Azure client, and MCP tool even though we only need the blueprint. Production services should replace this with a cached or hand-authored blueprint to avoid touching downstream services during metadata discovery.

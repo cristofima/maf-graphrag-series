@@ -17,7 +17,7 @@ It uses the same operating terms as the root README: manual control surface, pus
 ```mermaid
 flowchart TD
   A[Manual control surface<br/>router-evaluation.yml] --> B[Run configurable router evaluation]
-  C[PR events to main<br/>ready-to-merge or approved] --> D[router-pr-merge-gate.yml]
+  C[PR events to main or develop<br/>ready-to-merge or approved] --> D[router-pr-merge-gate.yml]
   D --> E{Relevant router/eval changes?}
   E -- Yes --> F[Run local router batch gate]
   E -- No --> G[Skip eval and pass gate]
@@ -108,8 +108,8 @@ If publish_foundry or run_redteam is requested but service principal secrets are
 
 The gate runs when one of these is true:
 
-- PR to main has label ready-to-merge.
-- A PR review is submitted as approved on a PR targeting main.
+- PR to main or develop has label ready-to-merge.
+- A PR review is submitted as approved on a PR targeting main or develop.
 
 ### What can skip evaluation
 
@@ -119,7 +119,9 @@ If changed files do not match router/evaluation-sensitive paths, the gate exits 
 
 [router-main-evaluation.yml](router-main-evaluation.yml) is the main-branch cloud validation wrapper.
 
-- Trigger: push to main with router/evaluation-sensitive file changes.
+- Trigger: push to main with router/evaluation-sensitive file changes. Intentionally scoped to `main` only
+  (not `develop`) so the full-cloud profile (Foundry publish + red-team) stays reserved for the branch that
+  actually ships; `develop` gets CI and the local PR merge gate only.
 - Executes change detection first.
 - Calls [router-evaluation.yml](router-evaluation.yml) with:
   - regenerate_data=true

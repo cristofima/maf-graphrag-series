@@ -320,6 +320,7 @@ class ParallelSearchWorkflow(WorkflowGraphSupport):
         synth_executor = _AnswerSynthesizerExecutor(self._answer_synthesizer, self._record_step)
 
         builder = WorkflowBuilder(
+            name="concurrent",
             start_executor=broadcast,
             output_from=[synth_executor],
             intermediate_output_from="all_other",

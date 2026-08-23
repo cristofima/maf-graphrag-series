@@ -47,7 +47,6 @@ except ImportError as exc:  # pragma: no cover - dependency guidance path
 
 from agent_framework.observability import enable_instrumentation
 
-from agents.supervisor import create_knowledge_captain
 from core.logging_config import LoggingConfig, configure_app_logging
 from evaluation.monitoring.otel_setup import setup_monitoring
 from workflows.base import (
@@ -119,13 +118,12 @@ def _configure_logging() -> None:
 
 
 def _build_entities() -> list[object]:
-    """Create fresh agent and workflow instances for DevUI."""
+    """Create fresh workflow instances for DevUI."""
     return [
-        create_knowledge_captain(),
+        create_router_workflow_runner(),
         create_sequential_workflow_runner(),
         create_concurrent_workflow_runner(),
         create_handoff_workflow_runner(),
-        create_router_workflow_runner(),
     ]
 
 

@@ -3,7 +3,7 @@
 import dotenv
 import pytest
 
-from agents.config import DEFAULT_API_VERSION, AgentConfig
+from agents.config import DEFAULT_API_VERSION, AgentConfig, SessionConfig
 
 
 def _seed_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -99,3 +99,24 @@ class TestAgentConfig:
         assert isinstance(config, AgentConfig)
         assert load_calls == [True]
         assert str(config.azure_endpoint) == "https://test.openai.azure.com/"
+
+
+class TestSessionConfig:
+    def test_defaults_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("SESSION_TTL_SECONDS", raising=False)
+        monkeypatch.delenv("SESSION_MAX_COUNT", raising=False)
+        monkeypatch.delenv("SESSION_CLEANUP_INTERVAL_SECONDS", raising=False)
+        monkeypatch.delenv("SESSION_MAX_HISTORY_GROUPS", raising=False)
+
+        config = SessionConfig.from_env()
+
+        assert config.ttl_seconds == 1800
+        assert config.max_count == 1000
+        assert config.cleanup_interval_seconds == 60
+        assert config.max_history_groups == 12
+
+    def test_invalid_session_ttl_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("SESSION_TTL_SECONDS", "1")
+
+        with pytest.raises(ValueError, match="ttl_seconds"):
+            SessionConfig.from_env()

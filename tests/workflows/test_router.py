@@ -6,7 +6,7 @@ import pytest
 
 from agents.router_classifier import RouterClassification
 from workflows.base import WorkflowResult, WorkflowStep, WorkflowType, create_router_workflow_runner
-from workflows.router import RouterWorkflow
+from workflows.router import RouterOutcome, RouterWorkflow
 
 
 class StubClassifier:
@@ -414,6 +414,48 @@ async def test_router_out_of_context_streaming_after_classifier_decision() -> No
     assert result.steps[1].metadata["status"] == "completed"
 
 
+@pytest.mark.asyncio
+async def test_router_preserves_metadata_contract_with_session_telemetry() -> None:
+    classification = RouterClassification(
+        workflow=WorkflowType.SEQUENTIAL,
+        raw_response='{"workflow": "sequential"}',
+        reason="Reliable default route.",
+        confidence_score=90,
+        elapsed_seconds=0.01,
+        model_name="router-mini",
+    )
+    classifier = StubClassifier([classification])
+
+    inner_result = _make_result(WorkflowType.SEQUENTIAL, "Session aware answer")
+    workflow = RouterWorkflow(
+        classifier=classifier,
+        workflow_factories={WorkflowType.SEQUENTIAL: lambda _mcp_url: StubWorkflow(inner_result)},
+    )
+
+    async with workflow:
+        result = await workflow.run(
+            "Follow-up question",
+            session_telemetry={
+                "session_id": "abc123",
+                "turn_index": 3,
+                "memory_hits": 2,
+                "compaction_events": 1,
+            },
+        )
+
+    metadata = result.steps[0].metadata
+    assert metadata["classified_workflow"] == WorkflowType.SEQUENTIAL.value
+    assert metadata["routed_workflow"] == WorkflowType.SEQUENTIAL.value
+    assert metadata["classifier_status"] == "success"
+    assert metadata["classifier_attempts"] == 1
+    assert "fallback_reason" not in metadata
+
+    assert metadata["session_id"] == "abc123"
+    assert metadata["turn_index"] == 3
+    assert metadata["memory_hits"] == 2
+    assert metadata["compaction_events"] == 1
+
+
 def test_router_runner_blueprint_includes_out_of_context_path() -> None:
     runner = create_router_workflow_runner()
     blueprint = runner.to_dict()
@@ -431,3 +473,78 @@ def test_router_runner_blueprint_includes_out_of_context_path() -> None:
         for group in blueprint["edge_groups"]
     )
     assert has_out_of_context_edge
+
+
+def test_emit_routing_span_includes_lock_telemetry_and_contention_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeSpanContext:
+        @property
+        def is_valid(self) -> bool:
+            return True
+
+    class _FakeSpan:
+        def __init__(self) -> None:
+            self.attributes: dict[str, object] = {}
+            self.events: list[tuple[str, dict[str, object]]] = []
+
+        def set_attribute(self, key: str, value: object) -> None:
+            self.attributes[key] = value
+
+        def add_event(self, name: str, attributes: dict[str, object]) -> None:
+            self.events.append((name, attributes))
+
+        def get_span_context(self) -> _FakeSpanContext:
+            return _FakeSpanContext()
+
+    class _FakeTracerContext:
+        def __init__(self, span: _FakeSpan) -> None:
+            self._span = span
+
+        def __enter__(self) -> _FakeSpan:
+            return self._span
+
+        def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+            return None
+
+    class _FakeTracer:
+        def __init__(self, span: _FakeSpan) -> None:
+            self._span = span
+
+        def start_as_current_span(self, _name: str) -> _FakeTracerContext:
+            return _FakeTracerContext(self._span)
+
+    fake_span = _FakeSpan()
+    fake_tracer = _FakeTracer(fake_span)
+    monkeypatch.setattr("workflows.router._TRACER", fake_tracer)
+
+    classification = RouterClassification(
+        workflow=WorkflowType.SEQUENTIAL,
+        raw_response='{"workflow": "sequential"}',
+        reason="deterministic route",
+        confidence_score=91,
+        elapsed_seconds=0.02,
+        model_name="router-mini",
+    )
+    router_outcome = RouterOutcome(classification=classification, elapsed_seconds=0.02)
+    workflow = RouterWorkflow(classifier=StubClassifier([classification]))
+
+    workflow._emit_routing_span(
+        query="Follow-up question",
+        router_outcome=router_outcome,
+        routed_workflow=WorkflowType.SEQUENTIAL.value,
+        session_telemetry={
+            "session_id": "abc123",
+            "turn_index": 4,
+            "memory_hits": 3,
+            "compaction_events": 1,
+            "lock_wait_ms": 125.0,
+            "lock_hold_ms": 40.0,
+        },
+        response_output="Answer",
+    )
+
+    assert fake_span.attributes["router.lock_wait_ms"] == 125.0
+    assert fake_span.attributes["router.lock_hold_ms"] == 40.0
+    event_names = [name for name, _attrs in fake_span.events]
+    assert "router.session_lock_contention" in event_names

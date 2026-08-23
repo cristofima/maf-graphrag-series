@@ -20,3 +20,4 @@ subscription_id = "your-azure-subscription-id-here"
 # openai_eval_chat_capacity = 10
 # openai_redteam_chat_capacity = 10
 # enable_foundry = true
+# foundry_user_principal_ids = ["<your-entra-object-id>"]

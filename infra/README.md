@@ -104,28 +104,29 @@ terraform output -raw openai_primary_key
 
 ## 🔧 Configuration Options
 
-| Variable                              | Description                           | Default                 |
-| ------------------------------------- | ------------------------------------- | ----------------------- |
-| `subscription_id`                     | Azure Subscription ID                 | _Required_              |
-| `project_name`                        | Project name for resources            | `maf-graphrag`          |
-| `environment`                         | Environment (dev/staging/prod)        | `dev`                   |
-| `location`                            | Primary Azure region                  | `eastus2`               |
-| `openai_location`                     | Azure OpenAI region                   | `eastus2`               |
-| `openai_chat_deployment_name`         | Legacy GPT-4o deployment name         | `gpt-4o`                |
-| `openai_main_chat_deployment_name`    | App chat deployment name              | `graphrag-main-chat`    |
-| `openai_eval_chat_deployment_name`    | Eval deployment name                  | `graphrag-main-eval`    |
-| `openai_redteam_chat_deployment_name` | Red-team deployment name              | `graphrag-main-redteam` |
-| `openai_app_model_name`               | Model family for app/eval/red-team    | `gpt-4.1`               |
-| `openai_app_model_version`            | Model version for app/eval/red-team   | `2025-04-14`            |
-| `openai_app_deployment_sku_name`      | SKU for app/eval/red-team deployments | `DataZoneStandard`      |
-| `openai_router_deployment_name`       | Existing model-router deployment name | `model-router`          |
-| `enable_legacy_chat_deployment`       | Keep existing GPT-4o deployment       | `true`                  |
-| `openai_capacity`                     | Legacy GPT-4o TPM (thousands)         | `30`                    |
-| `openai_main_chat_capacity`           | App TPM (thousands)                   | `10`                    |
-| `openai_eval_chat_capacity`           | Eval TPM (thousands)                  | `10`                    |
-| `openai_redteam_chat_capacity`        | Red-team TPM (thousands)              | `10`                    |
-| `storage_sku`                         | Storage replication                   | `LRS`                   |
-| `enable_foundry`                      | Create New Foundry Project            | `true`                  |
+| Variable                              | Description                                            | Default                 |
+| ------------------------------------- | ------------------------------------------------------ | ----------------------- |
+| `subscription_id`                     | Azure Subscription ID                                  | _Required_              |
+| `project_name`                        | Project name for resources                             | `maf-graphrag`          |
+| `environment`                         | Environment (dev/staging/prod)                         | `dev`                   |
+| `location`                            | Primary Azure region                                   | `eastus2`               |
+| `openai_location`                     | Azure OpenAI region                                    | `eastus2`               |
+| `openai_chat_deployment_name`         | Legacy GPT-4o deployment name                          | `gpt-4o`                |
+| `openai_main_chat_deployment_name`    | App chat deployment name                               | `graphrag-main-chat`    |
+| `openai_eval_chat_deployment_name`    | Eval deployment name                                   | `graphrag-main-eval`    |
+| `openai_redteam_chat_deployment_name` | Red-team deployment name                               | `graphrag-main-redteam` |
+| `openai_app_model_name`               | Model family for app/eval/red-team                     | `gpt-4.1`               |
+| `openai_app_model_version`            | Model version for app/eval/red-team                    | `2025-04-14`            |
+| `openai_app_deployment_sku_name`      | SKU for app/eval/red-team deployments                  | `DataZoneStandard`      |
+| `openai_router_deployment_name`       | Existing model-router deployment name                  | `model-router`          |
+| `enable_legacy_chat_deployment`       | Keep existing GPT-4o deployment                        | `true`                  |
+| `openai_capacity`                     | Legacy GPT-4o TPM (thousands)                          | `30`                    |
+| `openai_main_chat_capacity`           | App TPM (thousands)                                    | `10`                    |
+| `openai_eval_chat_capacity`           | Eval TPM (thousands)                                   | `10`                    |
+| `openai_redteam_chat_capacity`        | Red-team TPM (thousands)                               | `10`                    |
+| `storage_sku`                         | Storage replication                                    | `LRS`                   |
+| `enable_foundry`                      | Create New Foundry Project                             | `true`                  |
+| `foundry_user_principal_ids`          | Entra object IDs granted "Foundry User" on the project | `[]`                    |
 
 ## 💰 Cost Estimation
 
@@ -156,6 +157,18 @@ Overall infrastructure cost is variable and depends on model SKU, capacity setti
 - If you want to disable Foundry (not recommended), set `enable_foundry = false` and re-apply.
 
 **No manual changes are needed to use the Evaluation Dashboard: everything is ready after `terraform apply`.**
+
+### Foundry User Role (Required for Local `--foundry` Publish)
+
+Publishing local evaluation runs to Foundry (`run_batch_evaluation.py --foundry`) authenticates via `DefaultAzureCredential` and calls the project's `openai/v1/evals` endpoint. Without the **Foundry User** role on the project scope, this fails with a 403 (`does not have permissions for Microsoft.Ma...`).
+
+Set `foundry_user_principal_ids` in `terraform.tfvars` to the Entra object ID(s) (users, groups, or service principals) that need to run `--foundry` locally, then `terraform apply`:
+
+```hcl
+foundry_user_principal_ids = ["<your-entra-object-id>"]
+```
+
+Find your object ID with `az ad signed-in-user show --query id -o tsv` (make sure `az account set --subscription <sub>` points at the subscription hosting this stack first, since object IDs differ per Entra tenant).
 
 ## Deployment Naming Convention
 

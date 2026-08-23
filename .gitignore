@@ -42,8 +42,13 @@ infra/**/.terraform.lock.hcl
 
 # Testing
 .coverage
+.coverage.*
 coverage.xml
+junit.xml
 htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Jupyter
 .ipynb_checkpoints/

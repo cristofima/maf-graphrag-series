@@ -53,6 +53,7 @@ from workflows.base import (
 from workflows.concurrent import ParallelSearchWorkflow
 from workflows.handoff import ExpertHandoffWorkflow
 from workflows.router import RouterWorkflow
+from workflows.router_agent import RouterWorkflowAgentAdapter
 from workflows.sequential import ResearchPipelineWorkflow
 
 __all__ = [
@@ -65,6 +66,7 @@ __all__ = [
     "ParallelSearchWorkflow",
     "ExpertHandoffWorkflow",
     "RouterWorkflow",
+    "RouterWorkflowAgentAdapter",
     # Factory functions (state isolation)
     "create_sequential_workflow",
     "create_concurrent_workflow",

@@ -10,12 +10,15 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
+from agents.session_store import InMemorySessionStore
 from workflows.router_chatbot_server import (
     RouterChatbotConfig,
     RouterChatReply,
     RouterChatService,
     _connector_delivery_candidates,
+    _emit_lock_span_diagnostics,
     _status_text_from_event,
     _typing_keepalive_loop,
     build_reply_activity,
@@ -30,10 +33,29 @@ class _StubRouterChatService(RouterChatService):
     """Test double that returns deterministic answers."""
 
     def __init__(self) -> None:
-        super().__init__(mcp_url=None, request_timeout_seconds=30.0)
+        super().__init__(
+            mcp_url=None,
+            request_timeout_seconds=30.0,
+            session_store=InMemorySessionStore(
+                ttl_seconds=300,
+                max_count=100,
+                cleanup_interval_seconds=60,
+                max_history_groups=8,
+            ),
+        )
         self.calls: list[str] = []
 
-    async def answer(self, text: str, *, on_progress: Any = None) -> RouterChatReply:
+    async def answer(
+        self,
+        text: str,
+        *,
+        session_record: Any = None,
+        on_progress: Any = None,
+        lock_wait_ms: float | None = None,
+    ) -> RouterChatReply:
+        _ = session_record
+        _ = on_progress
+        _ = lock_wait_ms
         self.calls.append(text)
         return RouterChatReply(
             answer=f"answer::{text}",
@@ -334,3 +356,96 @@ async def test_messages_endpoint_rejects_empty_text() -> None:
 
     assert response.status_code == 400
     assert "missing non-empty text" in response.json()["error"]
+
+
+def test_emit_lock_span_diagnostics_adds_attributes_and_contention_event(monkeypatch: Any) -> None:
+    class _FakeSpanContext:
+        @property
+        def is_valid(self) -> bool:
+            return True
+
+    class _FakeSpan:
+        def __init__(self) -> None:
+            self.attributes: dict[str, object] = {}
+            self.events: list[tuple[str, dict[str, object]]] = []
+
+        def get_span_context(self) -> _FakeSpanContext:
+            return _FakeSpanContext()
+
+        def set_attribute(self, key: str, value: object) -> None:
+            self.attributes[key] = value
+
+        def add_event(self, name: str, attributes: dict[str, object]) -> None:
+            self.events.append((name, attributes))
+
+    fake_span = _FakeSpan()
+    monkeypatch.setattr("workflows.router_chatbot_server.trace.get_current_span", lambda: fake_span)
+
+    _emit_lock_span_diagnostics(lock_wait_ms=140.0, lock_hold_ms=33.0)
+
+    assert fake_span.attributes["router.lock_wait_ms"] == 140.0
+    assert fake_span.attributes["router.lock_hold_ms"] == 33.0
+    assert any(name == "router.session_lock_contention" for name, _attrs in fake_span.events)
+
+
+class _FailingRouterChatService(RouterChatService):
+    """Test double whose answer() holds the session lock briefly, then raises."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            mcp_url=None,
+            request_timeout_seconds=30.0,
+            session_store=InMemorySessionStore(
+                ttl_seconds=300,
+                max_count=100,
+                cleanup_interval_seconds=60,
+                max_history_groups=8,
+            ),
+        )
+
+    async def answer(
+        self,
+        text: str,
+        *,
+        session_record: Any = None,
+        on_progress: Any = None,
+        lock_wait_ms: float | None = None,
+    ) -> RouterChatReply:
+        _ = session_record
+        _ = on_progress
+        _ = lock_wait_ms
+        await asyncio.sleep(0.02)
+        raise RuntimeError("simulated downstream failure")
+
+
+async def test_lock_hold_ms_reported_even_when_answer_raises() -> None:
+    app = create_router_chatbot_app(RouterChatbotConfig())
+    app.state.router_chat_service = _FailingRouterChatService()
+
+    response = await _request(app, "POST", "/api/messages", json=_sample_activity("hello"))
+
+    assert response.status_code == 200
+    session_metadata = response.json()["channelData"]["session"]
+    assert session_metadata["lock_hold_ms"] > 0
+
+
+def test_router_chatbot_config_session_ttl_upper_bound_rejected() -> None:
+    with pytest.raises(ValidationError):
+        RouterChatbotConfig(session_ttl_seconds=999_999_999)
+
+
+def test_router_chatbot_config_session_bounds_match_session_config() -> None:
+    from agents.config import SessionConfig
+
+    router_fields = RouterChatbotConfig.model_fields
+    session_fields = SessionConfig.model_fields
+
+    for router_field, session_field in (
+        ("session_ttl_seconds", "ttl_seconds"),
+        ("session_max_count", "max_count"),
+        ("session_cleanup_interval_seconds", "cleanup_interval_seconds"),
+        ("session_max_history_groups", "max_history_groups"),
+    ):
+        router_constraints = router_fields[router_field].metadata
+        session_constraints = session_fields[session_field].metadata
+        assert router_constraints == session_constraints

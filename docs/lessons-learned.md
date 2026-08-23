@@ -1141,6 +1141,46 @@ Cloud evaluation validators can evolve independently from local execution paths.
 
 ---
 
+## Challenge 25: Router Session Resume Evidence Was Too Ephemeral
+
+### Problem
+
+Router checkpoint-resume behavior was only observable in transient CLI output. Documentation lacked a durable example of the JSON telemetry emitted when the router chatbot saves or restores checkpoint state, making validation hard for anyone who did not run the workflow locally.
+
+### Root Cause
+
+`run_router_chatbot.py` writes `router_chatbot.message_processed` events to timestamped files under `logs/`. These files are rotated per run and routinely deleted during cleanup, so prior documentation links went stale quickly and failed to communicate the expected schema.
+
+### Solution
+
+Captured a canonical JSON event from the Microsoft 365 Agents Playground session that exercised checkpoint resume, pinned it in `README.md`, and linked it to a retained artifact under `logs/`. Cross-referenced the same snippet in the Part 7 implementation notes so future reviewers have a permanent, shareable telemetry example.
+
+### Key Insight
+
+For multi-turn router workflows, treat log schemas as long-lived contracts. Preserve an illustrative payload in version control so onboarding and sign-off do not depend on recreating the exact runtime scenario.
+
+---
+
+## Challenge 26: Session Store Needed Structured Active Workflow Metadata
+
+### Problem
+
+The session store tracked only a plain `active_checkpoint_id` string. When checkpoint resume was added, the router could not distinguish between workflows, interruption states, or stale checkpoints, increasing the risk of silent data drift and making observability difficult.
+
+### Root Cause
+
+Encoding checkpoint state as a single string co-mingled with history meant there was no place to persist workflow type, run identifier, or interruption status. Tests could not cover stale or incompatible checkpoints because the metadata simply was not recorded.
+
+### Solution
+
+Introduced an `ActiveWorkflowRun` dataclass with `workflow_run_id`, `checkpoint_id`, `workflow_type`, and `status`, persisted separately from conversation history inside `SessionRecord`. Updated router chatbot reply handling to clear the structured record once resume succeeds and expanded test coverage to verify history integrity, stale checkpoint tolerance, and incompatible resume scenarios.
+
+### Key Insight
+
+When adding resume support, store active run context as structured metadata instead of augmenting history or single fields. This keeps history purging logic simple, enables rich diagnostics, and lets tests assert safety around stale checkpoints.
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -1169,6 +1209,8 @@ Cloud evaluation validators can evolve independently from local execution paths.
 22. ✅ **Split evaluation checks by lifecycle (PR local gate vs main full Foundry/red-team)**
 23. ✅ **Split chat/eval/red-team deployments before retiring legacy GPT-4o**
 24. ✅ **Map `tool_definitions` explicitly for Foundry tool-aware evaluators**
+25. ✅ **Preserve router checkpoint telemetry examples as durable documentation artifacts**
+26. ✅ **Persist active workflow runs as structured session metadata for safe resume logic**
 
 ### Final Architecture
 
@@ -1199,7 +1241,7 @@ Cost is now primarily driven by deployment capacities and run cadence (`main`, `
 
 ---
 
-**Document Version**: 6.0
-**Last Updated**: August 3, 2026
+**Document Version**: 7
+**Last Updated**: August 23, 2026
 **Author**: Cristopher Coronado
-**Series**: MAF + GraphRAG - Parts 1, 2, 3, 4, 5 & 6
+**Series**: MAF + GraphRAG - Parts 1, 2, 3, 4, 5, 6 & 7

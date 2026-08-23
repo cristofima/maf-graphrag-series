@@ -199,22 +199,9 @@ class RouterChatService:
                 session_record=session_record,
                 session_telemetry=runtime_telemetry,
             )
-
             if on_progress is not None:
                 await on_progress(_ROUTING_STATUS_MESSAGE)
-
-            stream_routed_workflow: str | None = None
-            async for event in stream:
-                if on_progress is None:
-                    continue
-                status_text, stream_routed_workflow = _status_text_from_event(
-                    event,
-                    routed_workflow=stream_routed_workflow,
-                )
-                if status_text is None:
-                    continue
-                await on_progress(status_text)
-
+            await _drain_stream(stream, on_progress)
             result = await finalize()
 
         compaction_events = 0
@@ -226,17 +213,7 @@ class RouterChatService:
             )
             compaction_events = diagnostics.compacted_groups
 
-        routed_workflow: str | None = None
-        classifier_status: str | None = None
-        fallback_reason: str | None = None
-        if result.steps:
-            metadata = result.steps[0].metadata
-            routed = metadata.get("routed_workflow")
-            status = metadata.get("classifier_status")
-            fallback = metadata.get("fallback_reason")
-            routed_workflow = routed if isinstance(routed, str) else None
-            classifier_status = status if isinstance(status, str) else None
-            fallback_reason = fallback if isinstance(fallback, str) else None
+        routed_workflow, classifier_status, fallback_reason = _extract_router_metadata(result)
 
         return RouterChatReply(
             answer=result.answer,
@@ -437,6 +414,35 @@ def _status_text_for_executor(event: Any, routed_workflow: str | None) -> tuple[
     return None, routed_workflow
 
 
+async def _drain_stream(
+    stream: Any,
+    on_progress: Callable[[str], Awaitable[None]] | None,
+) -> None:
+    """Drain workflow stream events, forwarding progress messages when provided."""
+    routed_workflow: str | None = None
+    async for event in stream:
+        if on_progress is None:
+            continue
+        status_text, routed_workflow = _status_text_from_event(event, routed_workflow=routed_workflow)
+        if status_text is not None:
+            await on_progress(status_text)
+
+
+def _extract_router_metadata(result: Any) -> tuple[str | None, str | None, str | None]:
+    """Extract routed_workflow, classifier_status, fallback_reason from the first step."""
+    if not result.steps:
+        return None, None, None
+    metadata = result.steps[0].metadata
+    routed = metadata.get("routed_workflow")
+    status = metadata.get("classifier_status")
+    fallback = metadata.get("fallback_reason")
+    return (
+        routed if isinstance(routed, str) else None,
+        status if isinstance(status, str) else None,
+        fallback if isinstance(fallback, str) else None,
+    )
+
+
 def _is_playground_request(headers: Mapping[str, str]) -> bool:
     """Return whether the request originates from Agents Playground."""
 
@@ -611,56 +617,52 @@ def extract_activity_text(activity: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _build_router_metadata(reply: RouterChatReply) -> dict[str, Any]:
+    """Build the router section of channelData from reply fields."""
+    metadata: dict[str, Any] = {}
+    if reply.routed_workflow is not None:
+        metadata["routed_workflow"] = reply.routed_workflow
+    if reply.classifier_status is not None:
+        metadata["classifier_status"] = reply.classifier_status
+    if reply.fallback_reason is not None:
+        metadata["fallback_reason"] = reply.fallback_reason
+    if reply.total_elapsed_seconds is not None:
+        metadata["elapsed_seconds"] = round(reply.total_elapsed_seconds, 3)
+    return metadata
+
+
+def _build_session_metadata(reply: RouterChatReply) -> dict[str, Any]:
+    """Build the session section of channelData from reply fields."""
+    metadata: dict[str, Any] = {}
+    if reply.session_id is not None:
+        metadata["session_id"] = reply.session_id
+    if reply.turn_index is not None:
+        metadata["turn_index"] = reply.turn_index
+    if reply.memory_hits is not None:
+        metadata["memory_hits"] = reply.memory_hits
+    if reply.compaction_events is not None:
+        metadata["compaction_events"] = reply.compaction_events
+    if reply.lock_wait_ms is not None:
+        metadata["lock_wait_ms"] = round(reply.lock_wait_ms, 3)
+    if reply.lock_hold_ms is not None:
+        metadata["lock_hold_ms"] = round(reply.lock_hold_ms, 3)
+    return metadata
+
+
 def build_reply_activity(request_activity: Mapping[str, Any], reply: RouterChatReply) -> dict[str, Any]:
     """Build a minimal reply activity compatible with local playground clients."""
 
-    response: dict[str, Any] = {
-        "type": "message",
-        "text": reply.answer,
-    }
+    response: dict[str, Any] = {"type": "message", "text": reply.answer}
 
-    router_metadata: dict[str, Any] = {}
-    if reply.routed_workflow is not None:
-        router_metadata["routed_workflow"] = reply.routed_workflow
-    if reply.classifier_status is not None:
-        router_metadata["classifier_status"] = reply.classifier_status
-    if reply.fallback_reason is not None:
-        router_metadata["fallback_reason"] = reply.fallback_reason
-    if reply.total_elapsed_seconds is not None:
-        router_metadata["elapsed_seconds"] = round(reply.total_elapsed_seconds, 3)
+    router_metadata = _build_router_metadata(reply)
     if router_metadata:
         response["channelData"] = {"router": router_metadata}
 
-    session_metadata: dict[str, Any] = {}
-    if reply.session_id is not None:
-        session_metadata["session_id"] = reply.session_id
-    if reply.turn_index is not None:
-        session_metadata["turn_index"] = reply.turn_index
-    if reply.memory_hits is not None:
-        session_metadata["memory_hits"] = reply.memory_hits
-    if reply.compaction_events is not None:
-        session_metadata["compaction_events"] = reply.compaction_events
-    if reply.lock_wait_ms is not None:
-        session_metadata["lock_wait_ms"] = round(reply.lock_wait_ms, 3)
-    if reply.lock_hold_ms is not None:
-        session_metadata["lock_hold_ms"] = round(reply.lock_hold_ms, 3)
-
+    session_metadata = _build_session_metadata(reply)
     if session_metadata:
-        channel_data = response.setdefault("channelData", {})
-        if isinstance(channel_data, dict):
-            channel_data["session"] = session_metadata
+        response.setdefault("channelData", {})["session"] = session_metadata
 
-    for key in ("channelId", "serviceUrl", "conversation"):
-        value = request_activity.get(key)
-        if value is not None:
-            response[key] = value
-
-    sender = request_activity.get("from")
-    recipient = request_activity.get("recipient")
-    if isinstance(recipient, Mapping):
-        response["from"] = dict(recipient)
-    if isinstance(sender, Mapping):
-        response["recipient"] = dict(sender)
+    _copy_activity_context(request_activity, response)
 
     reply_to = request_activity.get("id")
     if isinstance(reply_to, str) and reply_to:

@@ -193,6 +193,8 @@ End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based
 | `EntityAccuracyEvaluator`       | Graph Parquet | Are entities in the response valid graph entities?    |
 | `RelationshipValidityEvaluator` | Graph Parquet | Do co-occurrences reflect actual graph relationships? |
 
+Telemetry tip: call `setup_monitoring(config)` from `evaluation.monitoring.otel_setup` before running evaluations so spans reach either an OTLP collector or Application Insights. Set `ENABLE_SENSITIVE_DATA=1` only when you need raw prompts and responses in telemetry; keep it disabled in shared environments.
+
 📖 See [src/evaluation/README.md](src/evaluation/README.md) for the complete reference.
 
 ---
@@ -260,16 +262,16 @@ Delivers multi-turn session management on top of the Part 6 router architecture 
   - After a session timeout, the latest superstep checkpoint is captured and stored in `session_record.active_workflow_run`.
   - On the next request, the checkpoint is validated (stale and incompatible types rejected) and passed as `checkpoint_id` to the workflow for resume.
   - `resumed_from_checkpoint` and `checkpoint_id_used` are observable in structured logs and `channelData.session` in the Playground Activity Viewer.
-- Manual session continuity validated on 2026-08-22 and 2026-08-23 against Microsoft 365 Agents Playground — see conversation.md, conversation 2.md, logs/run_router_chatbot_20260822.log, and logs/run_router_chatbot_20260823.log for transcripts, diagnostics, and router metadata across multi-turn conversations. Snapshot of the structured log payload recorded for the second turn on 2026-08-23:
+- Manual session continuity validated against Microsoft 365 Agents Playground — full chat transcripts, diagnostics, and router metadata are documented in [docs/part7-implementation-notes.md](docs/part7-implementation-notes.md). Snapshot of a structured log payload recorded for the second turn:
 
 ```json
 {
   "event": "router_chatbot.message_processed",
-  "session_id": "d3da5e5b654a04d618464fc80e9a3a2c",
+  "session_id": "8a9cf8519191c73decd1ec056adae276",
   "turn_index": 2,
   "memory_hits": 1,
-  "lock_wait_ms": 0.004,
-  "lock_hold_ms": 20482.723,
+  "lock_wait_ms": 0.005,
+  "lock_hold_ms": 22770.348,
   "resumed_from_checkpoint": false,
   "checkpoint_id_used": null
 }

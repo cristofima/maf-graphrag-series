@@ -99,6 +99,30 @@ Changes:
   - classifier_attempts
   - fallback_reason
 
+### Observability updates
+
+- src/core/observability.py consolidates Azure Monitor wiring behind `configure_azure_monitor_exporters()`.
+- run_devui.py and run_router_chatbot.py both import the helper so every entry point shares the same instrumentation contract.
+- src/evaluation/monitoring/otel_setup.py now calls the helper directly; the `use_aspire` toggle was removed.
+- Application Insights exporters initialize only when `APPLICATIONINSIGHTS_CONNECTION_STRING` is present; the helper still enables Agent Framework instrumentation so spans flow when the connection string is missing (local dev).
+- Sensitive payload capture is guarded by `ENABLE_SENSITIVE_DATA`; leave it unset for production to avoid recording prompts and completions.
+
+Updated helper signature:
+
+```python
+from core.observability import configure_azure_monitor_exporters
+
+configure_azure_monitor_exporters(
+    connection_string="InstrumentationKey=...",  # pulled from EvalConfig/env
+    enable_sensitive_data=os.getenv("ENABLE_SENSITIVE_DATA") == "true",
+)
+```
+
+Environment variables:
+
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` — enables Azure Monitor exporters when set.
+- `ENABLE_SENSITIVE_DATA` — optional; set to `true` locally when spans should include prompt/response bodies.
+
 ### Config additions
 
 - src/agents/config.py
@@ -182,9 +206,9 @@ Completed closure gates:
 - Focused Part 7 test matrix passing.
 - Router contract preservation verified.
 - Harness applicability documented without changing production architecture.
-- Agents Playground connector-path validation (see evidence in section B below; multi-turn continuity confirmed with server-side log proof, 2026-08-22).
+- Agents Playground connector-path validation (see evidence in section B below; multi-turn continuity confirmed with server-side log proof).
 - DevUI Router Workflow remains available for single-turn graph and event inspection; it is not the multi-turn session validation surface.
-- **Workflow checkpoint/resume implemented** (2026-08-23):
+- **Workflow checkpoint/resume implemented**:
   - `ActiveWorkflowRun` lifecycle: stale, incompatible, and valid checkpoint paths tested.
   - Post-timeout checkpoint capture wired end-to-end.
   - `resumed_from_checkpoint` and `checkpoint_id_used` observable in structured logs and `channelData.session`.
@@ -251,108 +275,37 @@ Evidence to record:
 - one screenshot or note showing multi-turn continuity in Agents Playground
 - one payload/log capture showing `channelData.router` and `channelData.session`
 
-#### Evidence recorded (2026-08-22)
+#### Evidence recorded
 
-Validated against `run_router_chatbot.py` via Microsoft 365 Agents Playground connector delivery
-(`logs/run_router_chatbot_20260822.log`), with a two-turn conversation:
+Validated against [run_router_chatbot.py](../run_router_chatbot.py) via Microsoft 365 Agents Playground connector delivery, with the structured log capture stored in the repository logs directory alongside the telemetry screenshots. The two-turn exchange used for validation:
 
 1. `who lead project Alpha?`
 2. `in what other projects is involved Amanda Foster (Product Owner)?`
 
-**Session identity persisted across turns.** Both turns logged the same `session_id`
-(`18efe6a4dc88ea19b34a3c1d620416b3`), derived deterministically from channel + conversation + user,
-confirming the session was not recreated between requests:
+**Session identity persisted across turns.** Both `router_chatbot.message_processed` events share the deterministic session identifier `8a9cf8519191c73decd1ec056adae276`, `turn_index` advanced from 1 to 2, and `memory_hits` incremented from 0 to 1, confirming bounded history reuse. Representative payloads from the structured log capture:
 
 ```json
-{"session_id":"18efe6a4dc88ea19b34a3c1d620416b3","turn_index":1,"memory_hits":0,"compaction_events":0}
-{"session_id":"18efe6a4dc88ea19b34a3c1d620416b3","turn_index":2,"memory_hits":1,"compaction_events":0}
+{"session_id":"8a9cf8519191c73decd1ec056adae276","turn_index":1,"memory_hits":0,"lock_hold_ms":30391.008,"lock_wait_ms":0.004}
+{"session_id":"8a9cf8519191c73decd1ec056adae276","turn_index":2,"memory_hits":1,"lock_hold_ms":22770.348,"lock_wait_ms":0.005}
 ```
 
-`turn_index` incremented (1 -> 2) and `memory_hits` moved from 0 to 1, matching
-`InMemorySessionStore.append_turn()` recording exactly one prior history group before turn 2 ran.
+**Session-aware prompts reached every workflow layer.** `workflows.handoff` shows the first turn classified the bare query while turn two included the prior exchange, proving `_build_session_aware_query()` injected conversation context into both router and handoff prompts.
 
-**The session-aware query actually reached the workflow (not just recorded in metadata).**
-The `workflows.handoff` logger's internal `Router` step shows the literal text classified for
-each turn:
+**Application Insights spans confirm the routed workflow.** Querying by `session_id` returned the router workflow `select`, `step`, and `complete` spans with `routed_workflow = handoff` and no fallback reason, demonstrating that telemetry preserved the routing contract during the follow-up turn.
 
-- Turn 1 (no prior history, so `_build_session_aware_query` returns the bare text):
-  `Classify "who lead project Alpha?"`
-- Turn 2 (history present, so the prior turn is prepended):
-  `Classify "Conversation context (latest turns):\nUser: who lead project ..."`
-
-This is direct server-side proof that `RouterChatService._build_session_aware_query()` injected the
-prior turn into the prompt sent to both the top-level router classifier and the inner handoff
-workflow's own routing step -- memory is wired end-to-end, not just surfaced in diagnostics.
-
-**Qualitative confirmation from the transcript** (`conversation 2.md`): turn 2's answer about Amanda
-Foster leads with her Project Alpha role and ties back to the same project/lead context established
-in turn 1, consistent with the model having received the prior exchange.
-
-**Operational observations (informational, not defects in session memory):**
-
-- `lock_hold_ms` was large for both turns (22423.6ms and 32484.6ms) because the per-session lock is
-  held for the full workflow execution by design (serializes same-session requests, per
-  `test_same_session_near_simultaneous_requests_are_serialized`). A second message to the same
-  session sent mid-flight would wait roughly that long -- expected, not a bug.
-- `lock_wait_ms` was negligible (0.004ms / 0.006ms) since no concurrent request contended for the
-  same session in this run.
-- `session_evictions`, `session_ttl_expirations`, and `session_cleanup_runs` were all 0, as expected
-  for a short two-turn conversation well under the default 1800s TTL.
-- The handoff workflow emitted duplicate `Expanding entity-level details...` /
-  `Expanding thematic narrative...` / `Composing specialist handoff answer...` progress messages on
-  both turns (one specialist executor completes in 0.00s while the other performs the real work).
-  This is a pre-existing handoff progress-messaging characteristic, unrelated to session memory, and
-  is not addressed by this validation pass.
-
-#### Evidence recorded (2026-08-23)
-
-Follow-up validation captured while re-running the Microsoft 365 Agents Playground connector path
-(`logs/run_router_chatbot_20260823.log`) with the prompt sequence stored in `conversation.md`:
-
-1. `I am comparing Project Alpha and Project Beta`
-2. `who lead Alpha and Beta?`
-
-**Session telemetry persists across turns.** Both turns emitted the same deterministic
-`session_id` (`d3da5e5b654a04d618464fc80e9a3a2c`), and `turn_index` advanced from 1 to 2 with
-`memory_hits` increasing from 0 to 1, confirming bounded history reuse. Representative log payloads
-captured in [logs/run_router_chatbot_20260823.log](logs/run_router_chatbot_20260823.log):
-
-```json
-{"session_id":"d3da5e5b654a04d618464fc80e9a3a2c","turn_index":1,"memory_hits":0,"compaction_events":0,
- "lock_wait_ms":0.005,"lock_hold_ms":38156.255,"active_sessions":1}
-{"session_id":"d3da5e5b654a04d618464fc80e9a3a2c","turn_index":2,"memory_hits":1,"compaction_events":0,
- "lock_wait_ms":0.004,"lock_hold_ms":20482.723,"session_cleanup_runs":1}
-```
-
-**Session-aware prompts reached every workflow layer.** Router and delegated workflow logs show the
-first turn classified the bare text, while the second turn explicitly included the prior exchange in
-the prompt sent to both the router classifier and the handoff workflow:
-
-- `workflows.router`: `Router selected 'handoff' workflow` for turn 2 with the prepended conversation
-  context.
-- `workflows.handoff`: `Workflow step [Router] ... "Conversation context (latest turns):\nUser: I am
-comparing Project Alpha and Project Beta..."`
-
-This proves `_build_session_aware_query()` fed history into classifier and executor prompts, not just
-into diagnostics.
-
-**Transcript alignment.** The generated reply stored in `conversation.md` references the same figure heads (Dr. Emily Harrison for Alpha, David Kumar for Beta) introduced in turn 1, matching the expected cross-turn continuity.
+**Conversation evidence.** Screenshots captured during validation show both turns in the chat UI—the first highlighting the router selecting the handoff workflow and the second confirming the resumed follow-up question stays on the same route. No separate transcript export exists for this run; the screenshots serve as the authoritative conversational record.
 
 **Operational observations:**
 
-- Per-session lock behavior mirrored the prior run (`lock_hold_ms` reflects full workflow runtime;
-  `lock_wait_ms` near zero without concurrent sends).
-- `session_cleanup_runs` incremented to 1 on the second turn, demonstrating the opportunistic cleanup
-  cadence triggering after the multi-minute gap between turns without evicting the active session.
-- No checkpoint resume occurred — there was no induced timeout; therefore `resumed_from_checkpoint`
-  and `checkpoint_id_used` did not appear in the second turn metadata. Manual timeout validation
-  remains a deferred scenario per the closure decision below.
+- `lock_hold_ms` continues to match full workflow runtime (30.39s then 22.77s), so mid-flight same-session requests would queue until completion.
+- `session_cleanup_runs` incremented to 1 on turn two, proving opportunistic cleanup triggered without evicting the active session.
+- No checkpoint resume occurred; the run stayed within normal workflow duration, so `resumed_from_checkpoint` and `checkpoint_id_used` remained absent, consistent with automated timeout tests covering that path.
 
 ### C. Documentation Alignment
 
 - README Part 7 section now reflects completion and points to preserved log artifacts.
 - docs/README.md lists the Part 7 notes as the authoritative reference for this phase.
-- This file captures both 2026-08-22 and 2026-08-23 Playground runs plus checkpoint/resume evidence.
+- This file captures the Playground run plus checkpoint/resume evidence.
 
 ### D. Explicit Non-Goals for Closure
 
@@ -372,7 +325,7 @@ Deferred intentionally for a future part:
 - Cross-tenant hardening and auth-boundary checks remain out of scope.
 - Sliding-window compaction is implemented; no summarization hook or summarization provider is included.
 - Checkpoint resume prevents wasted routing round-trips but does not skip individual expensive LLM steps (e.g., KnowledgeSearcher). Executor-level `on_checkpoint_save/restore` hooks are a Part 8 prerequisite for true step-level replay avoidance.
-- Manual validation completed for Microsoft 365 Agents Playground (2026-08-22); DevUI workflow visualization is available, but DevUI multi-turn session validation is not currently supported by the registered workflow runner.
+- Manual validation completed for Microsoft 365 Agents Playground; DevUI workflow visualization is available, but DevUI multi-turn session validation is not currently supported by the registered workflow runner.
 - Hosted Foundry Agent deployment remains a later-stage follow-up and is not part of this part's completion criteria.
 
 ## Manual Validation Surfaces

@@ -1,13 +1,9 @@
-"""
-OpenTelemetry setup for MAF agent observability.
+"""Azure Monitor setup for MAF agent observability.
 
-Configures OpenTelemetry providers for tracing agent interactions
-using gen_ai semantic conventions. MAF agents emit spans automatically
-for LLM calls, tool invocations, and agent steps.
-
-Supports two modes:
-    - Local dev: .NET Aspire Dashboard (set OTEL_EXPORTER_OTLP_ENDPOINT)
-    - Production: Application Insights (set APPLICATIONINSIGHTS_CONNECTION_STRING)
+Configures Application Insights exporters so that Agent Framework spans,
+metrics, and logs flow directly into Azure Monitor. MAF agents emit telemetry
+automatically for LLM calls, tool invocations, and agent steps; this helper
+simply wires the exporters and ensures instrumentation is enabled.
 """
 
 from __future__ import annotations
@@ -16,49 +12,37 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from core.observability import configure_azure_monitor_exporters
+
 if TYPE_CHECKING:
     from evaluation.config import EvalConfig
 
 logger = logging.getLogger(__name__)
 
 
-def setup_monitoring(config: EvalConfig | None = None, *, use_aspire: bool = False) -> None:
-    """Configure OpenTelemetry for agent observability.
+def _read_bool_env(name: str) -> bool | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    return raw.lower() in {"1", "true", "yes", "on"}
 
-    MAF agents automatically emit ``gen_ai.*`` spans — LLM calls,
-    tool invocations, and agent steps are traced without manual
-    instrumentation.
 
-    The ``configure_otel_providers()`` function picks up configuration
-    from environment variables:
-    - ``OTEL_EXPORTER_OTLP_ENDPOINT`` for Aspire Dashboard
-    - ``APPLICATIONINSIGHTS_CONNECTION_STRING`` for Application Insights
-    - ``OTEL_SEMCONV_STABILITY_OPT_IN`` for GenAI semantic-convention version
-      (this project defaults to the stable v1.36.0 baseline unless already set)
+def setup_monitoring(config: EvalConfig | None = None) -> None:
+    """Configure Azure Monitor exporters for evaluation pipelines."""
 
-    Args:
-        config: Evaluation config with telemetry settings. If None,
-            uses defaults (Aspire dashboard).
-        use_aspire: If True, set OTEL_EXPORTER_OTLP_ENDPOINT for
-            local Aspire Dashboard. If False, rely on existing env vars.
-    """
-    from agent_framework.observability import configure_otel_providers
+    connection_string = (config.app_insights_connection_string if config else None) or os.getenv(
+        "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    )
 
-    if use_aspire and not (config and config.has_app_insights):
-        endpoint = config.otel_tracing_endpoint if config else "http://localhost:4317"
-        os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", endpoint)
-        logger.info("OpenTelemetry: Aspire Dashboard endpoint set to %s", endpoint)
+    if not connection_string:
+        logger.info(
+            "Application Insights connection string not provided; telemetry exporters were not configured",
+        )
+        return
 
-    # Pin the stable v1.36.0 GenAI semantic conventions (empty opt-in list) instead of
-    # agent-framework's default of the conventions above that baseline, unless the
-    # operator has already set the env var explicitly.
-    os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "")
+    sensitive_flag = _read_bool_env("ENABLE_SENSITIVE_DATA")
 
-    configure_otel_providers()
-
-    if config and config.has_app_insights:
-        logger.info("OpenTelemetry configured with Application Insights")
-    elif use_aspire:
-        logger.info("OpenTelemetry configured with Aspire Dashboard")
+    if configure_azure_monitor_exporters(connection_string, enable_sensitive_data=sensitive_flag):
+        logger.info("Azure Monitor exporters configured for evaluation telemetry")
     else:
-        logger.info("OpenTelemetry configured with default providers")
+        logger.warning("Azure Monitor exporters could not be configured; telemetry will not be emitted")

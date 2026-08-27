@@ -18,6 +18,7 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -31,9 +32,24 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.logging_config import LoggingConfig, configure_app_logging
+from core.observability import configure_azure_monitor_exporters
 from workflows.router_chatbot_server import RouterChatbotConfig, create_router_chatbot_app
 
 logger = logging.getLogger(__name__)
+
+
+def _configure_observability() -> None:
+    """Configure Azure Monitor exporters when Application Insights is available."""
+
+    connection_string = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if not connection_string:
+        logger.info("Application Insights connection string not provided; skipping telemetry setup")
+        return
+
+    if configure_azure_monitor_exporters(connection_string):
+        logger.info("Azure Monitor exporters configured for router chatbot")
+    else:
+        logger.warning("Azure Monitor exporters could not be configured; telemetry will not be emitted")
 
 
 def main() -> None:
@@ -41,6 +57,8 @@ def main() -> None:
 
     logging_config = LoggingConfig.from_env(default_app_log_level="INFO", default_noisy_log_level="WARNING")
     configure_app_logging(config=logging_config)
+
+    _configure_observability()
 
     config = RouterChatbotConfig.from_env()
     app = create_router_chatbot_app(config)

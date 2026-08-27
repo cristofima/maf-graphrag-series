@@ -25,6 +25,13 @@ from core import build_index
 results = asyncio.run(build_index())
 for result in results:
     print(f"{result.workflow}: {result.errors or 'success'}")
+
+# Non-async callers can use the synchronous helper
+from core import build_index_sync
+
+results_sync = build_index_sync()
+for result in results_sync:
+  print(f"{result.workflow}: {result.errors or 'success'}")
 ```
 
 ### Querying the Knowledge Graph
@@ -69,6 +76,8 @@ uv run python -m core.example "What are the main projects?" --type global
 | `search.py`               | Async search functions (local, global, drift, basic)                  |
 | `index.py`                | CLI for indexing                                                      |
 | `example.py`              | CLI for querying                                                      |
+| `logging_config.py`       | Shared logging defaults for CLI and runtime entry points              |
+| `observability.py`        | Azure Monitor wiring helpers for Agent Framework instrumentation      |
 
 ## API Reference
 

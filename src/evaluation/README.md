@@ -76,6 +76,7 @@ to create/read evaluation runs in the target Foundry project.
 | --------------------------------------- | -------------------------------------------------------------------------- |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | App Insights connection string for production traces                       |
 | `OTEL_TRACING_ENDPOINT`                 | OTLP endpoint for local tracing backend (default: `http://localhost:4317`) |
+| `ENABLE_SENSITIVE_DATA`                 | Include raw prompts and responses in telemetry spans (set to `true`/`1`)   |
 
 ### Optional (custom evaluators)
 
@@ -269,8 +270,10 @@ from evaluation.monitoring.otel_setup import setup_monitoring
 from evaluation.config import EvalConfig
 
 config = EvalConfig.from_env()
-setup_monitoring(config, use_aspire=False)
+setup_monitoring(config)
 ```
+
+Set `ENABLE_SENSITIVE_DATA=true` (or `1`) before calling `setup_monitoring` if you need spans to include raw prompts and responses. Enable this switch only in secure environments because it copies user input and agent output into telemetry payloads.
 
 Application Insights is provisioned automatically when you run `terraform apply` from `infra/`.
 The connection string is exported as `application_insights_connection_string` and included in

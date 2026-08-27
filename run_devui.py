@@ -166,7 +166,7 @@ def main() -> None:
     )
 
     try:
-        setup_monitoring(use_aspire=False)
+        setup_monitoring()
         enable_instrumentation(enable_sensitive_data=True)
         logger.info("OpenTelemetry instrumentation configured for DevUI")
     except Exception as exc:  # pragma: no cover - defensive guard

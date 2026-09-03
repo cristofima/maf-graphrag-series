@@ -39,12 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Router evaluation stack**: Reusable evaluation workflow and PR merge gate with local, Foundry, and optional red-team modes. ([4b9bfd3](https://github.com/cristofima/maf-graphrag-series/commit/4b9bfd3))
 - **Foundry evaluator data mapping**: Extended evaluation data mapping to include tool definitions for Foundry criteria. ([f0e32a5](https://github.com/cristofima/maf-graphrag-series/commit/f0e32a5))
 - **Dedicated red-team deployment lane**: Added red-team chat deployment configuration and split chat/eval/red-team workload lanes in infrastructure and evaluation flows. ([455ede0](https://github.com/cristofima/maf-graphrag-series/commit/455ede0), [44cfce9](https://github.com/cristofima/maf-graphrag-series/commit/44cfce9))
+- **Test coverage**: Added focused unit tests for classification utilities, evaluation scripts, and workflow base orchestration contracts. ([7d8aabd](https://github.com/cristofima/maf-graphrag-series/commit/7d8aabd))
 
 ### Changed
 
 - **Workflow behavior**: Progress/status handling simplification in message processing, plus clearer router event handling and metadata extraction. ([e4b48be](https://github.com/cristofima/maf-graphrag-series/commit/e4b48be), [c9a5b27](https://github.com/cristofima/maf-graphrag-series/commit/c9a5b27))
 - **PR gate behavior**: Required router gate execution on PR lifecycle updates, with expensive evaluation controlled by internal path-diff detection and route metrics publication in job/PR summaries. ([8f34af6](https://github.com/cristofima/maf-graphrag-series/commit/8f34af6), [3cf9c12](https://github.com/cristofima/maf-graphrag-series/commit/3cf9c12), [db5a3cd](https://github.com/cristofima/maf-graphrag-series/commit/db5a3cd))
 - **Developer experience**: Documentation and examples aligned with router-first architecture and DevUI entrypoints. ([ec658fe](https://github.com/cristofima/maf-graphrag-series/commit/ec658fe), [a8e8fca](https://github.com/cristofima/maf-graphrag-series/commit/a8e8fca), [7951811](https://github.com/cristofima/maf-graphrag-series/commit/7951811), [60b0aa0](https://github.com/cristofima/maf-graphrag-series/commit/60b0aa0))
+- **Documentation**: Router integration, evaluation-governance, and release-note documentation updates for the router workflow stack, plus an expanded workflow operations guide and Part 6 migration-safety lessons for router-era governance. ([7e4748d](https://github.com/cristofima/maf-graphrag-series/commit/7e4748d), [66cb27d](https://github.com/cristofima/maf-graphrag-series/commit/66cb27d), [ec658fe](https://github.com/cristofima/maf-graphrag-series/commit/ec658fe), [12baaa8](https://github.com/cristofima/maf-graphrag-series/commit/12baaa8), [755dc70](https://github.com/cristofima/maf-graphrag-series/commit/755dc70))
+- **CI automation alignment**: Node 24-compatible GitHub Actions runtime updates, reusable workflow permission fixes, and branch trigger coverage for feature/refactor branches. ([af9b7a7](https://github.com/cristofima/maf-graphrag-series/commit/af9b7a7), [f17a6d3](https://github.com/cristofima/maf-graphrag-series/commit/f17a6d3), [5d57f57](https://github.com/cristofima/maf-graphrag-series/commit/5d57f57))
+- **Router evaluation governance hardening**: Main-evaluation trigger simplification, fail-on-redteam control, and stronger auth/install checks in reusable evaluation workflows. ([f03a24e](https://github.com/cristofima/maf-graphrag-series/commit/f03a24e), [52f9e16](https://github.com/cristofima/maf-graphrag-series/commit/52f9e16), [aa33ff9](https://github.com/cristofima/maf-graphrag-series/commit/aa33ff9))
+- **Type-check policy for tests**: Added targeted mypy overrides allowing untyped test definitions while keeping stricter source checks. ([7fd6b29](https://github.com/cristofima/maf-graphrag-series/commit/7fd6b29))
+- **Tooling and release housekeeping**: Linting-test ignores, router workflow formatting pass, env template refresh for router/observability, and release metadata refresh for 4.1.0. ([0ae384b](https://github.com/cristofima/maf-graphrag-series/commit/0ae384b), [8b470ea](https://github.com/cristofima/maf-graphrag-series/commit/8b470ea), [83a9d7b](https://github.com/cristofima/maf-graphrag-series/commit/83a9d7b), [1cb99c4](https://github.com/cristofima/maf-graphrag-series/commit/1cb99c4), [4c536c1](https://github.com/cristofima/maf-graphrag-series/commit/4c536c1))
+- **Codebase consistency cleanup**: Cross-file readability and consistency refactors with no behavior-contract changes. ([6d0a0f1](https://github.com/cristofima/maf-graphrag-series/commit/6d0a0f1))
 
 ### Fixed
 
@@ -53,27 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Evaluation publish resilience**: Foundry batch publish errors are now handled with explicit warning paths instead of hard failures. ([3b94149](https://github.com/cristofima/maf-graphrag-series/commit/3b94149))
 - **Test reliability in constrained CI envs**: Router chatbot tests moved to async request patterns and workflow blueprint tests now isolate MCP tool construction for deterministic behavior. ([7b714d7](https://github.com/cristofima/maf-graphrag-series/commit/7b714d7), [36a64f3](https://github.com/cristofima/maf-graphrag-series/commit/36a64f3))
 
-### Documentation
-
-- Router integration, evaluation-governance, and release-note documentation updates for the router workflow stack. ([7e4748d](https://github.com/cristofima/maf-graphrag-series/commit/7e4748d), [66cb27d](https://github.com/cristofima/maf-graphrag-series/commit/66cb27d), [ec658fe](https://github.com/cristofima/maf-graphrag-series/commit/ec658fe))
-- Workflow operations guide and Part 6 migration-safety lessons expanded for router-era governance. ([12baaa8](https://github.com/cristofima/maf-graphrag-series/commit/12baaa8), [755dc70](https://github.com/cristofima/maf-graphrag-series/commit/755dc70))
-
-### Internal
-
-- CI/release automation alignment: Node 24-compatible GitHub Actions runtime updates, reusable workflow permission fixes, and branch trigger coverage for feature/refactor branches. ([af9b7a7](https://github.com/cristofima/maf-graphrag-series/commit/af9b7a7), [f17a6d3](https://github.com/cristofima/maf-graphrag-series/commit/f17a6d3), [5d57f57](https://github.com/cristofima/maf-graphrag-series/commit/5d57f57))
-- **Router evaluation governance hardening**: Main-evaluation trigger simplification, fail-on-redteam control, and stronger auth/install checks in reusable evaluation workflows. ([f03a24e](https://github.com/cristofima/maf-graphrag-series/commit/f03a24e), [52f9e16](https://github.com/cristofima/maf-graphrag-series/commit/52f9e16), [aa33ff9](https://github.com/cristofima/maf-graphrag-series/commit/aa33ff9))
-- **Type-check policy for tests**: Added targeted mypy overrides allowing untyped test definitions while keeping stricter source checks. ([7fd6b29](https://github.com/cristofima/maf-graphrag-series/commit/7fd6b29))
-- **Coverage expansion**: Added focused unit tests for classification utilities, evaluation scripts, and workflow base orchestration contracts. ([7d8aabd](https://github.com/cristofima/maf-graphrag-series/commit/7d8aabd))
-- **Tooling and release housekeeping**: Linting-test ignores, router workflow formatting pass, env template refresh for router/observability, and release metadata refresh for 4.1.0. ([0ae384b](https://github.com/cristofima/maf-graphrag-series/commit/0ae384b), [8b470ea](https://github.com/cristofima/maf-graphrag-series/commit/8b470ea), [83a9d7b](https://github.com/cristofima/maf-graphrag-series/commit/83a9d7b), [1cb99c4](https://github.com/cristofima/maf-graphrag-series/commit/1cb99c4), [4c536c1](https://github.com/cristofima/maf-graphrag-series/commit/4c536c1))
-- **Codebase consistency cleanup**: Cross-file readability and consistency refactors with no behavior-contract changes. ([6d0a0f1](https://github.com/cristofima/maf-graphrag-series/commit/6d0a0f1))
-
 ---
 
 ## [4.0.0] - 2026-07-22
-
-### Breaking
-
-- **Dependency management**: Poetry-to-uv migration across tooling and docs, with the updated workflow documented in [pyproject.toml](pyproject.toml), [docs/uv-guide.md](docs/uv-guide.md), and [uv.lock](uv.lock). ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c))
 
 ### Added
 
@@ -89,14 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — Dependency management**: Poetry-to-uv migration across tooling and docs, with the updated workflow documented in [pyproject.toml](pyproject.toml), [docs/uv-guide.md](docs/uv-guide.md), and [uv.lock](uv.lock). ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c))
 - **Infrastructure**: Terraform provisioning for Azure AI Services with Application Insights integration and Foundry project-management toggles in [infra/main.tf](infra/main.tf) and companion variables files. ([4bcd1dc](https://github.com/cristofima/maf-graphrag-series/commit/4bcd1dc))
 - **Dependency stack**: Telemetry and evaluation package additions plus refreshed Agent Framework version bounds in [pyproject.toml](pyproject.toml) and [uv.lock](uv.lock). ([101d2fb](https://github.com/cristofima/maf-graphrag-series/commit/101d2fb))
 - **Evaluation helpers**: Reduced duplication and streamlined evaluator wiring in [src/evaluation/evaluators/builtin.py](src/evaluation/evaluators/builtin.py) and [src/evaluation/evaluators/relationship_validity.py](src/evaluation/evaluators/relationship_validity.py). ([c87f376](https://github.com/cristofima/maf-graphrag-series/commit/c87f376), [05bb126](https://github.com/cristofima/maf-graphrag-series/commit/05bb126))
 - **CI pipeline**: Hardened dependency installation and added SonarQube coverage publishing in [.github/workflows/ci.yml](.github/workflows/ci.yml) and [sonar-project.properties](sonar-project.properties). ([e880e56](https://github.com/cristofima/maf-graphrag-series/commit/e880e56), [456b4ca](https://github.com/cristofima/maf-graphrag-series/commit/456b4ca), [e667561](https://github.com/cristofima/maf-graphrag-series/commit/e667561))
-
-### Documentation
-
-- Refreshed developer guides with uv instructions and expanded evaluation coverage notes in [README.md](README.md), [docs/part5-implementation-notes.md](docs/part5-implementation-notes.md), and [docs/uv-guide.md](docs/uv-guide.md). ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c), [29a368c](https://github.com/cristofima/maf-graphrag-series/commit/29a368c))
+- **Developer documentation**: Refreshed developer guides with uv instructions and expanded evaluation coverage notes in [README.md](README.md), [docs/part5-implementation-notes.md](docs/part5-implementation-notes.md), and [docs/uv-guide.md](docs/uv-guide.md). ([16f952c](https://github.com/cristofima/maf-graphrag-series/commit/16f952c), [29a368c](https://github.com/cristofima/maf-graphrag-series/commit/29a368c))
 
 ## [3.2.0] - 2026-03-22
 
@@ -209,13 +196,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0] - 2026-02-18
 
-### Breaking
-
-- **MCP server transport split**: `streamable_http_app()` and `sse_app()` serving distinct endpoints. ([1ca5879](https://github.com/cristofima/maf-graphrag-series/commit/1ca5879))
-  - `/mcp` (Streamable HTTP) — for `MCPStreamableHTTPTool` in Microsoft Agent Framework
-  - `/sse` (SSE) — for MCP Inspector and browser-based clients
-  - Clients connecting via `/sse` for MAF integration must update URL to `/mcp`
-
 ### Added
 
 - **Part 3 agents module**: Microsoft Agent Framework integration. ([d71708c](https://github.com/cristofima/maf-graphrag-series/commit/d71708c))
@@ -240,6 +220,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — MCP server transport split**: `streamable_http_app()` and `sse_app()` serving distinct endpoints. ([1ca5879](https://github.com/cristofima/maf-graphrag-series/commit/1ca5879))
+  - `/mcp` (Streamable HTTP) — for `MCPStreamableHTTPTool` in Microsoft Agent Framework
+  - `/sse` (SSE) — for MCP Inspector and browser-based clients
+  - Clients connecting via `/sse` for MAF integration must update URL to `/mcp`
 - **`mcp_server/server.py`**: `streamable_http_app()` route at `/mcp` alongside `sse_app()` at `/sse`, with both transports on port 8011. ([1ca5879](https://github.com/cristofima/maf-graphrag-series/commit/1ca5879))
 - **Version bump**: 2.0.0 → 3.0.0.
 - **README**: Part 3 section with architecture diagrams, Mermaid flow, quick start, and usage examples. ([340b7b0](https://github.com/cristofima/maf-graphrag-series/commit/340b7b0), [030b71b](https://github.com/cristofima/maf-graphrag-series/commit/030b71b))
@@ -249,14 +233,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [2.0.0] - 2026-02-11
-
-### Breaking
-
-- **GraphRAG 3.0.x upgrade**: Major dependency update. ([cc0054b](https://github.com/cristofima/maf-graphrag-series/commit/cc0054b))
-  - Python >=3.11,<3.13 (was >=3.10)
-  - pandas 2.3.0, pyarrow 22.0.0
-  - New configuration schema in `settings.yaml` (`completion_models`/`embedding_models`)
-  - Updated prompts for v3.0.x compatibility
 
 ### Added
 
@@ -313,6 +289,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING — GraphRAG 3.0.x upgrade**: Major dependency update. ([cc0054b](https://github.com/cristofima/maf-graphrag-series/commit/cc0054b))
+  - Python >=3.11,<3.13 (was >=3.10)
+  - pandas 2.3.0, pyarrow 22.0.0
+  - New configuration schema in `settings.yaml` (`completion_models`/`embedding_models`)
+  - Updated prompts for v3.0.x compatibility
 - **Notebook 01**: GraphRAG 3.0.x API updates. ([5bf0482](https://github.com/cristofima/maf-graphrag-series/commit/5bf0482))
 - **Documentation**: New CLI workflow and v3.0.x migration updates. ([203b470](https://github.com/cristofima/maf-graphrag-series/commit/203b470), [3e979d6](https://github.com/cristofima/maf-graphrag-series/commit/3e979d6))
 - **Installation**: `poetry install` replacing `pip install -r requirements.txt`.

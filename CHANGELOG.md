@@ -2,8 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [4.2.0] - 2026-09-03
+
+### Added
+
+- **Router session-resume**: Router workflows resume multi-turn conversations from persisted session checkpoints, with expanded session-store and chatbot session-lifecycle documentation and test coverage. ([e6a9a46](https://github.com/cristofima/maf-graphrag-series/commit/e6a9a46))
+- **TTL-bounded session store**: `InMemorySessionStore` and session configuration enforce TTL-based expiration and capacity eviction for router sessions. ([93f8cf5](https://github.com/cristofima/maf-graphrag-series/commit/93f8cf5))
+- **Multi-turn session wiring**: Router workflow and chatbot endpoint accept and propagate session identifiers across turns. ([5aae6a4](https://github.com/cristofima/maf-graphrag-series/commit/5aae6a4))
+- **Unified Azure Monitor instrumentation**: `core.observability.configure_azure_monitor_exporters` wraps Azure Monitor configuration and instrumentation enablement for router and evaluation telemetry. ([b969a15](https://github.com/cristofima/maf-graphrag-series/commit/b969a15))
+- **Foundry local-evaluation publishing**: Terraform Foundry User role assignment and configuration options for local evaluation publishing. ([8491d86](https://github.com/cristofima/maf-graphrag-series/commit/8491d86))
+- **Test coverage**: Added router-agent streaming and session-telemetry merge tests, and realigned evaluation monitoring tests with the updated helper contract. ([f5e8285](https://github.com/cristofima/maf-graphrag-series/commit/f5e8285), [1b202e9](https://github.com/cristofima/maf-graphrag-series/commit/1b202e9))
+
+### Changed
+
+- **Session store lifecycle**: Session store read/write/delete operations converted to async, aligning cleanup and eviction paths with the native `AgentSession` lifecycle. ([13faa93](https://github.com/cristofima/maf-graphrag-series/commit/13faa93))
+- **Dependency stack**: Agent Framework packages upgraded with native API adoption in middleware and monitoring setup. ([093d205](https://github.com/cristofima/maf-graphrag-series/commit/093d205))
+- **Workflow tracing**: Sequential, concurrent, and handoff workflow builders assigned explicit names for clearer tracing. ([55aa09c](https://github.com/cristofima/maf-graphrag-series/commit/55aa09c))
+- **CI branch coverage**: `develop` added to push/pull_request triggers for CI and router PR merge gate workflows. ([ba3c586](https://github.com/cristofima/maf-graphrag-series/commit/ba3c586))
+- **Documentation**: Router session-resume lessons-learned and Part 7 completion notes finalized, and root README restructured around the router-first architecture with Agent Framework version and Part 7 overview updates. ([3b9df9e](https://github.com/cristofima/maf-graphrag-series/commit/3b9df9e), [fde213a](https://github.com/cristofima/maf-graphrag-series/commit/fde213a), [cf9da03](https://github.com/cristofima/maf-graphrag-series/commit/cf9da03), [6d0f63d](https://github.com/cristofima/maf-graphrag-series/commit/6d0f63d), [5019d92](https://github.com/cristofima/maf-graphrag-series/commit/5019d92), [97b300d](https://github.com/cristofima/maf-graphrag-series/commit/97b300d))
+
+### Removed
+
+- **Knowledge Captain**: Knowledge Captain agent registration and prompt removed from DevUI, the agents package, evaluation scripts, and the router chatbot service in favor of the router workflow as the primary entity; MCP connectivity utilities are retained. ([ab1e96f](https://github.com/cristofima/maf-graphrag-series/commit/ab1e96f), [6710910](https://github.com/cristofima/maf-graphrag-series/commit/6710910), [b9a65fe](https://github.com/cristofima/maf-graphrag-series/commit/b9a65fe), [ac5ac14](https://github.com/cristofima/maf-graphrag-series/commit/ac5ac14))
 
 ## [4.1.0] - 2026-08-05
 
@@ -338,3 +363,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **LICENSE**: Copyright holder update. ([d3ab331](https://github.com/cristofima/maf-graphrag-series/commit/d3ab331))
+
+[unreleased]: https://github.com/cristofima/maf-graphrag-series/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/cristofima/maf-graphrag-series/compare/v4.1.0...v4.2.0
+[4.1.0]: https://github.com/cristofima/maf-graphrag-series/compare/v4.0.0...v4.1.0
+[4.0.0]: https://github.com/cristofima/maf-graphrag-series/compare/v3.2.0...v4.0.0
+[3.2.0]: https://github.com/cristofima/maf-graphrag-series/compare/v3.1.0...v3.2.0
+[3.1.0]: https://github.com/cristofima/maf-graphrag-series/compare/v3.0.0...v3.1.0
+[3.0.0]: https://github.com/cristofima/maf-graphrag-series/compare/v2.0.0...v3.0.0
+[2.0.0]: https://github.com/cristofima/maf-graphrag-series/compare/v1.0.0...v2.0.0
+[1.0.0]: https://github.com/cristofima/maf-graphrag-series/releases/tag/v1.0.0

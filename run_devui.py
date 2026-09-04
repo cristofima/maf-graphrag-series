@@ -47,9 +47,9 @@ except ImportError as exc:  # pragma: no cover - dependency guidance path
 
 from agent_framework.observability import enable_instrumentation
 
-from core.logging_config import LoggingConfig, configure_app_logging
-from evaluation.monitoring.otel_setup import setup_monitoring
-from workflows.base import (
+from maf_graphrag.core.logging_config import LoggingConfig, configure_app_logging
+from maf_graphrag.evaluation.monitoring.otel_setup import setup_monitoring
+from maf_graphrag.workflows.base import (
     create_concurrent_workflow_runner,
     create_handoff_workflow_runner,
     create_router_workflow_runner,

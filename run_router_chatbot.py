@@ -31,9 +31,9 @@ load_dotenv()
 # Add src/ to sys.path for package imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from core.logging_config import LoggingConfig, configure_app_logging
-from core.observability import configure_azure_monitor_exporters
-from workflows.router_chatbot_server import RouterChatbotConfig, create_router_chatbot_app
+from maf_graphrag.core.logging_config import LoggingConfig, configure_app_logging
+from maf_graphrag.core.observability import configure_azure_monitor_exporters
+from maf_graphrag.workflows.router_chatbot_server import RouterChatbotConfig, create_router_chatbot_app
 
 logger = logging.getLogger(__name__)
 

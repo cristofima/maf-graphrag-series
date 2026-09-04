@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from graphrag.config.enums import IndexingMethod
 
-from core.indexer import build_index, build_index_sync
+from maf_graphrag.core.indexer import build_index, build_index_sync
 
 
 class TestBuildIndex:
@@ -16,7 +16,7 @@ class TestBuildIndex:
         mock_config = MagicMock(name="GraphRagConfig")
         sentinel_results = [MagicMock(name="PipelineRunResult")]
         mock_api_build = AsyncMock(return_value=sentinel_results)
-        monkeypatch.setattr("core.indexer.api.build_index", mock_api_build)
+        monkeypatch.setattr("maf_graphrag.core.indexer.api.build_index", mock_api_build)
 
         results = await build_index(config=mock_config)
 
@@ -33,9 +33,9 @@ class TestBuildIndex:
 
     async def test_uses_get_config_when_config_not_given(self, monkeypatch):
         mock_config = MagicMock(name="GraphRagConfig")
-        monkeypatch.setattr("core.indexer.get_config", lambda: mock_config)
+        monkeypatch.setattr("maf_graphrag.core.indexer.get_config", lambda: mock_config)
         mock_api_build = AsyncMock(return_value=[])
-        monkeypatch.setattr("core.indexer.api.build_index", mock_api_build)
+        monkeypatch.setattr("maf_graphrag.core.indexer.api.build_index", mock_api_build)
 
         await build_index()
 
@@ -44,7 +44,7 @@ class TestBuildIndex:
 
     async def test_forwards_is_update_run_and_verbose(self, monkeypatch):
         mock_api_build = AsyncMock(return_value=[])
-        monkeypatch.setattr("core.indexer.api.build_index", mock_api_build)
+        monkeypatch.setattr("maf_graphrag.core.indexer.api.build_index", mock_api_build)
 
         await build_index(config=MagicMock(), is_update_run=True, verbose=True)
 
@@ -58,7 +58,7 @@ class TestBuildIndexSync:
         mock_config = MagicMock(name="GraphRagConfig")
         sentinel_results = [MagicMock(name="PipelineRunResult")]
         mock_api_build = AsyncMock(return_value=sentinel_results)
-        monkeypatch.setattr("core.indexer.api.build_index", mock_api_build)
+        monkeypatch.setattr("maf_graphrag.core.indexer.api.build_index", mock_api_build)
 
         results = build_index_sync(config=mock_config)
 

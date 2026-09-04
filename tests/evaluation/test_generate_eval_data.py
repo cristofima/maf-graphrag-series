@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from evaluation.scripts.generate_eval_data import generate_eval_data
+from maf_graphrag.evaluation.scripts.generate_eval_data import generate_eval_data
 
 
 def _stub_adapter(answer: str = "stub answer") -> MagicMock:
@@ -46,7 +46,9 @@ class TestGenerateEvalDataHappyPath:
             ],
         )
 
-        with patch("workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter("answer")):
+        with patch(
+            "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter("answer")
+        ):
             count = await generate_eval_data(input_path=input_path, output_path=output_path)
 
         assert count == 2
@@ -59,7 +61,7 @@ class TestGenerateEvalDataHappyPath:
         _write_golden_questions(input_path, [{"query": "Who leads Project Alpha?", "ground_truth": "Dr. Harrison"}])
 
         with patch(
-            "workflows.router_agent.RouterWorkflowAgentAdapter",
+            "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter",
             return_value=_stub_adapter("Dr. Harrison leads it"),
         ):
             await generate_eval_data(input_path=input_path, output_path=output_path)
@@ -78,7 +80,7 @@ class TestGenerateEvalDataHappyPath:
         output_path = tmp_path / "eval_data.jsonl"
         _write_golden_questions(input_path, [{"query": "What are the main themes?"}])
 
-        with patch("workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
+        with patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
             await generate_eval_data(input_path=input_path, output_path=output_path)
 
         record = json.loads(output_path.read_text(encoding="utf-8").strip())
@@ -92,7 +94,7 @@ class TestGenerateEvalDataHappyPath:
             encoding="utf-8",
         )
 
-        with patch("workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
+        with patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
             count = await generate_eval_data(input_path=input_path, output_path=output_path)
 
         assert count == 2

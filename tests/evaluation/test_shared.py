@@ -6,7 +6,7 @@ No external services, no disk I/O — fully deterministic.
 import pandas as pd
 import pytest
 
-from evaluation.evaluators._shared import (
+from maf_graphrag.evaluation.evaluators._shared import (
     coerce_response_text,
     collect_assistant_text,
     collect_content_block_text,

@@ -6,7 +6,7 @@ tool creation is mocked, so no network connection or credentials are needed.
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from workflows.base import MCPWorkflowBase, WorkflowType
+from maf_graphrag.workflows.base import MCPWorkflowBase, WorkflowType
 
 
 class _StubWorkflow(MCPWorkflowBase):
@@ -30,7 +30,7 @@ def _mock_mcp_tool() -> MagicMock:
 class TestMCPWorkflowBaseLifecycle:
     async def test_aenter_creates_mcp_tool_and_agents(self):
         mock_tool = _mock_mcp_tool()
-        with patch("agents.supervisor.create_mcp_tool", return_value=mock_tool) as mock_create:
+        with patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mock_tool) as mock_create:
             workflow = _StubWorkflow(mcp_url="http://localhost:9999/mcp")
             result = await workflow.__aenter__()
 
@@ -42,7 +42,7 @@ class TestMCPWorkflowBaseLifecycle:
 
     async def test_aexit_closes_exit_stack(self):
         mock_tool = _mock_mcp_tool()
-        with patch("agents.supervisor.create_mcp_tool", return_value=mock_tool):
+        with patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mock_tool):
             workflow = _StubWorkflow()
             await workflow.__aenter__()
             await workflow.__aexit__(None, None, None)
@@ -55,7 +55,7 @@ class TestMCPWorkflowBaseLifecycle:
 
     async def test_default_mcp_url_is_none(self):
         mock_tool = _mock_mcp_tool()
-        with patch("agents.supervisor.create_mcp_tool", return_value=mock_tool) as mock_create:
+        with patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mock_tool) as mock_create:
             workflow = _StubWorkflow()
             await workflow.__aenter__()
 

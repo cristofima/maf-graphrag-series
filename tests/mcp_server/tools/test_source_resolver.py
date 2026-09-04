@@ -6,8 +6,8 @@ No external services or disk I/O involved — fully deterministic.
 
 import pandas as pd
 
-from core.data_loader import GraphData
-from mcp_server.tools.source_resolver import TEXT_PREVIEW_LENGTH, get_unique_documents, resolve_sources
+from maf_graphrag.core.data_loader import GraphData
+from maf_graphrag.mcp_server.tools.source_resolver import TEXT_PREVIEW_LENGTH, get_unique_documents, resolve_sources
 
 
 def _make_graph_data(

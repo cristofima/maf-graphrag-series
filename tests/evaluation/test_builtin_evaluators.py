@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from evaluation.evaluators.builtin import (
+from maf_graphrag.evaluation.evaluators.builtin import (
     GRAPHRAG_TOOL_DEFINITIONS,
     _extract_assistant_content,
     _extract_text,

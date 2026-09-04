@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from agents.router_classifier import RouterClassification
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType, create_router_workflow_runner
-from workflows.router import RouterOutcome, RouterWorkflow
+from maf_graphrag.agents.router_classifier import RouterClassification
+from maf_graphrag.workflows.base import WorkflowResult, WorkflowStep, WorkflowType, create_router_workflow_runner
+from maf_graphrag.workflows.router import RouterOutcome, RouterWorkflow
 
 
 class StubClassifier:
@@ -210,7 +210,7 @@ async def test_router_retries_transient_classifier_error_then_succeeds(
     async def _no_sleep(_delay: float) -> None:
         return None
 
-    monkeypatch.setattr("workflows.router.asyncio.sleep", _no_sleep)
+    monkeypatch.setattr("maf_graphrag.workflows.router.asyncio.sleep", _no_sleep)
 
     workflow = RouterWorkflow(
         classifier=classifier,
@@ -243,7 +243,7 @@ async def test_router_classifier_failure_falls_back_to_sequential_with_metadata(
     async def _no_sleep(_delay: float) -> None:
         return None
 
-    monkeypatch.setattr("workflows.router.asyncio.sleep", _no_sleep)
+    monkeypatch.setattr("maf_graphrag.workflows.router.asyncio.sleep", _no_sleep)
 
     workflow = RouterWorkflow(
         classifier=classifier,
@@ -516,7 +516,7 @@ def test_emit_routing_span_includes_lock_telemetry_and_contention_event(
 
     fake_span = _FakeSpan()
     fake_tracer = _FakeTracer(fake_span)
-    monkeypatch.setattr("workflows.router._TRACER", fake_tracer)
+    monkeypatch.setattr("maf_graphrag.workflows.router._TRACER", fake_tracer)
 
     classification = RouterClassification(
         workflow=WorkflowType.SEQUENTIAL,

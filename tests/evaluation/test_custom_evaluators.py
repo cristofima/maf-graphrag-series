@@ -6,8 +6,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from evaluation.evaluators.entity_accuracy import EntityAccuracyEvaluator
-from evaluation.evaluators.relationship_validity import RelationshipValidityEvaluator
+from maf_graphrag.evaluation.evaluators.entity_accuracy import EntityAccuracyEvaluator
+from maf_graphrag.evaluation.evaluators.relationship_validity import RelationshipValidityEvaluator
 
 
 @pytest.fixture()

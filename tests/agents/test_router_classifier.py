@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from agent_framework.exceptions import ChatClientException
 
-from agents.config import AgentConfig
-from agents.router_classifier import RouterClassifier, RouterClassifierError
-from workflows.base import WorkflowType
+from maf_graphrag.agents.config import AgentConfig
+from maf_graphrag.agents.router_classifier import RouterClassifier, RouterClassifierError
+from maf_graphrag.workflows.base import WorkflowType
 
 
 class _ErrorResponse:

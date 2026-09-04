@@ -1,0 +1,45 @@
+"""
+MAF + GraphRAG Series - Core Module
+====================================
+
+Part 1: GraphRAG Fundamentals (GraphRAG 3.0.x)
+
+This module provides a clean Python API wrapper around GraphRAG 3.0.x,
+using the official graphrag.api functions.
+
+Modules:
+    - config: Load GraphRagConfig from settings.yaml
+    - data_loader: Load Parquet files as pandas DataFrames
+    - search: Async search functions (local, global, drift, basic)
+    - indexer: Build knowledge graph from documents
+
+Usage:
+    from maf_graphrag.core import load_all, local_search, build_index
+
+    # Build knowledge graph
+    results = await build_index()
+
+    # Load data
+    data = load_all()
+
+    # Perform search
+    response, context = await local_search("Who leads Project Alpha?", data)
+"""
+
+from maf_graphrag.core.config import get_config, get_root_dir
+from maf_graphrag.core.data_loader import GraphData, load_all
+from maf_graphrag.core.indexer import build_index, build_index_sync
+from maf_graphrag.core.search import global_search, local_search
+
+__all__ = [
+    "get_config",
+    "get_root_dir",
+    "load_all",
+    "GraphData",
+    "local_search",
+    "global_search",
+    "build_index",
+    "build_index_sync",
+]
+
+__version__ = "2.0.0"

@@ -20,19 +20,20 @@ Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, an
 
 ## Series Overview
 
-| Part | Title                            | Status     | Module                                                                                    |
-| ---- | -------------------------------- | ---------- | ----------------------------------------------------------------------------------------- |
-| 1    | GraphRAG Fundamentals            | ✅ Complete | `src/maf_graphrag/core/`                                                                  |
-| 2    | GraphRAG MCP Server              | ✅ Complete | `src/maf_graphrag/mcp_server/`                                                            |
-| 3    | Agent Framework Patterns         | ✅ Complete | `src/maf_graphrag/agents/`                                                                |
-| 4    | Workflow Patterns                | ✅ Complete | `src/maf_graphrag/workflows/`                                                             |
-| 5    | Agent Evaluation                 | ✅ Complete | `src/maf_graphrag/evaluation/`                                                            |
-| 6    | Router SLM Integration           | ✅ Complete | `src/maf_graphrag/agents/`, `src/maf_graphrag/workflows/`, `src/maf_graphrag/evaluation/` |
-| 7    | Conversational Session Readiness | ✅ Complete | `src/maf_graphrag/agents/`, `src/maf_graphrag/workflows/`                                 |
-| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                                                                         |
-| 9    | Tool Registry                    | ⏳ Planned  | —                                                                                         |
-| 10   | Production Deployment            | ⏳ Planned  | —                                                                                         |
-| 10   | Production Deployment            | ⏳ Planned  | —                                                  |
+All modules live under `src/maf_graphrag/`.
+
+| Part | Title                            | Status      | Module                              |
+| ---- | -------------------------------- | ----------- | ----------------------------------- |
+| 1    | GraphRAG Fundamentals            | ✅ Complete | `core`                              |
+| 2    | GraphRAG MCP Server              | ✅ Complete | `mcp_server`                        |
+| 3    | Agent Framework Patterns         | ✅ Complete | `agents`                            |
+| 4    | Workflow Patterns                | ✅ Complete | `workflows`                         |
+| 5    | Agent Evaluation                 | ✅ Complete | `evaluation`                        |
+| 6    | Router SLM Integration           | ✅ Complete | `agents`, `workflows`, `evaluation` |
+| 7    | Conversational Session Readiness | ✅ Complete | `agents`, `workflows`               |
+| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                   |
+| 9    | Tool Registry                    | ⏳ Planned  | —                                   |
+| 10   | Production Deployment            | ⏳ Planned  | —                                   |
 
 ## Current Architecture
 
@@ -344,54 +345,54 @@ Ruff (lint + format) and mypy run alongside tests in CI — see [.github/workflo
 
 ```
 maf-graphrag-series/
-├── pyproject.toml             # Project and dependency configuration
-├── settings.yaml              # GraphRAG configuration
-├── run_mcp_server.py          # Start MCP server (Part 2 backend)
-├── run_devui.py               # DevUI entry point — workflow visualization
-├── run_router_chatbot.py      # Connector endpoint (/api/messages)
-├── input/documents/           # 10 sample interconnected documents
-├── output/                    # Generated knowledge graph (Parquet + LanceDB)
+├── pyproject.toml         # Project and dependency configuration
+├── settings.yaml          # GraphRAG configuration
+├── run_mcp_server.py      # Start MCP server (Part 2 backend)
+├── run_devui.py           # DevUI entry point — workflow visualization
+├── run_router_chatbot.py  # Connector endpoint (/api/messages)
+├── input/documents/       # 10 sample interconnected documents
+├── output/                # Generated knowledge graph (Parquet + LanceDB)
 └── src/
     └── maf_graphrag/
-        ├── core/                  # Part 1: GraphRAG indexing and search API
-        ├── mcp_server/            # Part 2: FastMCP server exposing GraphRAG tools
-        ├── agents/                # Parts 3+: Agent utilities, session store, classifier
-        │   ├── config.py          # Foundry router configuration
-        │   ├── middleware.py      # Observability middleware pipeline
-        │   ├── prompts.py         # System prompts
-        │   ├── router_classifier.py # RouterClassifier used by RouterWorkflow
-        │   ├── session_store.py   # InMemorySessionStore with TTL, LRU, metrics
-        │   ├── supervisor.py      # create_mcp_tool, create_client, create_research_delegate
-        │   └── tools.py           # Local @tool functions
-        ├── workflows/             # Parts 4+: All workflow patterns
-        │   ├── base.py            # WorkflowResult, WorkflowStep, MCPWorkflowBase, runners
-        │   ├── sequential.py      # Research Pipeline workflow
-        │   ├── concurrent.py      # Parallel Search workflow
-        │   ├── handoff.py         # Expert Handoff workflow
-        │   ├── router.py          # RouterWorkflow — production entry point
-        │   ├── router_agent.py    # RouterWorkflowAgentAdapter
-        │   └── router_chatbot_server.py  # /api/messages Starlette app
-        └── evaluation/            # Part 5: Evaluation pipeline
-            ├── config.py          # EvalConfig
-            ├── evaluators/        # LLM-judge + custom graph evaluators
-            ├── monitoring/        # OpenTelemetry setup
-            └── scripts/           # generate_eval_data, run_batch_evaluation, run_redteam
+        ├── core/            # Part 1: GraphRAG indexing and search API
+        ├── mcp_server/      # Part 2: FastMCP server exposing GraphRAG tools
+        ├── agents/          # Parts 3+: Agent utilities, session store, classifier
+        │   ├── config.py              # Foundry router configuration
+        │   ├── middleware.py          # Observability middleware pipeline
+        │   ├── prompts.py             # System prompts
+        │   ├── router_classifier.py   # RouterClassifier used by RouterWorkflow
+        │   ├── session_store.py       # InMemorySessionStore with TTL, LRU, metrics
+        │   ├── supervisor.py          # create_mcp_tool, create_client, create_research_delegate
+        │   └── tools.py               # Local @tool functions
+        ├── workflows/       # Parts 4+: All workflow patterns
+        │   ├── base.py                     # WorkflowResult, WorkflowStep, MCPWorkflowBase, runners
+        │   ├── sequential.py               # Research Pipeline workflow
+        │   ├── concurrent.py               # Parallel Search workflow
+        │   ├── handoff.py                  # Expert Handoff workflow
+        │   ├── router.py                   # RouterWorkflow — production entry point
+        │   ├── router_agent.py             # RouterWorkflowAgentAdapter
+        │   └── router_chatbot_server.py    # /api/messages Starlette app
+        └── evaluation/      # Part 5: Evaluation pipeline
+            ├── config.py      # EvalConfig
+            ├── evaluators/    # LLM-judge + custom graph evaluators
+            ├── monitoring/    # OpenTelemetry setup
+            └── scripts/       # generate_eval_data, run_batch_evaluation, run_redteam
 ```
 
 ## Key Files
 
-| File                                            | Description                                               |
-| ------------------------------------------------ | ---------------------------------------------------------- |
-| `settings.yaml`                                 | GraphRAG configuration (LLM, embeddings, storage)         |
-| `src/maf_graphrag/workflows/router.py`          | Production entry point — RouterWorkflow                  |
-| `src/maf_graphrag/workflows/router_agent.py`    | RouterWorkflowAgentAdapter for adapter-pattern consumers  |
-| `src/maf_graphrag/agents/session_store.py`      | InMemorySessionStore with TTL, LRU eviction, and metrics  |
-| `src/maf_graphrag/agents/router_classifier.py`  | Foundry-backed classifier with retry and fallback policy  |
-| `src/maf_graphrag/core/`                        | Python API for indexing, querying, and data access        |
-| `src/maf_graphrag/mcp_server/`                  | MCP server exposing GraphRAG tools                        |
-| `src/maf_graphrag/evaluation/`                  | Evaluation pipeline — evaluators, monitoring, scripts     |
-| `infra/README.md`                               | Terraform provisioning, deployments, and env outputs      |
-| `.env`                                           | Azure OpenAI credentials (create from `.env.example`)     |
+| File                                           | Description                                              |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `settings.yaml`                                | GraphRAG configuration (LLM, embeddings, storage)        |
+| `src/maf_graphrag/workflows/router.py`         | Production entry point — RouterWorkflow                  |
+| `src/maf_graphrag/workflows/router_agent.py`   | RouterWorkflowAgentAdapter for adapter-pattern consumers |
+| `src/maf_graphrag/agents/session_store.py`     | InMemorySessionStore with TTL, LRU eviction, and metrics |
+| `src/maf_graphrag/agents/router_classifier.py` | Foundry-backed classifier with retry and fallback policy |
+| `src/maf_graphrag/core/`                       | Python API for indexing, querying, and data access       |
+| `src/maf_graphrag/mcp_server/`                 | MCP server exposing GraphRAG tools                       |
+| `src/maf_graphrag/evaluation/`                 | Evaluation pipeline — evaluators, monitoring, scripts    |
+| `infra/README.md`                              | Terraform provisioning, deployments, and env outputs     |
+| `.env`                                         | Azure OpenAI credentials (create from `.env.example`)    |
 
 ## License
 

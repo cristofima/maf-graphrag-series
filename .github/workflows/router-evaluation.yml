@@ -113,6 +113,7 @@ jobs:
       route_gate_passed: ${{ steps.route_metrics.outputs.gate_passed }}
 
     env:
+      PYTHONPATH: src
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
       AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
       AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}

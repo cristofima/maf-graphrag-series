@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core.index import main, run_indexing
+from maf_graphrag.core.index import main, run_indexing
 
 
 class TestRunIndexingValidation:
@@ -40,7 +40,7 @@ class TestRunIndexingHappyPath:
         (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
 
         pipeline_result = MagicMock(workflow="create_final_documents", error=None, runtime=1.23)
-        with patch("core.index.build_index", AsyncMock(return_value=[pipeline_result])) as mock_build:
+        with patch("maf_graphrag.core.index.build_index", AsyncMock(return_value=[pipeline_result])) as mock_build:
             await run_indexing(resume=True)
 
         mock_build.assert_awaited_once_with(is_update_run=True)
@@ -51,7 +51,7 @@ class TestRunIndexingHappyPath:
         docs_dir.mkdir(parents=True)
         (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
 
-        with patch("core.index.build_index", AsyncMock(side_effect=RuntimeError("boom"))):
+        with patch("maf_graphrag.core.index.build_index", AsyncMock(side_effect=RuntimeError("boom"))):
             with pytest.raises(SystemExit) as exc_info:
                 await run_indexing()
 
@@ -59,13 +59,13 @@ class TestRunIndexingHappyPath:
 
     async def test_prints_traceback_when_verbose_flag_set(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr("sys.argv", ["core.index", "--verbose"])
+        monkeypatch.setattr("sys.argv", ["maf_graphrag.core.index", "--verbose"])
         docs_dir = tmp_path / "input" / "documents"
         docs_dir.mkdir(parents=True)
         (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
 
-        with patch("core.index.build_index", AsyncMock(side_effect=RuntimeError("boom"))):
-            with patch("core.index.console.print_exception") as mock_print_exception:
+        with patch("maf_graphrag.core.index.build_index", AsyncMock(side_effect=RuntimeError("boom"))):
+            with patch("maf_graphrag.core.index.console.print_exception") as mock_print_exception:
                 with pytest.raises(SystemExit):
                     await run_indexing()
 
@@ -78,20 +78,20 @@ class TestRunIndexingHappyPath:
         (docs_dir / "doc1.md").write_text("# Doc", encoding="utf-8")
 
         pipeline_result = MagicMock(spec=["workflow", "error"], workflow="create_final_documents", error=None)
-        with patch("core.index.build_index", AsyncMock(return_value=[pipeline_result])):
+        with patch("maf_graphrag.core.index.build_index", AsyncMock(return_value=[pipeline_result])):
             await run_indexing()
 
 
 class TestMain:
     def test_parses_args_and_runs_indexing(self, monkeypatch):
-        monkeypatch.setattr("sys.argv", ["core.index", "--resume"])
+        monkeypatch.setattr("sys.argv", ["maf_graphrag.core.index", "--resume"])
         captured: dict[str, object] = {}
 
         def fake_asyncio_run(coro: Coroutine[object, object, object]) -> None:
             captured["coroutine"] = coro
             coro.close()
 
-        monkeypatch.setattr("core.index.asyncio.run", fake_asyncio_run)
+        monkeypatch.setattr("maf_graphrag.core.index.asyncio.run", fake_asyncio_run)
 
         main()
 
@@ -99,13 +99,13 @@ class TestMain:
         assert coroutine is not None
 
     def test_exits_130_on_keyboard_interrupt(self, monkeypatch):
-        monkeypatch.setattr("sys.argv", ["core.index"])
+        monkeypatch.setattr("sys.argv", ["maf_graphrag.core.index"])
 
         def fake_asyncio_run(coro: Coroutine[object, object, object]) -> None:
             coro.close()
             raise KeyboardInterrupt
 
-        monkeypatch.setattr("core.index.asyncio.run", fake_asyncio_run)
+        monkeypatch.setattr("maf_graphrag.core.index.asyncio.run", fake_asyncio_run)
 
         with pytest.raises(SystemExit) as exc_info:
             main()

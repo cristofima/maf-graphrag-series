@@ -25,8 +25,8 @@ if __name__ == "__main__":
     # Import here to avoid loading before path is set
     import uvicorn
 
-    from core.logging_config import LoggingConfig, configure_app_logging
-    from mcp_server.server import app, config
+    from maf_graphrag.core.logging_config import LoggingConfig, configure_app_logging
+    from maf_graphrag.mcp_server.server import app, config
 
     logging_config = LoggingConfig.from_env(default_app_log_level="INFO", default_noisy_log_level="WARNING")
     configure_app_logging(config=logging_config)
@@ -51,4 +51,3 @@ if __name__ == "__main__":
         ws="none",
         log_config=None,
     )
-

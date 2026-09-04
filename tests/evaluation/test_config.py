@@ -2,7 +2,7 @@
 
 import pytest
 
-from evaluation.config import EvalConfig
+from maf_graphrag.evaluation.config import EvalConfig
 
 
 class TestEvalConfigFromEnv:

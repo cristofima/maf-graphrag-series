@@ -12,8 +12,8 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from agents.session_store import InMemorySessionStore
-from workflows.router_chatbot_server import (
+from maf_graphrag.agents.session_store import InMemorySessionStore
+from maf_graphrag.workflows.router_chatbot_server import (
     RouterChatbotConfig,
     RouterChatReply,
     RouterChatService,
@@ -227,7 +227,7 @@ async def test_messages_endpoint_conversation_update_returns_welcome() -> None:
 async def test_installation_update_uses_connector_delivery_for_welcome(monkeypatch: Any) -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     delivery_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
+    monkeypatch.setattr("maf_graphrag.workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
 
     activity = {
         "type": "installationUpdate",
@@ -255,7 +255,7 @@ async def test_installation_update_uses_connector_delivery_for_welcome(monkeypat
 async def test_duplicate_welcome_is_suppressed_per_conversation(monkeypatch: Any) -> None:
     app = create_router_chatbot_app(RouterChatbotConfig())
     delivery_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
+    monkeypatch.setattr("maf_graphrag.workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
 
     activity = {
         "type": "conversationUpdate",
@@ -308,7 +308,7 @@ async def test_playground_request_uses_connector_delivery_when_available(monkeyp
     app.state.router_chat_service = stub
 
     delivery_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
+    monkeypatch.setattr("maf_graphrag.workflows.router_chatbot_server._dispatch_reply_to_connector", delivery_mock)
 
     response = await _request(
         app,
@@ -326,7 +326,7 @@ async def test_playground_request_uses_connector_delivery_when_available(monkeyp
 @pytest.mark.asyncio
 async def test_typing_keepalive_sends_until_stop_event(monkeypatch: Any) -> None:
     dispatch_mock = AsyncMock(return_value=True)
-    monkeypatch.setattr("workflows.router_chatbot_server._dispatch_reply_to_connector", dispatch_mock)
+    monkeypatch.setattr("maf_graphrag.workflows.router_chatbot_server._dispatch_reply_to_connector", dispatch_mock)
 
     stop_event = asyncio.Event()
     activity = _sample_activity("hello")
@@ -379,7 +379,7 @@ def test_emit_lock_span_diagnostics_adds_attributes_and_contention_event(monkeyp
             self.events.append((name, attributes))
 
     fake_span = _FakeSpan()
-    monkeypatch.setattr("workflows.router_chatbot_server.trace.get_current_span", lambda: fake_span)
+    monkeypatch.setattr("maf_graphrag.workflows.router_chatbot_server.trace.get_current_span", lambda: fake_span)
 
     _emit_lock_span_diagnostics(lock_wait_ms=140.0, lock_hold_ms=33.0)
 
@@ -435,7 +435,7 @@ def test_router_chatbot_config_session_ttl_upper_bound_rejected() -> None:
 
 
 def test_router_chatbot_config_session_bounds_match_session_config() -> None:
-    from agents.config import SessionConfig
+    from maf_graphrag.agents.config import SessionConfig
 
     router_fields = RouterChatbotConfig.model_fields
     session_fields = SessionConfig.model_fields

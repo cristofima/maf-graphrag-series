@@ -35,10 +35,10 @@ class TestCreateResearchDelegate:
         _azure_env(monkeypatch)
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             delegate = create_research_delegate()
 
@@ -49,11 +49,11 @@ class TestCreateResearchDelegate:
         mock_agent_cls = MagicMock()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
             patch("agent_framework.Agent", mock_agent_cls),
         ):
-            from agents.supervisor import RESEARCH_DELEGATE_PROMPT, create_research_delegate
+            from maf_graphrag.agents.supervisor import RESEARCH_DELEGATE_PROMPT, create_research_delegate
 
             create_research_delegate()
 
@@ -66,11 +66,11 @@ class TestCreateResearchDelegate:
         mock_agent_cls = MagicMock()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
             patch("agent_framework.Agent", mock_agent_cls),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             create_research_delegate(system_prompt=custom)
 
@@ -82,11 +82,11 @@ class TestCreateResearchDelegate:
         mock_agent_cls = MagicMock()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()),
             patch("agent_framework.Agent", mock_agent_cls),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             create_research_delegate()
 
@@ -99,11 +99,11 @@ class TestCreateResearchDelegate:
         mock_agent_cls = MagicMock()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=mock_mcp),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mock_mcp),
             patch("agent_framework.Agent", mock_agent_cls),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             create_research_delegate()
 
@@ -115,11 +115,11 @@ class TestCreateResearchDelegate:
         custom_url = "http://custom:9999/mcp"
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()) as mock_mcp,
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=_mock_mcp_tool()) as mock_mcp,
             patch("agent_framework.Agent", MagicMock()),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             create_research_delegate(mcp_url=custom_url)
 
@@ -142,11 +142,11 @@ class TestResearchDelegateExecution:
         mcp_tool = _mock_mcp_tool()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=mcp_tool),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mcp_tool),
             patch("agent_framework.Agent", return_value=mock_agent_instance),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             delegate = create_research_delegate()
 
@@ -171,11 +171,11 @@ class TestResearchDelegateExecution:
         mcp_tool = _mock_mcp_tool()
 
         with (
-            patch("agents.supervisor.create_client", return_value=MagicMock()),
-            patch("agents.supervisor.create_mcp_tool", return_value=mcp_tool),
+            patch("maf_graphrag.agents.supervisor.create_client", return_value=MagicMock()),
+            patch("maf_graphrag.agents.supervisor.create_mcp_tool", return_value=mcp_tool),
             patch("agent_framework.Agent", return_value=mock_agent_instance),
         ):
-            from agents.supervisor import create_research_delegate
+            from maf_graphrag.agents.supervisor import create_research_delegate
 
             delegate = create_research_delegate()
             inner = delegate.func if hasattr(delegate, "func") else delegate
@@ -199,7 +199,7 @@ class TestCreateMcpTool:
         _azure_env(monkeypatch)
 
         with patch("agent_framework.MCPStreamableHTTPTool") as mock_cls:
-            from agents.supervisor import create_mcp_tool
+            from maf_graphrag.agents.supervisor import create_mcp_tool
 
             create_mcp_tool("http://localhost:8011")
 
@@ -210,7 +210,7 @@ class TestCreateMcpTool:
         _azure_env(monkeypatch)
 
         with patch("agent_framework.MCPStreamableHTTPTool") as mock_cls:
-            from agents.supervisor import create_mcp_tool
+            from maf_graphrag.agents.supervisor import create_mcp_tool
 
             create_mcp_tool("http://localhost:8011/sse")
 
@@ -221,7 +221,7 @@ class TestCreateMcpTool:
         _azure_env(monkeypatch)
 
         with patch("agent_framework.MCPStreamableHTTPTool") as mock_cls:
-            from agents.supervisor import create_mcp_tool
+            from maf_graphrag.agents.supervisor import create_mcp_tool
 
             create_mcp_tool("http://localhost:8011/mcp")
 
@@ -233,7 +233,7 @@ class TestCreateMcpTool:
         monkeypatch.setenv("MCP_SERVER_URL", "http://custom:9000/mcp")
 
         with patch("agent_framework.MCPStreamableHTTPTool") as mock_cls:
-            from agents.supervisor import create_mcp_tool
+            from maf_graphrag.agents.supervisor import create_mcp_tool
 
             create_mcp_tool()
 
@@ -255,7 +255,7 @@ class TestCreateClient:
         monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2025-11-18")
 
         with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
-            from agents.supervisor import create_client
+            from maf_graphrag.agents.supervisor import create_client
 
             create_client()
 
@@ -273,7 +273,7 @@ class TestCreateClient:
         monkeypatch.setattr("dotenv.load_dotenv", MagicMock())
 
         with patch("agent_framework.openai.OpenAIChatCompletionClient") as mock_cls:
-            from agents.supervisor import create_client
+            from maf_graphrag.agents.supervisor import create_client
 
             create_client()
 

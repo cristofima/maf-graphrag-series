@@ -7,7 +7,7 @@ import asyncio
 import pytest
 from agent_framework import AgentSession, InMemoryCheckpointStorage, WorkflowCheckpoint
 
-from agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
+from maf_graphrag.agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
 
 
 class _Clock:

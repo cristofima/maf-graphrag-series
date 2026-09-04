@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, patch
 
 class TestSearchKnowledgeGraphDispatch:
     async def test_local_dispatches_to_local_search_tool(self):
-        from mcp_server.server import search_knowledge_graph
+        from maf_graphrag.mcp_server.server import search_knowledge_graph
 
         expected = {"answer": "local answer", "context": {}, "search_type": "local"}
-        with patch("mcp_server.server.local_search_tool", AsyncMock(return_value=expected)) as mock_local:
+        with patch("maf_graphrag.mcp_server.server.local_search_tool", AsyncMock(return_value=expected)) as mock_local:
             result = await search_knowledge_graph("Who leads Project Alpha?", search_type="local")
 
         mock_local.assert_awaited_once_with(
@@ -22,10 +22,12 @@ class TestSearchKnowledgeGraphDispatch:
         assert result is expected
 
     async def test_global_dispatches_to_global_search_tool(self):
-        from mcp_server.server import search_knowledge_graph
+        from maf_graphrag.mcp_server.server import search_knowledge_graph
 
         expected = {"answer": "global answer", "context": {}, "search_type": "global"}
-        with patch("mcp_server.server.global_search_tool", AsyncMock(return_value=expected)) as mock_global:
+        with patch(
+            "maf_graphrag.mcp_server.server.global_search_tool", AsyncMock(return_value=expected)
+        ) as mock_global:
             result = await search_knowledge_graph("What are the main themes?", search_type="global")
 
         mock_global.assert_awaited_once_with(
@@ -34,16 +36,16 @@ class TestSearchKnowledgeGraphDispatch:
         assert result is expected
 
     async def test_search_type_is_case_insensitive(self):
-        from mcp_server.server import search_knowledge_graph
+        from maf_graphrag.mcp_server.server import search_knowledge_graph
 
         expected = {"answer": "answer", "context": {}, "search_type": "local"}
-        with patch("mcp_server.server.local_search_tool", AsyncMock(return_value=expected)):
+        with patch("maf_graphrag.mcp_server.server.local_search_tool", AsyncMock(return_value=expected)):
             result = await search_knowledge_graph("query", search_type="LOCAL")
 
         assert result is expected
 
     async def test_invalid_search_type_returns_tool_error(self):
-        from mcp_server.server import search_knowledge_graph
+        from maf_graphrag.mcp_server.server import search_knowledge_graph
 
         result = await search_knowledge_graph("query", search_type="hybrid")
 
@@ -53,10 +55,10 @@ class TestSearchKnowledgeGraphDispatch:
 
 class TestLocalSearch:
     async def test_forwards_arguments_to_local_search_tool(self):
-        from mcp_server.server import local_search
+        from maf_graphrag.mcp_server.server import local_search
 
         expected = {"answer": "answer", "context": {}, "search_type": "local"}
-        with patch("mcp_server.server.local_search_tool", AsyncMock(return_value=expected)) as mock_local:
+        with patch("maf_graphrag.mcp_server.server.local_search_tool", AsyncMock(return_value=expected)) as mock_local:
             result = await local_search("query", community_level=1, response_type="Single Paragraph")
 
         mock_local.assert_awaited_once_with("query", 1, "Single Paragraph")
@@ -65,10 +67,12 @@ class TestLocalSearch:
 
 class TestGlobalSearch:
     async def test_forwards_arguments_and_enables_dynamic_community_selection(self):
-        from mcp_server.server import global_search
+        from maf_graphrag.mcp_server.server import global_search
 
         expected = {"answer": "answer", "context": {}, "search_type": "global"}
-        with patch("mcp_server.server.global_search_tool", AsyncMock(return_value=expected)) as mock_global:
+        with patch(
+            "maf_graphrag.mcp_server.server.global_search_tool", AsyncMock(return_value=expected)
+        ) as mock_global:
             result = await global_search("query", community_level=1, response_type="Single Paragraph")
 
         mock_global.assert_awaited_once_with("query", 1, "Single Paragraph", dynamic_community_selection=True)
@@ -77,20 +81,20 @@ class TestGlobalSearch:
 
 class TestListEntities:
     async def test_forwards_entity_type_and_limit(self):
-        from mcp_server.server import list_entities
+        from maf_graphrag.mcp_server.server import list_entities
 
         expected = {"entities": [], "total_found": 0, "returned": 0, "available_types": [], "query_type": "list"}
-        with patch("mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
+        with patch("maf_graphrag.mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
             result = await list_entities(entity_type="person", limit=5)
 
         mock_query.assert_awaited_once_with(entity_type="person", limit=5)
         assert result is expected
 
     async def test_default_entity_type_is_none(self):
-        from mcp_server.server import list_entities
+        from maf_graphrag.mcp_server.server import list_entities
 
         expected = {"entities": [], "total_found": 0, "returned": 0, "available_types": [], "query_type": "list"}
-        with patch("mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
+        with patch("maf_graphrag.mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
             await list_entities()
 
         mock_query.assert_awaited_once_with(entity_type=None, limit=10)
@@ -98,10 +102,10 @@ class TestListEntities:
 
 class TestGetEntity:
     async def test_looks_up_single_entity_by_name(self):
-        from mcp_server.server import get_entity
+        from maf_graphrag.mcp_server.server import get_entity
 
         expected = {"entities": [], "total_found": 1, "returned": 1, "available_types": [], "query_type": "lookup"}
-        with patch("mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
+        with patch("maf_graphrag.mcp_server.server.entity_query_tool", AsyncMock(return_value=expected)) as mock_query:
             result = await get_entity("Dr. Emily Harrison")
 
         mock_query.assert_awaited_once_with(entity_name="Dr. Emily Harrison", limit=1)
@@ -110,11 +114,11 @@ class TestGetEntity:
 
 class TestServerWiring:
     def test_create_mcp_server_returns_configured_instance(self):
-        from mcp_server.server import create_mcp_server, mcp
+        from maf_graphrag.mcp_server.server import create_mcp_server, mcp
 
         assert create_mcp_server() is mcp
 
     def test_app_is_configured_asgi_application(self):
-        from mcp_server.server import app
+        from maf_graphrag.mcp_server.server import app
 
         assert callable(app)

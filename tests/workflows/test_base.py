@@ -2,7 +2,7 @@
 
 import pytest
 
-from workflows.base import (
+from maf_graphrag.workflows.base import (
     MCPWorkflowBase,
     MCPWorkflowRunner,
     WorkflowGraphSupport,
@@ -388,7 +388,7 @@ class TestMCPWorkflowRunner:
         assert blueprint["id"] == "maf-workflow-sequential"
 
     def test_build_dynamic_blueprint_uses_mcp_workflow_base(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr("agents.supervisor.create_mcp_tool", lambda _mcp_url=None: object())
+        monkeypatch.setattr("maf_graphrag.agents.supervisor.create_mcp_tool", lambda _mcp_url=None: object())
 
         runner = MCPWorkflowRunner(
             lambda _mcp_url: _MinimalMCPWorkflow(),

@@ -9,9 +9,9 @@ from typing import Any
 import pytest
 from agent_framework import InMemoryCheckpointStorage
 
-from agents.session_store import InMemorySessionStore, SessionKey
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
-from workflows.router_agent import RouterWorkflowAgentAdapter
+from maf_graphrag.agents.session_store import InMemorySessionStore, SessionKey
+from maf_graphrag.workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from maf_graphrag.workflows.router_agent import RouterWorkflowAgentAdapter
 
 
 class _StubRouterWorkflow:

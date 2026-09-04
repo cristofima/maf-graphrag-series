@@ -3,7 +3,7 @@
 Python imports ``sitecustomize`` automatically during interpreter startup when
 it is present on ``sys.path``. Since the project keeps all importable packages
 under ``src/`` and uses ``package-mode = false`` in uv, commands like
-``python -m evaluation.scripts.run_batch_evaluation`` would otherwise fail
+``python -m maf_graphrag.evaluation.scripts.run_batch_evaluation`` would otherwise fail
 before the target module has a chance to adjust ``sys.path`` itself.
 """
 

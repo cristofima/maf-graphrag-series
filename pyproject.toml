@@ -115,8 +115,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"src/workflows/base.py" = ["UP035"]
-"src/mcp_server/tools/types.py" = ["UP035"]
+"src/maf_graphrag/workflows/base.py" = ["UP035"]
+"src/maf_graphrag/mcp_server/tools/types.py" = ["UP035"]
 "tests/**/*.py" = ["PLC0415", "RUF043"]
 
 [tool.mypy]

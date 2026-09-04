@@ -48,7 +48,7 @@ jobs:
           echo "Changed files between $BASE_SHA and $HEAD_SHA:"
           echo "$CHANGED_FILES"
 
-          if echo "$CHANGED_FILES" | grep -E '^(src/agents/|src/evaluation/|src/workflows/|\.github/workflows/(ci|router-evaluation|router-main-evaluation)\.yml|pyproject\.toml|uv\.lock)'; then
+          if echo "$CHANGED_FILES" | grep -E '^(src/maf_graphrag/agents/|src/maf_graphrag/evaluation/|src/maf_graphrag/workflows/|\.github/workflows/(ci|router-evaluation|router-main-evaluation)\.yml|pyproject\.toml|uv\.lock)'; then
             echo "run_eval=true" >> "$GITHUB_OUTPUT"
             echo "Relevant changes detected."
           else

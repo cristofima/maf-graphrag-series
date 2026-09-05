@@ -236,7 +236,7 @@ agents/
 ### Prerequisites
 
 1. MCP Server running: `uv run python run_mcp_server.py`
-2. Knowledge graph built: `uv run python -m core.index`
+2. Knowledge graph built: `uv run python -m maf_graphrag.core.index`
 3. Azure OpenAI configured in `.env`
 
 ### Environment Variables
@@ -269,7 +269,7 @@ For direct programmatic usage (without DevUI), use `KnowledgeCaptainRunner` as s
 ### Using KnowledgeCaptainRunner
 
 ```python
-from agents import KnowledgeCaptainRunner
+from maf_graphrag.agents import KnowledgeCaptainRunner
 
 async with KnowledgeCaptainRunner() as runner:
     # Ask questions
@@ -287,7 +287,7 @@ async with KnowledgeCaptainRunner() as runner:
 ### Manual Setup
 
 ```python
-from agents import create_knowledge_captain
+from maf_graphrag.agents import create_knowledge_captain
 
 # Agent as async context manager — auto-manages MCP tool lifecycle
 agent = create_knowledge_captain()
@@ -300,7 +300,7 @@ async with agent:
 ### Custom System Prompt
 
 ```python
-from agents import KnowledgeCaptainRunner, SIMPLE_ASSISTANT_PROMPT
+from maf_graphrag.agents import KnowledgeCaptainRunner, SIMPLE_ASSISTANT_PROMPT
 
 # Use simpler prompt
 async with KnowledgeCaptainRunner(system_prompt=SIMPLE_ASSISTANT_PROMPT) as runner:
@@ -327,7 +327,7 @@ os.environ["AZURE_OPENAI_CHAT_DEPLOYMENT"] = "knowledge-captain"
 os.environ["AZURE_OPENAI_ROUTER_DEPLOYMENT"] = "router-production"
 os.environ["AZURE_OPENAI_ROUTER_SUBSET"] = "fallback-a"
 
-from agents import create_client
+from maf_graphrag.agents import create_client
 
 client = create_client()  # Targets the Foundry deployment above
 ```
@@ -346,7 +346,7 @@ The agent supports a three-layer middleware pipeline for observability and conte
 Default stack (injected automatically): `TimingAgentMiddleware` → `QueryRewritingChatMiddleware` → `TokenCountingChatMiddleware` → `LoggingFunctionMiddleware`.
 
 ```python
-from agents import KnowledgeCaptainRunner, QueryRewritingChatMiddleware
+from maf_graphrag.agents import KnowledgeCaptainRunner, QueryRewritingChatMiddleware
 from agents.middleware import TimingAgentMiddleware, TokenCountingChatMiddleware, LoggingFunctionMiddleware
 
 # Custom middleware stack with query rewriting
@@ -368,7 +368,7 @@ Lightweight `@tool`-decorated functions that run locally (no MCP round-trip):
 | `extract_key_entities` | Extract entity names from unstructured text |
 
 ```python
-from agents import create_knowledge_captain, format_as_table, extract_key_entities
+from maf_graphrag.agents import create_knowledge_captain, format_as_table, extract_key_entities
 
 # Add local tools alongside the MCP tool
 agent = create_knowledge_captain(
@@ -383,13 +383,13 @@ async with agent:
 A `@tool`-decorated function wrapping a research sub-agent with its own MCP session:
 
 ```python
-from agents import create_research_delegate
+from maf_graphrag.agents import create_research_delegate
 
 # Create a delegate tool
 delegate = create_research_delegate()
 
 # Use as a tool in a supervisor agent
-from agents import create_knowledge_captain
+from maf_graphrag.agents import create_knowledge_captain
 agent = create_knowledge_captain(local_tools=[delegate])
 async with agent:
     result = await agent.run("Deep dive on Project Alpha's technology decisions")

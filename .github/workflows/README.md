@@ -71,7 +71,7 @@ This enables wrapper workflows to regenerate route data by default while keeping
 1. Checkout selected ref.
 2. Install Python and dependencies (and optional red-team group).
 3. Optional route data regeneration.
-4. Compute route gate from src/evaluation/datasets/eval_router_data.jsonl.
+4. Compute route gate from src/maf_graphrag/evaluation/datasets/eval_router_data.jsonl.
 5. Enforce min_route_accuracy.
 6. Run batch evaluation (local only or Foundry publish path).
 7. Optional red-team run + optional fail policy.
@@ -81,10 +81,10 @@ This enables wrapper workflows to regenerate route data by default while keeping
 
 The workflow uploads router-evaluation-results with:
 
-- src/evaluation/datasets/eval_router_data.jsonl
-- src/evaluation/results/evaluation_results.json
-- src/evaluation/results/evaluation_report.md
-- src/evaluation/results/redteam_results.json (when produced)
+- src/maf_graphrag/evaluation/datasets/eval_router_data.jsonl
+- src/maf_graphrag/evaluation/results/evaluation_results.json
+- src/maf_graphrag/evaluation/results/evaluation_report.md
+- src/maf_graphrag/evaluation/results/redteam_results.json (when produced)
 - mcp-server.log (when produced)
 
 ### Auth fallback behavior
@@ -160,6 +160,6 @@ Use [router-evaluation.yml](router-evaluation.yml) with one of these presets.
 ## Related Docs
 
 - Root overview: [../../README.md](../../README.md)
-- Router workflow architecture: [../../src/workflows/README.md](../../src/workflows/README.md)
-- Evaluation scripts and troubleshooting: [../../src/evaluation/README.md](../../src/evaluation/README.md)
+- Router workflow architecture: [../../src/maf_graphrag/workflows/README.md](../../src/maf_graphrag/workflows/README.md)
+- Evaluation scripts and troubleshooting: [../../src/maf_graphrag/evaluation/README.md](../../src/maf_graphrag/evaluation/README.md)
 - Azure auth checklist for Foundry/red-team: [../../docs/evaluation-azure-auth-checklist.md](../../docs/evaluation-azure-auth-checklist.md)

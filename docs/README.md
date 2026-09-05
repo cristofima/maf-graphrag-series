@@ -10,8 +10,8 @@ Implementation notes are historical snapshots of each article part. For current
 runtime entry points and active usage, use:
 
 - [../README.md](../README.md)
-- [../src/agents/README.md](../src/agents/README.md)
-- [../src/workflows/README.md](../src/workflows/README.md)
+- [../src/maf_graphrag/agents/README.md](../src/maf_graphrag/agents/README.md)
+- [../src/maf_graphrag/workflows/README.md](../src/maf_graphrag/workflows/README.md)
 
 | Part | Notes                                                            | Description                                         |
 | ---- | ---------------------------------------------------------------- | --------------------------------------------------- |

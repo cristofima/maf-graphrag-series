@@ -5,6 +5,7 @@ This guide shows how to query the TechVenture Inc. knowledge graph built with Gr
 ## Knowledge Graph Overview
 
 The knowledge graph is built from **10 interconnected documents** covering:
+
 - Company organization and team members
 - Project details (Alpha, Beta)
 - Technical architecture and technology stack
@@ -13,6 +14,7 @@ The knowledge graph is built from **10 interconnected documents** covering:
 - Company events and timeline
 
 **Graph Statistics:**
+
 - 147 entities
 - 263 relationships
 - 32 communities
@@ -23,7 +25,7 @@ Before querying, build the knowledge graph:
 
 ```powershell
 # Using Python (recommended)
-uv run python -m core.index
+uv run python -m maf_graphrag.core.index
 ```
 
 ## Quick Start
@@ -32,17 +34,17 @@ Use the Python API to run queries:
 
 ```powershell
 # Local Search - Specific entity-focused questions
-uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha?"
 
-# Global Search - Broad organizational questions  
-uv run python -m core.example "What are the main projects at TechVenture Inc?" --type global
+# Global Search - Broad organizational questions
+uv run python -m maf_graphrag.core.example "What are the main projects at TechVenture Inc?" --type global
 ```
 
 Or use it programmatically:
 
 ```python
 import asyncio
-from core import load_all, local_search, global_search
+from maf_graphrag.core import load_all, local_search, global_search
 
 data = load_all()
 
@@ -58,9 +60,11 @@ print(response)
 ## Search Methods Comparison
 
 ### Local Search
+
 **Best for:** Specific questions about entities and their direct relationships
 
 **Examples:**
+
 - "Who leads Project Alpha?"
 - "What technologies are used in Project Alpha?"
 - "Who resolved the GraphRAG index corruption incident?"
@@ -70,9 +74,11 @@ print(response)
 **How it works:** Uses vector similarity to find relevant entities, then traverses the knowledge graph to gather connected information (relationships, attributes, community context).
 
 ### Global Search
+
 **Best for:** Broad, thematic questions requiring understanding of the entire organization
 
 **Examples:**
+
 - "What are the main projects and teams at TechVenture Inc?"
 - "Summarize the organizational structure"
 - "What engineering processes are used across the organization?"
@@ -87,36 +93,36 @@ print(response)
 
 ```powershell
 # Leadership & Teams
-uv run python -m core.example "Who leads Project Alpha?"
-uv run python -m core.example "Who works on the Infrastructure Department?"
-uv run python -m core.example "What does Jennifer Park do?"
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha?"
+uv run python -m maf_graphrag.core.example "Who works on the Infrastructure Department?"
+uv run python -m maf_graphrag.core.example "What does Jennifer Park do?"
 
 # Technology Stack
-uv run python -m core.example "What technologies are used in Project Alpha?"
-uv run python -m core.example "What is the Azure architecture used by TechVenture?"
+uv run python -m maf_graphrag.core.example "What technologies are used in Project Alpha?"
+uv run python -m maf_graphrag.core.example "What is the Azure architecture used by TechVenture?"
 
 # Cross-Document Queries (demonstrates graph power)
-uv run python -m core.example "Who resolved the GraphRAG index corruption incident and what was the root cause?"
-uv run python -m core.example "What customers are using Project Beta?"
-uv run python -m core.example "What is the relationship between David Kumar and Sophia Lee?"
+uv run python -m maf_graphrag.core.example "Who resolved the GraphRAG index corruption incident and what was the root cause?"
+uv run python -m maf_graphrag.core.example "What customers are using Project Beta?"
+uv run python -m maf_graphrag.core.example "What is the relationship between David Kumar and Sophia Lee?"
 ```
 
 ### Global Search Queries
 
 ```powershell
 # Organizational Overview
-uv run python -m core.example "What are the main projects and teams at TechVenture Inc?" --type global
+uv run python -m maf_graphrag.core.example "What are the main projects and teams at TechVenture Inc?" --type global
 
-# Strategic Initiatives  
-uv run python -m core.example "What are the key strategic initiatives?" --type global
+# Strategic Initiatives
+uv run python -m maf_graphrag.core.example "What are the key strategic initiatives?" --type global
 
 # Engineering & Incidents
-uv run python -m core.example "What engineering processes does TechVenture use?" --type global
-uv run python -m core.example "What major incidents has the organization experienced?" --type global
+uv run python -m maf_graphrag.core.example "What engineering processes does TechVenture use?" --type global
+uv run python -m maf_graphrag.core.example "What major incidents has the organization experienced?" --type global
 
 # Technology & Architecture
-uv run python -m core.example "Describe the technology stack and architecture" --type global
-uv run python -m core.example "What Azure services are used across the organization?" --type global
+uv run python -m maf_graphrag.core.example "Describe the technology stack and architecture" --type global
+uv run python -m maf_graphrag.core.example "What Azure services are used across the organization?" --type global
 ```
 
 ## Advanced Usage
@@ -127,7 +133,7 @@ For more control, use the Python API directly:
 
 ```python
 import asyncio
-from core import load_all, local_search, global_search
+from maf_graphrag.core import load_all, local_search, global_search
 
 # Load data once
 data = load_all()
@@ -142,7 +148,7 @@ async def run_queries():
         response_type="Multiple Paragraphs"
     )
     print("Local:", response)
-    
+
     # Global search with dynamic community selection
     response, context = await global_search(
         query="What are the main projects?",
@@ -157,6 +163,7 @@ asyncio.run(run_queries())
 ```
 
 **Parameters:**
+
 - `query`: Your question (string)
 - `data`: GraphData object from `load_all()`
 - `community_level`: Community hierarchy level (0-2, higher = smaller communities)
@@ -180,11 +187,13 @@ await basic_search(query, data)        # Vector similarity only (no graph)
 ## Understanding the Output
 
 ### Local Search Response Format
+
 - **Answer**: Detailed response with specific information
 - **Data References**: Citations showing which entities, relationships, and reports were used
 - **Context**: Number of entities and relationships consulted
 
-### Global Search Response Format  
+### Global Search Response Format
+
 - **Answer**: High-level thematic response with markdown formatting
 - **Data References**: Citations to community reports
 - **Sections**: Organized by themes or topics
@@ -199,15 +208,16 @@ await basic_search(query, data)        # Vector similarity only (no graph)
 ## Troubleshooting
 
 **Issue**: Search returns "I do not know"
+
 - **Solution**: Try the other search method (local vs global)
 - **Solution**: Make your query more specific or use entity names from the knowledge graph
 
 **Issue**: Response lacks detail
+
 - **Solution**: Use local search for specific details
 - **Solution**: Lower `--community-level` for broader context
 
 **Issue**: Response is too broad
+
 - **Solution**: Use higher `--community-level` value (up to 2)
 - **Solution**: Make your query more specific
-
-

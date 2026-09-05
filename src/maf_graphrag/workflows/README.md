@@ -258,7 +258,7 @@ Reference docs:
 ## Programmatic Usage
 
 ```python
-from workflows import ResearchPipelineWorkflow, ParallelSearchWorkflow, ExpertHandoffWorkflow, RouterWorkflow
+from maf_graphrag.workflows import ResearchPipelineWorkflow, ParallelSearchWorkflow, ExpertHandoffWorkflow, RouterWorkflow
 
 # Sequential
 async with ResearchPipelineWorkflow() as wf:
@@ -287,7 +287,7 @@ async with RouterWorkflow() as wf:
 Each call returns a fresh instance — agents and MCP connections are created on `__aenter__`, ensuring no state leaks between requests:
 
 ```python
-from workflows import (
+from maf_graphrag.workflows import (
     create_sequential_workflow,
     create_concurrent_workflow,
     create_handoff_workflow,

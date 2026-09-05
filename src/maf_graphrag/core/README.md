@@ -8,18 +8,18 @@ Python API for GraphRAG knowledge graph operations.
 
 ```powershell
 # CLI (recommended)
-uv run python -m core.index
+uv run python -m maf_graphrag.core.index
 
 # With options
-uv run python -m core.index --resume          # Resume interrupted run
-uv run python -m core.index --memory-profile  # Enable profiling
+uv run python -m maf_graphrag.core.index --resume          # Resume interrupted run
+uv run python -m maf_graphrag.core.index --memory-profile  # Enable profiling
 ```
 
 Or programmatically:
 
 ```python
 import asyncio
-from core import build_index
+from maf_graphrag.core import build_index
 
 # Build the knowledge graph
 results = asyncio.run(build_index())
@@ -27,7 +27,7 @@ for result in results:
     print(f"{result.workflow}: {result.errors or 'success'}")
 
 # Non-async callers can use the synchronous helper
-from core import build_index_sync
+from maf_graphrag.core import build_index_sync
 
 results_sync = build_index_sync()
 for result in results_sync:
@@ -38,7 +38,7 @@ for result in results_sync:
 
 ```python
 import asyncio
-from core import load_all, local_search, global_search
+from maf_graphrag.core import load_all, local_search, global_search
 
 # Load the knowledge graph data
 data = load_all()
@@ -57,11 +57,11 @@ print(response)
 
 ```powershell
 # Build knowledge graph (run from project root)
-uv run python -m core.index
+uv run python -m maf_graphrag.core.index
 
 # Query the knowledge graph
-uv run python -m core.example "Who leads Project Alpha?"
-uv run python -m core.example "What are the main projects?" --type global
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha?"
+uv run python -m maf_graphrag.core.example "What are the main projects?" --type global
 ```
 
 ## Module Structure
@@ -84,7 +84,7 @@ uv run python -m core.example "What are the main projects?" --type global
 ### Data Loading
 
 ```python
-from core import load_all, get_config, GraphData
+from maf_graphrag.core import load_all, get_config, GraphData
 
 # Load all graph data at once
 data: GraphData = load_all()
@@ -104,7 +104,7 @@ data.covariates         # Optional claims/covariates
 All search functions are async and return `(response: str, context: dict)`.
 
 ```python
-from core import local_search, global_search
+from maf_graphrag.core import local_search, global_search
 
 # Local search - entity-focused, good for specific questions
 response, context = await local_search(

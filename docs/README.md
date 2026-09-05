@@ -47,11 +47,12 @@ These documents serve as:
 
 ## Contributing
 
-As this series progresses through Part 8-10, additional documentation will be added:
+As this series progresses through Part 8-11, additional documentation will be added:
 
-- Part 8: Human-in-the-Loop
-- Part 9: Tool Registry
-- Part 10: Production Deployment
+- Part 8: Session Recap Route
+- Part 9: Human-in-the-Loop Approvals
+- Part 10: Dynamic MCP Tool Discovery
+- Part 11: Production Deployment
 
 ## Related Resources
 

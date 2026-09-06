@@ -15,7 +15,7 @@ Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, an
 | Technology      | Version Family | Purpose                                  |
 | --------------- | -------------- | ---------------------------------------- |
 | GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval   |
-| Agent Framework | `1.15.x`       | Agents, orchestration, and model clients |
+| Agent Framework | `1.17.x`       | Agents, orchestration, and model clients |
 | FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
 
 ## Series Overview
@@ -31,9 +31,17 @@ All modules live under `src/maf_graphrag/`.
 | 5    | Agent Evaluation                 | ✅ Complete | `evaluation`                        |
 | 6    | Router SLM Integration           | ✅ Complete | `agents`, `workflows`, `evaluation` |
 | 7    | Conversational Session Readiness | ✅ Complete | `agents`, `workflows`               |
-| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                   |
-| 9    | Tool Registry                    | ⏳ Planned  | —                                   |
-| 10   | Production Deployment            | ⏳ Planned  | —                                   |
+| 8    | Session Recap Route              | 🔜 Next     | `agents`, `workflows`               |
+| 9    | Human-in-the-Loop Approvals      | ⏳ Planned  | `workflows`                         |
+| 10   | Dynamic MCP Tool Discovery       | ⏳ Planned  | `mcp_server`, `agents`              |
+| 11   | Production Deployment            | ⏳ Planned  | `infra`                             |
+
+### What's next
+
+- **Part 8 — Session Recap Route.** Adds a workflow-free `recap` route so "summarize our conversation" is answered from stored session history via `SummarizationStrategy` + `SelectiveToolCallCompactionStrategy`, instead of triggering a GraphRAG retrieval fan-out. Preserves the Part 6 router metadata contract.
+- **Part 9 — Human-in-the-Loop Approvals.** Pause and resume router workflows for human approval, built on native Agent Framework capabilities (`approval_mode="always_require"` on function tools, `ToolApprovalMiddleware`, and the AG-UI interrupt/resume contract). Requires durable checkpoint storage for cross-process resume.
+- **Part 10 — Dynamic MCP Tool Discovery.** Runtime toolset resolution against the MCP server (`tools/list`) instead of a fixed tool list, with capability negotiation, graceful degradation, and the governance/audit trade-offs versus pinned tools.
+- **Part 11 — Production Deployment.** Container Apps hosting for the router, MCP server, and connector endpoint, with Key Vault secrets, Application Insights, and evaluation quality gates in CI/CD.
 
 ## Current Architecture
 

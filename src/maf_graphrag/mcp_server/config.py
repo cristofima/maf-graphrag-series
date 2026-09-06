@@ -60,6 +60,8 @@ class MCPConfig(BaseModel):
             "port": os.getenv("MCP_PORT", "8011"),
             "graphrag_root": os.getenv("GRAPHRAG_ROOT", "."),
             "cors_origins": os.getenv("MCP_CORS_ORIGINS", ",".join(DEFAULT_CORS_ORIGINS)),
+            "server_name": os.getenv("MCP_SERVER_NAME", cls.model_fields["server_name"].default),
+            "server_version": os.getenv("MCP_SERVER_VERSION", cls.model_fields["server_version"].default),
         }
 
         try:

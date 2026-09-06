@@ -68,6 +68,7 @@ flowchart TD
 - Structured session diagnostics (`session_id`, `turn_index`, `memory_hits`, lock timings, cleanup counters) flow through router span attributes, logs, and connector payloads. This gives Auditors the same trace whether they review logs or channel data.
 - Checkpoint storage is threaded through the router and its delegated workflows. On timeout, the latest superstep checkpoint is persisted and automatically offered for the next turn; stale or incompatible checkpoints are rejected safely before execution.
 - Manual induced-timeout validation is deferred for now due to operational overhead. Automated tests cover checkpoint acceptance/rejection paths, so no workflow changes are required when that surface is exercised later.
+- Because MCP sessions now reuse the same Streamable HTTP channel across turns, the first follow-up message may spend extra time resuming the existing session (expect ~2–3s of additional latency). Subsequent turns stay within the original SLA.
 
 ### DevUI Graph Metadata (tutorial-only tradeoff)
 

@@ -553,7 +553,7 @@ def _publish_new_foundry_batch_run(
     Raises:
         RuntimeError: If New Foundry publish fails.
     """
-    import httpx
+    import httpx2 as httpx
     from azure.identity import DefaultAzureCredential
 
     if not config.azure_ai_project:

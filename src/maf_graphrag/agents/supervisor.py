@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from maf_graphrag.agents.config import get_agent_config
+from maf_graphrag.agents.mcp_compat import ensure_mcp_client_compatibility
 from maf_graphrag.agents.prompts import RESEARCH_DELEGATE_PROMPT
 
 if TYPE_CHECKING:  # pragma: no cover - import guard for typing only
@@ -37,6 +38,8 @@ def create_mcp_tool(mcp_url: str | None = None) -> MCPStreamableHTTPTool:
         url = url.replace("/sse", "/mcp")
     elif not url.endswith("/mcp"):
         url = url.rstrip("/") + "/mcp"
+
+    ensure_mcp_client_compatibility()
 
     return MCPStreamableHTTPTool(
         name="graphrag",

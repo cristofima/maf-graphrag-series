@@ -12,11 +12,11 @@ Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, an
 
 ## Core Stack
 
-| Technology      | Version Family | Purpose                                  |
-| --------------- | -------------- | ---------------------------------------- |
-| GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval   |
-| Agent Framework | `1.17.x`       | Agents, orchestration, and model clients |
-| FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
+| Technology      | Version Family | Purpose                                                                                                                                                      |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval                                                                                                                       |
+| Agent Framework | `1.17.x`       | Agents, orchestration, and model clients                                                                                                                     |
+| FastMCP         | `4.0.x`        | MCP server hosting over Streamable HTTP with [Model Context Protocol Stateless 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) support |
 
 ## Series Overview
 
@@ -59,10 +59,10 @@ flowchart TD
     SQ & CC & HF & OOC --> OUT["WorkflowResult\n{answer, steps, metadata}"]
 ```
 
-| Surface             | Entry Point                           | Purpose                                        |
-| ------------------- | ------------------------------------- | ---------------------------------------------- |
-| DevUI               | `uv run python run_devui.py`          | Workflow graph visualization and event tracing |
-| Teams/Connector API | `uv run python run_router_chatbot.py` | `/api/messages` endpoint for Agents Playground |
+| Surface             | Entry Point                           | Purpose                                                        |
+| ------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| DevUI               | `uv run python run_devui.py`          | Workflow graph visualization and event tracing                 |
+| Teams/Connector API | `uv run python run_router_chatbot.py` | `/api/messages` endpoint for Agents Playground (Bot Framework) |
 
 ## Quick Start
 
@@ -250,6 +250,8 @@ npm install -g @microsoft/m365agentsplayground
 agentsplayground -e http://localhost:3978/api/messages -c msteams
 ```
 
+> **Note:** The router endpoint uses the Bot Framework activity contract when validating end to end with Microsoft 365 Agents Playground. FastMCP 4.x upgrades the server to the Model Context Protocol [Stateless 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) contract, but Agent Framework 1.17 still performs the legacy initialize handshake in MCPStreamableHTTPTool and does not send `server/discover`, so stateless-only metadata remains unused until that client implements discovery. The compatibility shim in [src/maf_graphrag/agents/mcp_compat.py](src/maf_graphrag/agents/mcp_compat.py) keeps legacy camelCase fields available for that client. An OpenAI Responses (/responses) host is planned so Foundry Toolkit can validate the same router workflow; until then, Teams Playground remains the reference surface for conversational testing.
+
 📖 See [.github/workflows/README.md](.github/workflows/README.md) for router evaluation inputs, PR gate behavior, and main-branch orchestration.
 
 ---
@@ -357,7 +359,7 @@ maf-graphrag-series/
 ├── settings.yaml          # GraphRAG configuration
 ├── run_mcp_server.py      # Start MCP server (Part 2 backend)
 ├── run_devui.py           # DevUI entry point — workflow visualization
-├── run_router_chatbot.py  # Connector endpoint (/api/messages)
+├── run_router_chatbot.py  # Connector endpoint (/api/messages, Bot Framework)
 ├── input/documents/       # 10 sample interconnected documents
 ├── output/                # Generated knowledge graph (Parquet + LanceDB)
 └── src/
@@ -366,6 +368,7 @@ maf-graphrag-series/
         ├── mcp_server/      # Part 2: FastMCP server exposing GraphRAG tools
         ├── agents/          # Parts 3+: Agent utilities, session store, classifier
         │   ├── config.py              # Foundry router configuration
+        │   ├── mcp_compat.py          # FastMCP 4.x ↔ Agent Framework compatibility shim
         │   ├── middleware.py          # Observability middleware pipeline
         │   ├── prompts.py             # System prompts
         │   ├── router_classifier.py   # RouterClassifier used by RouterWorkflow
@@ -382,8 +385,10 @@ maf-graphrag-series/
         │   └── router_chatbot_server.py    # /api/messages Starlette app
         └── evaluation/      # Part 5: Evaluation pipeline
             ├── config.py      # EvalConfig
+            ├── datasets/      # Router evaluation prompts and fixtures
             ├── evaluators/    # LLM-judge + custom graph evaluators
             ├── monitoring/    # OpenTelemetry setup
+            ├── results/       # Stored evaluation outputs (optional, gitignored)
             └── scripts/       # generate_eval_data, run_batch_evaluation, run_redteam
 ```
 

@@ -8,7 +8,7 @@ newer protocol releases without downgrading dependencies.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 _COMPAT_PATCHED: bool = False
 
@@ -59,7 +59,7 @@ def ensure_mcp_client_compatibility() -> None:
         pass
     else:
         if hasattr(shared_exceptions, "MCPError") and not hasattr(shared_exceptions, "McpError"):
-            shared_exceptions.McpError = shared_exceptions.MCPError
+            cast(Any, shared_exceptions).McpError = shared_exceptions.MCPError
 
     _COMPAT_PATCHED = True
 

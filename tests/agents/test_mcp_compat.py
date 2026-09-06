@@ -104,7 +104,7 @@ class TestEnsureMcpClientCompatibility:
         types_module, _, mcp_compat = stub_mcp
 
         sentinel = property(lambda self: "sentinel")
-        setattr(types_module.Tool, "inputSchema", sentinel)
+        types_module.Tool.inputSchema = sentinel
 
         mcp_compat.ensure_mcp_client_compatibility()
 

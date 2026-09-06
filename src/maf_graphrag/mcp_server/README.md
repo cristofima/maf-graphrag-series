@@ -13,6 +13,8 @@ flowchart TD
 
 ## Quick Start
 
+> FastMCP 4.x implements the Model Context Protocol [Stateless 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) contract. Agent Framework's MCPStreamableHTTPTool interoperates with the Streamable HTTP transport, but its 1.17 release still stops at the legacy initialize handshake instead of issuing `server/discover`, so modern-only metadata is unused until that client adds discovery support.
+
 ### Start MCP Server
 
 ```bash

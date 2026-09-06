@@ -23,8 +23,8 @@ from maf_graphrag.mcp_server.tools.types import EntityQueryResult, SearchResult,
 # Initialize configuration
 config = MCPConfig.from_env()
 
-# Create FastMCP server
-mcp = FastMCP(name=config.server_name)
+# Create FastMCP server with explicit version metadata
+mcp = FastMCP(name=config.server_name, version=config.server_version)
 
 
 @mcp.tool()

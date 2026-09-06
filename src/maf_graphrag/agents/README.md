@@ -33,14 +33,15 @@ agents/
 
 ### Key types
 
-| Type                           | Purpose                                                                          |
-| ------------------------------ | -------------------------------------------------------------------------------- |
-| `SessionKey`                   | Normalized channel + conversation + user → deterministic SHA256 `session_id`     |
-| `SessionRecord`                | Mutable session state: history groups, turn index, per-session lock, diagnostics |
-| `ActiveWorkflowRun`            | Process-local checkpoint correlation for interrupted workflow runs               |
-| `InMemorySessionStore`         | TTL + LRU eviction + cleanup + metrics; subclasses native `SessionStore`         |
-| `SessionCompactionDiagnostics` | Structured output from history sliding-window compaction                         |
-| `SessionStoreMetrics`          | Counters: `active_sessions`, `evictions`, `ttl_expirations`, `cleanup_runs`      |
+| Type                              | Purpose                                                                          |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `SessionKey`                      | Normalized channel + conversation + user → deterministic SHA256 `session_id`     |
+| `SessionRecord`                   | Mutable session state: history groups, turn index, per-session lock, diagnostics |
+| `ActiveWorkflowRun`               | Process-local checkpoint correlation for interrupted workflow runs               |
+| `InMemorySessionStore`            | TTL + LRU eviction + cleanup + metrics; subclasses native `SessionStore`         |
+| `SessionCompactionDiagnostics`    | Structured output from history sliding-window compaction                         |
+| `SessionStoreMetrics`             | Counters: `active_sessions`, `evictions`, `ttl_expirations`, `cleanup_runs`      |
+| `ensure_mcp_client_compatibility` | Patches Agent Framework ↔ MCP field naming gaps before establishing sessions     |
 
 ```python
 from agents.session_store import InMemorySessionStore, SessionKey
@@ -130,6 +131,10 @@ delegate = create_research_delegate()
 ### Research Delegate
 
 `create_research_delegate()` returns a `@tool`-decorated function wrapping a sub-agent with its own MCP session. Useful as a tool in a supervisor agent when context isolation is needed — the delegate's raw MCP payloads never leak into the coordinator's context; only a concise summary is returned.
+
+### MCP Compatibility Shim
+
+FastMCP 4.x replaced several camelCase handshake fields (for example `protocolVersion`, `inputSchema`, `nextCursor`) with snake_case names. Microsoft Agent Framework 1.17 still accesses the legacy names. `create_mcp_tool()` now calls `ensure_mcp_client_compatibility()` before instantiating `MCPStreamableHTTPTool`; the helper adds read/write aliases so RouterWorkflow, DevUI, and Teams-based agents remain functional without downgrading dependencies.
 
 ## Observability Middleware
 

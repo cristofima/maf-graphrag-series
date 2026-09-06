@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
-import httpx
+import httpx2 as httpx
 from agent_framework import CheckpointStorage, InMemoryCheckpointStorage, WorkflowCheckpointException
 from opentelemetry import trace
 from opentelemetry.propagate import extract, inject

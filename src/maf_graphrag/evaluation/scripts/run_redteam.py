@@ -361,7 +361,7 @@ def _publish_new_foundry_redteam_reference(
     This helper creates an equivalent New Foundry run so the report is navigable from
     New Foundry evaluations UX.
     """
-    import httpx
+    import httpx2 as httpx
     from azure.identity import DefaultAzureCredential
 
     if not config.azure_ai_project:

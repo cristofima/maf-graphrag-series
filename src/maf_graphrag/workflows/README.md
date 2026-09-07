@@ -1,6 +1,8 @@
 # Workflows Module — Part 4: Workflow Patterns
 
-Multi-agent workflow patterns that extend the single-agent Knowledge Captain from Part 3. The **Router workflow** is the production entry point that downstream chat surfaces should invoke; the other patterns remain as learning aids and internal experimentation.
+Multi-agent workflow patterns that power the router-first GraphRAG assistant. The **Router workflow** is the production entry point that downstream chat surfaces should invoke; the other patterns remain available for experimentation, regression tests, and targeted demos.
+
+Factory helpers such as `create_router_workflow`, `create_sequential_workflow`, and their peers always build a new `WorkflowBuilder` graph. This keeps router agents, MCP tools, and Azure clients isolated per request so long-lived services (DevUI, chat endpoints) can reuse the factories without leaking state.
 
 ## Architecture
 
@@ -180,13 +182,12 @@ adds real value beyond DevUI visibility.
 
 ## Choosing the Right Workflow
 
-| Workflow              | Speed       | Traceability | Best Use Case             | Why                                                |
-| --------------------- | ----------- | ------------ | ------------------------- | -------------------------------------------------- |
-| Router (production)   | Medium      | Highest      | External chatbot/API      | Auditable routing + metadata, one stable surface   |
-| Single Agent (Part 3) | Fastest     | Low          | Simple internal Q&A       | One agent, one search call                         |
-| Sequential            | Medium      | Highest      | Internal complex research | Prefers local_search; only uses global when needed |
-| Handoff               | Medium–Slow | High         | Specialist demos          | Router skips global_search for entity-only queries |
-| Concurrent            | Slowest     | Medium       | Internal dual perspective | **Always** runs global_search (slow map-reduce)    |
+| Workflow            | Speed       | Traceability | Best Use Case             | Why                                                |
+| ------------------- | ----------- | ------------ | ------------------------- | -------------------------------------------------- |
+| Router (production) | Medium      | Highest      | External chatbot/API      | Auditable routing + metadata, one stable surface   |
+| Sequential          | Medium      | Highest      | Internal complex research | Prefers local_search; only uses global when needed |
+| Handoff             | Medium–Slow | High         | Specialist demos          | Router skips global_search for entity-only queries |
+| Concurrent          | Slowest     | Medium       | Internal dual perspective | **Always** runs global_search (slow map-reduce)    |
 
 > **Performance note**: `global_search` uses map-reduce over all community reports (~32 LLM calls).
 > Any workflow that triggers `global_search` will take 60–140s depending on Azure OpenAI rate limits.

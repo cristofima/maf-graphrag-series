@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from agent_framework import Executor, WorkflowBuilder, WorkflowContext, handler
 
-from maf_graphrag.agents.supervisor import create_azure_client, create_mcp_tool
+from maf_graphrag.agents.factories import create_azure_client, create_mcp_tool
 from maf_graphrag.workflows.base import (
     InstrumentedAgentExecutor,
     StepTelemetry,

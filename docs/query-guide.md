@@ -173,7 +173,7 @@ asyncio.run(run_queries())
 ### Available Search Types
 
 ```python
-from core.search import local_search, global_search, drift_search, basic_search
+from maf_graphrag.core import basic_search, drift_search, global_search, local_search
 
 # Standard searches
 await local_search(query, data)        # Entity-focused

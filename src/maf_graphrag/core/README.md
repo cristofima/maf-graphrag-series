@@ -127,7 +127,7 @@ response, context = await global_search(
 ### Advanced Search
 
 ```python
-from core.search import drift_search, basic_search
+from maf_graphrag.core import basic_search, drift_search
 
 # DRIFT search - combines local and global strategies
 response, context = await drift_search(query, data)
@@ -139,7 +139,7 @@ response, context = await basic_search(query, data)
 ### Shared Utilities
 
 ```python
-from core.classification_utils import normalize_confidence_score
+from maf_graphrag.core import normalize_confidence_score
 
 normalize_confidence_score(92)       # 92
 normalize_confidence_score("high")   # 90

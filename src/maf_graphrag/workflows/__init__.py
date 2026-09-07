@@ -1,44 +1,9 @@
-"""
-MAF + GraphRAG Series - Workflows Module
-=========================================
+"""Workflow orchestration patterns for the MAF + GraphRAG series.
 
-Part 4: Workflow Patterns (Microsoft Agent Framework Orchestrations)
-
-This module implements three multi-agent workflow patterns that build on
-the single-agent Knowledge Captain from Part 3:
-
-    - SequentialWorkflow: Chain agents in a pipeline (analyze → search → write)
-    - ConcurrentWorkflow: Run searches in parallel, then synthesize results
-    - HandoffWorkflow:    Route to specialist agents based on query type
-
-All workflows connect to the same GraphRAG MCP Server from Part 2.
-
-Usage:
-    # Sequential Research Pipeline
-    from maf_graphrag.workflows import ResearchPipelineWorkflow
-
-    async with ResearchPipelineWorkflow() as workflow:
-        result = await workflow.run("What are the key projects and their technology stack?")
-        print(result.answer)
-        print(result.step_summary())
-
-    # Concurrent Parallel Search
-    from maf_graphrag.workflows import ParallelSearchWorkflow
-
-    async with ParallelSearchWorkflow() as workflow:
-        result = await workflow.run("Who leads Project Alpha and what are the main themes?")
-        print(result.answer)
-
-    # Expert Handoff Router
-    from maf_graphrag.workflows import ExpertHandoffWorkflow
-
-    async with ExpertHandoffWorkflow() as workflow:
-        result = await workflow.run("Who leads Project Alpha?")
-        print(result.answer)
-
-See also:
-    - run_workflow.py: CLI demo for all workflow patterns
-    - workflows/README.md: Architecture diagrams and detailed documentation
+Exports the production `RouterWorkflow` alongside the sequential, concurrent,
+and expert handoff patterns used for demos and regression tests. Each factory
+returns a fresh WorkflowBuilder graph so router agents, MCP tools, and Azure
+clients stay isolated per request.
 """
 
 from maf_graphrag.workflows.base import (

@@ -1,6 +1,6 @@
 # Part 5: Agent Evaluation — Monitoring, Evaluation & Safety
 
-End-to-end evaluation pipeline for the GraphRAG Knowledge Captain agent using the Azure AI Evaluation SDK,
+End-to-end evaluation pipeline for the router-first GraphRAG assistant using the Azure AI Evaluation SDK,
 OpenTelemetry tracing, and optional red team safety scanning.
 
 ## Architecture
@@ -103,7 +103,7 @@ uv run python run_mcp_server.py
 
 ### Step 2 — Generate evaluation data (terminal 2)
 
-Runs the Knowledge Captain agent against each of the 10 golden questions and writes
+Runs the router workflow against each of the 10 golden questions and writes
 `src/maf_graphrag/evaluation/datasets/eval_data.jsonl`:
 
 Step 2 is independent from Foundry publishing. If you already have `eval_data.jsonl`, you can reuse it directly.
@@ -180,7 +180,7 @@ project is only used to submit the red team job and store results. LLM calls sti
 Step 4 supports two flows:
 
 - `cloud-model` (default, recommended): scans your Azure OpenAI deployment directly.
-- `local-agent`: scans the local Knowledge Captain callback target.
+- `local-agent`: scans the local router workflow callback target.
 
 Use `cloud-model` for the most stable Foundry-compatible path.
 

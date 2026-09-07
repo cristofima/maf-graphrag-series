@@ -324,7 +324,7 @@ class MCPWorkflowBase(WorkflowGraphSupport, ABC):
         """Instantiate workflow-specific agents using *mcp_tool*."""
 
     async def __aenter__(self) -> Self:
-        from maf_graphrag.agents.supervisor import create_mcp_tool
+        from maf_graphrag.agents.factories import create_mcp_tool
 
         self._exit_stack = AsyncExitStack()
         self._mcp_tool = create_mcp_tool(self._mcp_url)
@@ -778,7 +778,7 @@ class MCPWorkflowRunner:
                 "Workflow factory must return an MCPWorkflowBase implementation to build dynamic blueprint",
             )
 
-        from maf_graphrag.agents.supervisor import create_mcp_tool
+        from maf_graphrag.agents.factories import create_mcp_tool
 
         dummy_tool = create_mcp_tool(self._mcp_url)
         workflow._create_agents(dummy_tool)

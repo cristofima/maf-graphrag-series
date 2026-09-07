@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any
 
 from agent_framework import WorkflowBuilder, WorkflowContext, handler
 
-from maf_graphrag.agents.supervisor import create_azure_client
+from maf_graphrag.agents.factories import create_azure_client
 from maf_graphrag.workflows.base import (
     InstrumentedAgentExecutor,
     MCPWorkflowBase,

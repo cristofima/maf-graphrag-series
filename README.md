@@ -137,16 +137,13 @@ npx @modelcontextprotocol/inspector   # browser UI at http://localhost:6274
 
 ## Part 3 — Agent Framework Patterns
 
-Introduced Agent Framework concepts that underpin all subsequent parts: MCP tool connectivity (`create_mcp_tool`), Foundry chat client factory (`create_client`), observability middleware pipeline, and the research delegate sub-agent pattern (`create_research_delegate`) for context-isolated deep searches.
-
-The Knowledge Captain conversational agent introduced in this part was superseded by the router-first workflow architecture in Part 6 and removed in Part 7.
+Introduced Agent Framework concepts that underpin all subsequent parts: MCP tool connectivity (`create_mcp_tool`), Foundry chat client factory (`create_client`), and the observability middleware pipeline. These primitives remain the foundation of the router-driven workflows that serve production traffic.
 
 | Pattern                                 | Where used today                                        |
 | --------------------------------------- | ------------------------------------------------------- |
 | `create_mcp_tool`                       | All workflow classes connect to the MCP server via this |
 | `create_client` / `create_azure_client` | Workflow agents and the router classifier               |
 | Middleware pipeline                     | Available for optional agent instrumentation            |
-| `create_research_delegate`              | Context-isolated sub-agent for deep graph searches      |
 
 📖 See [src/maf_graphrag/agents/README.md](src/maf_graphrag/agents/README.md) for the API reference.
 
@@ -185,6 +182,12 @@ async with ResearchPipelineWorkflow() as wf:
 ## Part 5 — Agent Evaluation
 
 End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based evaluators, OpenTelemetry tracing, and optional red team safety scanning.
+
+Quality pillars:
+
+- Monitoring — OpenTelemetry spans land in local OTLP backends or Application Insights for live agent observability.
+- Quality evaluation — Azure AI Evaluation SDK judges plus graph grounded evaluators score accuracy and coverage.
+- Safety evaluation — Red team flows (Azure AI Foundry) probe deployments with targeted attack strategies.
 
 | Step | Script                    | What it does                                           |
 | ---- | ------------------------- | ------------------------------------------------------ |
@@ -267,7 +270,7 @@ Delivers multi-turn session management on top of the Part 6 router architecture 
 - Session-aware query composition: bounded conversation history prepended to follow-up turns before routing.
 - Session and lock diagnostics propagated into router span attributes and structured logs.
 - `RouterWorkflowAgentAdapter`: agent-style facade over `RouterWorkflow` with optional `CheckpointStorage` — used by `RouterChatService` for the chatbot connector path.
-- Knowledge Captain removed; `RouterWorkflow` is the sole production conversational entry point.
+- `RouterWorkflow` is the sole production conversational entry point.
 - **Process-local checkpoint/resume**:
   - `ActiveWorkflowRun` dataclass tracking `checkpoint_id`, `workflow_type`, and resume status.
   - `InMemoryCheckpointStorage` threaded to `Workflow.run()` at call time; sub-workflows have fixed `WorkflowBuilder(name=...)` for reliable `get_latest()` queries.
@@ -370,10 +373,9 @@ maf-graphrag-series/
         │   ├── config.py              # Foundry router configuration
         │   ├── mcp_compat.py          # FastMCP 4.x ↔ Agent Framework compatibility shim
         │   ├── middleware.py          # Observability middleware pipeline
-        │   ├── prompts.py             # System prompts
         │   ├── router_classifier.py   # RouterClassifier used by RouterWorkflow
         │   ├── session_store.py       # InMemorySessionStore with TTL, LRU, metrics
-        │   ├── supervisor.py          # create_mcp_tool, create_client, create_research_delegate
+        │   ├── factories.py           # create_mcp_tool, create_client factories
         │   └── tools.py               # Local @tool functions
         ├── workflows/       # Parts 4+: All workflow patterns
         │   ├── base.py                     # WorkflowResult, WorkflowStep, MCPWorkflowBase, runners

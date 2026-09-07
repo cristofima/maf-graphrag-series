@@ -3,6 +3,12 @@
 End-to-end evaluation pipeline for the router-first GraphRAG assistant using the Azure AI Evaluation SDK,
 OpenTelemetry tracing, and optional red team safety scanning.
 
+### Quality Pillars
+
+- **Monitoring**: OpenTelemetry instrumentation (local OTLP or Application Insights) keeps live agent runs observable.
+- **Quality evaluation**: Azure AI Evaluation SDK judges plus custom GraphRAG entity and relationship validators measure grounded accuracy.
+- **Safety evaluation**: Red-team flows probe deployments with Azure AI Foundry attack strategies to surface risky behaviors.
+
 ## Architecture
 
 ```mermaid
@@ -109,13 +115,13 @@ Runs the router workflow against each of the 10 golden questions and writes
 Step 2 is independent from Foundry publishing. If you already have `eval_data.jsonl`, you can reuse it directly.
 
 ```powershell
-uv run python -m evaluation.scripts.generate_eval_data
+uv run python -m maf_graphrag.evaluation.scripts.generate_eval_data
 ```
 
 Router-focused variant (includes `out_of_context` routing checks and writes `eval_router_data.jsonl`):
 
 ```powershell
-uv run python -m evaluation.scripts.generate_router_eval_data
+uv run python -m maf_graphrag.evaluation.scripts.generate_router_eval_data
 ```
 
 Router dataset rule for edge cases:
@@ -146,16 +152,16 @@ To avoid the skip, set `AZURE_OPENAI_EVAL_CHAT_DEPLOYMENT` to a compatible deplo
 
 ```powershell
 # Standard evaluation (results saved locally)
-uv run python -m evaluation.scripts.run_batch_evaluation
+uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation
 
 # Router-focused dataset evaluation
-uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl
+uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl
 
 # Skip custom graph evaluators (no Parquet needed)
-uv run python -m evaluation.scripts.run_batch_evaluation --no-custom
+uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --no-custom
 
 # Publish a Foundry evaluation run (openai/v1/evals)
-uv run python -m evaluation.scripts.run_batch_evaluation --foundry
+uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --foundry
 ```
 
 Results are written to:
@@ -199,19 +205,19 @@ terraform output -raw env_file_content > ../.env  # adds AZURE_AI_PROJECT automa
 
 ```powershell
 # Default flow: cloud-model, Baseline + EASY strategies, all 4 risk categories
-uv run python -m evaluation.scripts.run_redteam
+uv run python -m maf_graphrag.evaluation.scripts.run_redteam
 
 # Explicit cloud flow
-uv run python -m evaluation.scripts.run_redteam --flow cloud-model
+uv run python -m maf_graphrag.evaluation.scripts.run_redteam --flow cloud-model
 
 # Local callback flow (requires MCP server running)
-uv run python -m evaluation.scripts.run_redteam --flow local-agent
+uv run python -m maf_graphrag.evaluation.scripts.run_redteam --flow local-agent
 
 # Custom strategies
-uv run python -m evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak crescendo
+uv run python -m maf_graphrag.evaluation.scripts.run_redteam --flow cloud-model --strategies baseline jailbreak crescendo
 
 # Custom risk categories
-uv run python -m evaluation.scripts.run_redteam --flow cloud-model --risks Violence HateUnfairness
+uv run python -m maf_graphrag.evaluation.scripts.run_redteam --flow cloud-model --risks Violence HateUnfairness
 ```
 
 Optional environment override:

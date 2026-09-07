@@ -2,6 +2,8 @@
 
 Exposes GraphRAG functionality as MCP (Model Context Protocol) tools for agent and workflow integration.
 
+The package exposes a validated `MCPConfig` model plus the `create_mcp_server` factory and `app` ASGI object. Use the factory when you need to embed the server inside another host process; import `app` directly for ASGI runners like Uvicorn or Gunicorn.
+
 ## Architecture
 
 ```mermaid
@@ -19,7 +21,7 @@ flowchart TD
 
 ```bash
 # Using Python module
-uv run python -m mcp_server.server
+uv run python -m maf_graphrag.mcp_server.server
 
 # Or using convenience script
 uv run python run_mcp_server.py
@@ -235,7 +237,7 @@ uv run pytest tests/mcp_server/test_config.py tests/mcp_server/test_server.py
 
 ```bash
 # Production with Gunicorn
-uv run gunicorn mcp_server.server:app -w 4 -k uvicorn.workers.UvicornWorker
+uv run gunicorn maf_graphrag.mcp_server.server:app -w 4 -k uvicorn.workers.UvicornWorker
 
 # Docker
 docker build -t graphrag-mcp .

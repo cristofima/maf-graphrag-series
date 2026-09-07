@@ -72,9 +72,13 @@ class EvalConfig(BaseModel):
             "app_insights_connection_string": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"),
             "otel_tracing_endpoint": os.getenv("OTEL_TRACING_ENDPOINT", "http://localhost:4317"),
             "api_version": os.getenv("AZURE_OPENAI_EVAL_API_VERSION", DEFAULT_EVAL_API_VERSION),
-            "entities_parquet_path": os.getenv("ENTITIES_PARQUET_PATH", "output/create_final_entities.parquet"),
+            "entities_parquet_path": os.getenv(
+                "ENTITIES_PARQUET_PATH",
+                "output/create_final_entities.parquet",
+            ),
             "relationships_parquet_path": os.getenv(
-                "RELATIONSHIPS_PARQUET_PATH", "output/create_final_relationships.parquet"
+                "RELATIONSHIPS_PARQUET_PATH",
+                "output/create_final_relationships.parquet",
             ),
         }
 

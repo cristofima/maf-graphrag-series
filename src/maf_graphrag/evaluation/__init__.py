@@ -1,16 +1,11 @@
+"""Evaluation utilities for monitoring, quality scoring, and safety checks.
+
+The package bundles Pydantic-backed configuration, OpenTelemetry setup, scripted
+evaluation entry points, and custom graph-aware evaluators used by the router-first
+assistant.
 """
-MAF + GraphRAG Series - Evaluation Module
-==========================================
 
-Part 5: Monitoring, Evaluation & Safety
+from maf_graphrag.evaluation.config import EvalConfig
+from maf_graphrag.evaluation.monitoring.otel_setup import setup_monitoring
 
-Three pillars of agent quality:
-    - Pillar A: Monitoring — OpenTelemetry with gen_ai semantic conventions
-    - Pillar B: Quality Evaluation — Built-in agent evaluators + custom GraphRAG evaluators
-    - Pillar C: Safety Evaluation — Red teaming with attack strategies (requires Azure AI Foundry)
-
-Modules:
-    - config: Evaluation configuration (Azure OpenAI + optional Foundry)
-    - monitoring: OpenTelemetry setup for agent observability
-    - evaluators: Built-in and custom evaluators for agent quality assessment
-"""
+__all__ = ["EvalConfig", "setup_monitoring"]

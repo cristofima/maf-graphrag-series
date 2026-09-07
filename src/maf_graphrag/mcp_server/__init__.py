@@ -1,18 +1,10 @@
-"""
-MCP Server for GraphRAG - Part 2 of MAF + GraphRAG Series
+"""FastMCP server integration for the MAF + GraphRAG series.
 
-This module exposes GraphRAG functionality as MCP (Model Context Protocol) tools,
-enabling AI agents and MCP clients to query knowledge graphs.
-
-Usage:
-    # Start MCP server
-    uv run python -m maf_graphrag.mcp_server.server
-
-    # Or use convenience script
-    uv run python run_mcp_server.py
+Exports the validated MCP configuration and factory used by runtime entry
+points to start the Streamable HTTP server.
 """
 
 from maf_graphrag.mcp_server.config import MCPConfig
-from maf_graphrag.mcp_server.server import create_mcp_server
+from maf_graphrag.mcp_server.server import app, create_mcp_server
 
-__all__ = ["MCPConfig", "create_mcp_server"]
+__all__ = ["MCPConfig", "create_mcp_server", "app"]

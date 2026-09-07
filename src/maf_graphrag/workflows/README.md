@@ -2,6 +2,8 @@
 
 Multi-agent workflow patterns that power the router-first GraphRAG assistant. The **Router workflow** is the production entry point that downstream chat surfaces should invoke; the other patterns remain available for experimentation, regression tests, and targeted demos.
 
+Factory helpers such as `create_router_workflow`, `create_sequential_workflow`, and their peers always build a new `WorkflowBuilder` graph. This keeps router agents, MCP tools, and Azure clients isolated per request so long-lived services (DevUI, chat endpoints) can reuse the factories without leaking state.
+
 ## Architecture
 
 ```mermaid

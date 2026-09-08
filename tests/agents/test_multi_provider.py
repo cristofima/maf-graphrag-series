@@ -2,7 +2,7 @@
 
 import pytest
 
-from agents.config import AgentConfig
+from maf_graphrag.agents.config import AgentConfig
 
 
 def _seed_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:

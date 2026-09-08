@@ -10,10 +10,10 @@ import httpx
 import pytest
 from agent_framework import InMemoryCheckpointStorage, WorkflowCheckpoint
 
-from agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
-from workflows.base import WorkflowResult, WorkflowStep, WorkflowType
-from workflows.router_agent import RouterWorkflowAgentAdapter
-from workflows.router_chatbot_server import (
+from maf_graphrag.agents.session_store import ActiveWorkflowRun, InMemorySessionStore, SessionKey
+from maf_graphrag.workflows.base import WorkflowResult, WorkflowStep, WorkflowType
+from maf_graphrag.workflows.router_agent import RouterWorkflowAgentAdapter
+from maf_graphrag.workflows.router_chatbot_server import (
     RouterChatbotConfig,
     RouterChatReply,
     RouterChatService,

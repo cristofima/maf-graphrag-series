@@ -1,6 +1,6 @@
 """Unit tests for core/classification_utils.py."""
 
-from core.classification_utils import normalize_confidence_score
+from maf_graphrag.core.classification_utils import normalize_confidence_score
 
 
 class TestNormalizeConfidenceScore:

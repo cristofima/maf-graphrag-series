@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from mcp_server.config import MCPConfig
+from maf_graphrag.mcp_server.config import MCPConfig
 
 
 class TestMCPConfig:

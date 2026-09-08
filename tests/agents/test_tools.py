@@ -1,6 +1,6 @@
 """Unit tests for agents/tools.py — Local @tool functions."""
 
-from agents.tools import extract_key_entities, format_as_table
+from maf_graphrag.agents.tools import extract_key_entities, format_as_table
 
 
 class TestFormatAsTable:

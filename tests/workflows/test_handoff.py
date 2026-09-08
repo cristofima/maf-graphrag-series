@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from workflows.base import WorkflowType
-from workflows.handoff import (
+from maf_graphrag.workflows.base import WorkflowType
+from maf_graphrag.workflows.handoff import (
     ExpertHandoffWorkflow,
     _create_router_and_experts,
     _parse_route,
@@ -147,7 +147,7 @@ class TestCreateRouterAndExperts:
     def test_creates_three_agents_with_correct_names(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.handoff.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.handoff.create_azure_client", MagicMock(return_value="client"))
 
         _create_router_and_experts(MagicMock())
 
@@ -157,7 +157,7 @@ class TestCreateRouterAndExperts:
     def test_router_has_no_tools_experts_share_the_mcp_tool(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.handoff.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.handoff.create_azure_client", MagicMock(return_value="client"))
         mcp_tool = MagicMock()
 
         _create_router_and_experts(mcp_tool)
@@ -171,7 +171,7 @@ class TestCreateRouterAndExperts:
 class TestExpertHandoffWorkflowCreateAgents:
     def test_delegates_to_create_router_and_experts(self, monkeypatch):
         stub_agents = (MagicMock(), MagicMock(), MagicMock())
-        monkeypatch.setattr("workflows.handoff._create_router_and_experts", lambda mcp_tool: stub_agents)
+        monkeypatch.setattr("maf_graphrag.workflows.handoff._create_router_and_experts", lambda mcp_tool: stub_agents)
 
         workflow = ExpertHandoffWorkflow()
         workflow._create_agents(MagicMock())

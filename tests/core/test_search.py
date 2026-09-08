@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 
-from core.data_loader import GraphData
-from core.search import basic_search, drift_search, global_search, local_search
+from maf_graphrag.core.data_loader import GraphData
+from maf_graphrag.core.search import basic_search, drift_search, global_search, local_search
 
 
 def _make_graph_data() -> GraphData:
@@ -29,7 +29,7 @@ class TestLocalSearch:
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
         mock_api_search = AsyncMock(return_value=("response text", {"entities": []}))
-        monkeypatch.setattr("core.search.api.local_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.local_search", mock_api_search)
 
         response, context = await local_search("Who leads Alpha?", data, config=mock_config)
 
@@ -51,9 +51,9 @@ class TestLocalSearch:
     async def test_uses_get_config_when_config_not_given(self, monkeypatch):
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
-        monkeypatch.setattr("core.search.get_config", lambda: mock_config)
+        monkeypatch.setattr("maf_graphrag.core.search.get_config", lambda: mock_config)
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.local_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.local_search", mock_api_search)
 
         await local_search("query", data)
 
@@ -63,7 +63,7 @@ class TestLocalSearch:
     async def test_custom_community_level_and_response_type(self, monkeypatch):
         data = _make_graph_data()
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.local_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.local_search", mock_api_search)
 
         await local_search("query", data, config=MagicMock(), community_level=4, response_type="Single Sentence")
 
@@ -77,7 +77,7 @@ class TestGlobalSearch:
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
         mock_api_search = AsyncMock(return_value=("global response", {"communities": []}))
-        monkeypatch.setattr("core.search.api.global_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.global_search", mock_api_search)
 
         response, context = await global_search("What are the themes?", data, config=mock_config)
 
@@ -97,7 +97,7 @@ class TestGlobalSearch:
     async def test_dynamic_community_selection_forwarded(self, monkeypatch):
         data = _make_graph_data()
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.global_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.global_search", mock_api_search)
 
         await global_search("query", data, config=MagicMock(), dynamic_community_selection=True)
 
@@ -107,7 +107,7 @@ class TestGlobalSearch:
     async def test_community_level_none_is_forwarded(self, monkeypatch):
         data = _make_graph_data()
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.global_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.global_search", mock_api_search)
 
         await global_search("query", data, config=MagicMock(), community_level=None)
 
@@ -117,9 +117,9 @@ class TestGlobalSearch:
     async def test_uses_get_config_when_config_not_given(self, monkeypatch):
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
-        monkeypatch.setattr("core.search.get_config", lambda: mock_config)
+        monkeypatch.setattr("maf_graphrag.core.search.get_config", lambda: mock_config)
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.global_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.global_search", mock_api_search)
 
         await global_search("query", data)
 
@@ -132,7 +132,7 @@ class TestDriftSearch:
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
         mock_api_search = AsyncMock(return_value=("drift response", {"path": []}))
-        monkeypatch.setattr("core.search.api.drift_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.drift_search", mock_api_search)
 
         response, context = await drift_search("complex query", data, config=mock_config)
 
@@ -153,9 +153,9 @@ class TestDriftSearch:
     async def test_uses_get_config_when_config_not_given(self, monkeypatch):
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
-        monkeypatch.setattr("core.search.get_config", lambda: mock_config)
+        monkeypatch.setattr("maf_graphrag.core.search.get_config", lambda: mock_config)
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.drift_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.drift_search", mock_api_search)
 
         await drift_search("query", data)
 
@@ -168,7 +168,7 @@ class TestBasicSearch:
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
         mock_api_search = AsyncMock(return_value=("basic response", {"vectors": []}))
-        monkeypatch.setattr("core.search.api.basic_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.basic_search", mock_api_search)
 
         response, context = await basic_search("simple query", data, config=mock_config)
 
@@ -184,9 +184,9 @@ class TestBasicSearch:
     async def test_uses_get_config_when_config_not_given(self, monkeypatch):
         data = _make_graph_data()
         mock_config = MagicMock(name="GraphRagConfig")
-        monkeypatch.setattr("core.search.get_config", lambda: mock_config)
+        monkeypatch.setattr("maf_graphrag.core.search.get_config", lambda: mock_config)
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.basic_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.basic_search", mock_api_search)
 
         await basic_search("query", data)
 
@@ -196,7 +196,7 @@ class TestBasicSearch:
     async def test_custom_response_type(self, monkeypatch):
         data = _make_graph_data()
         mock_api_search = AsyncMock(return_value=("resp", {}))
-        monkeypatch.setattr("core.search.api.basic_search", mock_api_search)
+        monkeypatch.setattr("maf_graphrag.core.search.api.basic_search", mock_api_search)
 
         await basic_search("query", data, config=MagicMock(), response_type="Single Sentence")
 

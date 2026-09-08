@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from evaluation.scripts.generate_router_eval_data import (
+from maf_graphrag.evaluation.scripts.generate_router_eval_data import (
     _compute_route_match,
     _extract_router_metadata,
     _normalize_routed_workflow,
@@ -159,11 +159,11 @@ async def test_generate_router_eval_data_writes_records(monkeypatch: pytest.Monk
     )
 
     monkeypatch.setattr(
-        "evaluation.evaluators.builtin.GRAPHRAG_TOOL_DEFINITIONS",
+        "maf_graphrag.evaluation.evaluators.builtin.GRAPHRAG_TOOL_DEFINITIONS",
         [{"name": "search_knowledge_graph"}],
         raising=False,
     )
-    monkeypatch.setattr("workflows.router.create_router_workflow", lambda: _FakeWorkflowContext())
+    monkeypatch.setattr("maf_graphrag.workflows.router.create_router_workflow", lambda: _FakeWorkflowContext())
 
     count = await generate_router_eval_data(input_path=input_path, output_path=output_path)
 

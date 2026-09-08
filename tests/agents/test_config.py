@@ -3,7 +3,7 @@
 import dotenv
 import pytest
 
-from agents.config import DEFAULT_API_VERSION, AgentConfig, SessionConfig
+from maf_graphrag.agents.config import DEFAULT_API_VERSION, AgentConfig, SessionConfig
 
 
 def _seed_foundry_env(monkeypatch: pytest.MonkeyPatch) -> None:

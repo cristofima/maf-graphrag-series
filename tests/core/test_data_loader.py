@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from core.data_loader import (
+from maf_graphrag.core.data_loader import (
     GraphData,
     get_community_count,
     get_entity_count,
@@ -166,7 +166,7 @@ class TestLoadParquet:
 
     def test_uses_get_output_dir_when_output_dir_not_given(self, monkeypatch, tmp_path):
         pd.DataFrame({"title": ["Solo"]}).to_parquet(tmp_path / "entities.parquet")
-        monkeypatch.setattr("core.data_loader.get_output_dir", lambda: tmp_path)
+        monkeypatch.setattr("maf_graphrag.core.data_loader.get_output_dir", lambda: tmp_path)
 
         result = load_parquet("entities.parquet")
 
@@ -177,7 +177,7 @@ class TestLoadAll:
     def test_validate_true_calls_validate_output_files(self, monkeypatch, tmp_path):
         _write_required_parquet_files(tmp_path)
         mock_validate = MagicMock(return_value=True)
-        monkeypatch.setattr("core.data_loader.validate_output_files", mock_validate)
+        monkeypatch.setattr("maf_graphrag.core.data_loader.validate_output_files", mock_validate)
 
         load_all(output_dir=tmp_path, validate=True)
 
@@ -186,7 +186,7 @@ class TestLoadAll:
     def test_validate_false_skips_validation(self, monkeypatch, tmp_path):
         _write_required_parquet_files(tmp_path)
         mock_validate = MagicMock()
-        monkeypatch.setattr("core.data_loader.validate_output_files", mock_validate)
+        monkeypatch.setattr("maf_graphrag.core.data_loader.validate_output_files", mock_validate)
 
         load_all(output_dir=tmp_path, validate=False)
 
@@ -194,8 +194,8 @@ class TestLoadAll:
 
     def test_uses_get_output_dir_when_output_dir_not_given(self, monkeypatch, tmp_path):
         _write_required_parquet_files(tmp_path)
-        monkeypatch.setattr("core.data_loader.get_output_dir", lambda: tmp_path)
-        monkeypatch.setattr("core.data_loader.validate_output_files", MagicMock())
+        monkeypatch.setattr("maf_graphrag.core.data_loader.get_output_dir", lambda: tmp_path)
+        monkeypatch.setattr("maf_graphrag.core.data_loader.validate_output_files", MagicMock())
 
         data = load_all(validate=False)
 

@@ -2,12 +2,12 @@
 
 from unittest.mock import patch
 
-from evaluation.config import EvalConfig
-from evaluation.monitoring.otel_setup import setup_monitoring
+from maf_graphrag.evaluation.config import EvalConfig
+from maf_graphrag.evaluation.monitoring.otel_setup import setup_monitoring
 
 
 class TestSetupMonitoring:
-    @patch("evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=True)
+    @patch("maf_graphrag.evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=True)
     def test_uses_config_connection_string(self, mock_configure):
         config = EvalConfig(
             azure_endpoint="https://test.openai.azure.com/",
@@ -22,7 +22,7 @@ class TestSetupMonitoring:
 
         mock_configure.assert_called_once_with("InstrumentationKey=abc", enable_sensitive_data=None)
 
-    @patch("evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=True)
+    @patch("maf_graphrag.evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=True)
     def test_env_connection_string_used_when_config_none(self, mock_configure, monkeypatch):
         monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", "InstrumentationKey=env-value")
 
@@ -30,7 +30,7 @@ class TestSetupMonitoring:
 
         mock_configure.assert_called_once_with("InstrumentationKey=env-value", enable_sensitive_data=None)
 
-    @patch("evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=False)
+    @patch("maf_graphrag.evaluation.monitoring.otel_setup.configure_azure_monitor_exporters", return_value=False)
     def test_logs_warning_when_configuration_fails(self, mock_configure, caplog):
         config = EvalConfig(
             azure_endpoint="https://test.openai.azure.com/",
@@ -47,7 +47,7 @@ class TestSetupMonitoring:
         assert "Azure Monitor exporters could not be configured" in caplog.text
         mock_configure.assert_called_once()
 
-    @patch("evaluation.monitoring.otel_setup.configure_azure_monitor_exporters")
+    @patch("maf_graphrag.evaluation.monitoring.otel_setup.configure_azure_monitor_exporters")
     def test_skips_when_no_connection_string(self, mock_configure, monkeypatch, caplog):
         monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
         config = EvalConfig(

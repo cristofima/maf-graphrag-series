@@ -1,6 +1,6 @@
 """Unit tests for mcp_server/tools/types.py — input validation and error handling decorator."""
 
-from mcp_server.tools.types import (
+from maf_graphrag.mcp_server.tools.types import (
     MAX_ENTITY_NAME_LENGTH,
     MAX_LIMIT,
     MAX_QUERY_LENGTH,

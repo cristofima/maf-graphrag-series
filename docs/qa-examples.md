@@ -4,10 +4,10 @@ This document demonstrates GraphRAG's ability to answer complex questions by lev
 
 ## Understanding Search Types
 
-| Search Type | Best For | How It Works |
-|-------------|----------|--------------|
-| **Local** | Entity-specific questions | Searches entities and their direct relationships |
-| **Global** | Thematic/broad questions | Analyzes community reports across the organization |
+| Search Type | Best For                  | How It Works                                       |
+| ----------- | ------------------------- | -------------------------------------------------- |
+| **Local**   | Entity-specific questions | Searches entities and their direct relationships   |
+| **Global**  | Thematic/broad questions  | Analyzes community reports across the organization |
 
 ---
 
@@ -18,13 +18,15 @@ Local search excels at answering questions about **specific entities** and their
 ### Example 1: Leadership Query
 
 **Question:**
+
 ```
 Who leads Project Alpha and what is their role?
 ```
 
 **Command:**
+
 ```powershell
-uv run python -m core.example "Who leads Project Alpha and what is their role?"
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha and what is their role?"
 ```
 
 **Response:**
@@ -44,13 +46,15 @@ uv run python -m core.example "Who leads Project Alpha and what is their role?"
 ### Example 2: Technology Stack Query
 
 **Question:**
+
 ```
 What technologies are used in Project Alpha?
 ```
 
 **Command:**
+
 ```powershell
-uv run python -m core.example "What technologies are used in Project Alpha?"
+uv run python -m maf_graphrag.core.example "What technologies are used in Project Alpha?"
 ```
 
 **Response:**
@@ -90,13 +94,15 @@ Global search is ideal for **thematic questions** that span the entire organizat
 ### Example 3: Strategic Initiatives
 
 **Question:**
+
 ```
 What are the main themes and strategic initiatives at TechVenture Inc?
 ```
 
 **Command:**
+
 ```powershell
-uv run python -m core.example "What are the main themes and strategic initiatives at TechVenture Inc?" --type global
+uv run python -m maf_graphrag.core.example "What are the main themes and strategic initiatives at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -124,13 +130,15 @@ uv run python -m core.example "What are the main themes and strategic initiative
 ### Example 4: Organizational Structure
 
 **Question:**
+
 ```
 How are departments connected at TechVenture Inc?
 ```
 
 **Command:**
+
 ```powershell
-uv run python -m core.example "How are departments connected at TechVenture Inc?" --type global
+uv run python -m maf_graphrag.core.example "How are departments connected at TechVenture Inc?" --type global
 ```
 
 **Response:**
@@ -163,15 +171,15 @@ uv run python -m core.example "How are departments connected at TechVenture Inc?
 
 ## When to Use Each Search Type
 
-| Question Type | Use Local | Use Global |
-|---------------|-----------|------------|
-| "Who works on X?" | ✅ | |
-| "What does person Y do?" | ✅ | |
-| "What technologies does Z use?" | ✅ | |
-| "What are the main themes?" | | ✅ |
-| "Summarize the organization" | | ✅ |
-| "How are teams connected?" | | ✅ |
-| "What patterns exist across projects?" | | ✅ |
+| Question Type                          | Use Local | Use Global |
+| -------------------------------------- | --------- | ---------- |
+| "Who works on X?"                      | ✅        |            |
+| "What does person Y do?"               | ✅        |            |
+| "What technologies does Z use?"        | ✅        |            |
+| "What are the main themes?"            |           | ✅         |
+| "Summarize the organization"           |           | ✅         |
+| "How are teams connected?"             |           | ✅         |
+| "What patterns exist across projects?" |           | ✅         |
 
 ## Key Insights
 
@@ -189,12 +197,10 @@ uv run python -m core.example "How are departments connected at TechVenture Inc?
 
 ```powershell
 # Local search (entity-focused)
-uv run python -m core.example "Your specific question about an entity"
+uv run python -m maf_graphrag.core.example "Your specific question about an entity"
 
 # Global search (thematic)
-uv run python -m core.example "Your broad question about themes or patterns" --type global
+uv run python -m maf_graphrag.core.example "Your broad question about themes or patterns" --type global
 ```
 
 See [query-guide.md](query-guide.md) for more query options and configurations.
-
-

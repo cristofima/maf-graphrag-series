@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from workflows.base import WorkflowType
-from workflows.concurrent import ParallelSearchWorkflow, _create_parallel_agents
+from maf_graphrag.workflows.base import WorkflowType
+from maf_graphrag.workflows.concurrent import ParallelSearchWorkflow, _create_parallel_agents
 
 
 def _agent_stub(text: str) -> MagicMock:
@@ -87,8 +87,8 @@ class TestCreateParallelAgents:
     def test_creates_three_agents_with_correct_names(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
-        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
 
         _create_parallel_agents()
 
@@ -104,8 +104,8 @@ class TestCreateParallelAgents:
             return tool
 
         monkeypatch.setattr("agent_framework.Agent", MagicMock())
-        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
-        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", _fake_create_mcp_tool)
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_mcp_tool", _fake_create_mcp_tool)
 
         _create_parallel_agents()
 
@@ -115,8 +115,8 @@ class TestCreateParallelAgents:
     def test_answer_synthesizer_has_no_tools(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
-        monkeypatch.setattr("workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.concurrent.create_mcp_tool", lambda url: MagicMock())
 
         _create_parallel_agents()
 
@@ -137,7 +137,7 @@ class TestParallelSearchWorkflowLifecycle:
         themes_agent = _mock_context_agent()
         synthesizer = MagicMock()
         monkeypatch.setattr(
-            "workflows.concurrent._create_parallel_agents",
+            "maf_graphrag.workflows.concurrent._create_parallel_agents",
             lambda mcp_url=None: (entity_agent, themes_agent, synthesizer),
         )
 
@@ -153,7 +153,7 @@ class TestParallelSearchWorkflowLifecycle:
         entity_agent = _mock_context_agent()
         themes_agent = _mock_context_agent()
         monkeypatch.setattr(
-            "workflows.concurrent._create_parallel_agents",
+            "maf_graphrag.workflows.concurrent._create_parallel_agents",
             lambda mcp_url=None: (entity_agent, themes_agent, MagicMock()),
         )
 

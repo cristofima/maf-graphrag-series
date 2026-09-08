@@ -12,26 +12,36 @@ Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, an
 
 ## Core Stack
 
-| Technology      | Version Family | Purpose                                  |
-| --------------- | -------------- | ---------------------------------------- |
-| GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval   |
-| Agent Framework | `1.15.x`       | Agents, orchestration, and model clients |
-| FastMCP         | `3.4.x`        | MCP server hosting over Streamable HTTP  |
+| Technology      | Version Family | Purpose                                                                                                                                                      |
+| --------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GraphRAG        | `3.0.x`        | Knowledge graph indexing and retrieval                                                                                                                       |
+| Agent Framework | `1.17.x`       | Agents, orchestration, and model clients                                                                                                                     |
+| FastMCP         | `4.0.x`        | MCP server hosting over Streamable HTTP with [Model Context Protocol Stateless 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) support |
 
 ## Series Overview
 
-| Part | Title                            | Status      | Module                                             |
-| ---- | -------------------------------- | ----------- | -------------------------------------------------- |
-| 1    | GraphRAG Fundamentals            | ✅ Complete | `src/core/`                                        |
-| 2    | GraphRAG MCP Server              | ✅ Complete | `src/mcp_server/`                                  |
-| 3    | Agent Framework Patterns         | ✅ Complete | `src/agents/`                                      |
-| 4    | Workflow Patterns                | ✅ Complete | `src/workflows/`                                   |
-| 5    | Agent Evaluation                 | ✅ Complete | `src/evaluation/`                                  |
-| 6    | Router SLM Integration           | ✅ Complete | `src/agents/`, `src/workflows/`, `src/evaluation/` |
-| 7    | Conversational Session Readiness | ✅ Complete | `src/agents/`, `src/workflows/`                    |
-| 8    | Human-in-the-Loop                | ⏳ Planned  | —                                                  |
-| 9    | Tool Registry                    | ⏳ Planned  | —                                                  |
-| 10   | Production Deployment            | ⏳ Planned  | —                                                  |
+All modules live under `src/maf_graphrag/`.
+
+| Part | Title                            | Status      | Module                              |
+| ---- | -------------------------------- | ----------- | ----------------------------------- |
+| 1    | GraphRAG Fundamentals            | ✅ Complete | `core`                              |
+| 2    | GraphRAG MCP Server              | ✅ Complete | `mcp_server`                        |
+| 3    | Agent Framework Patterns         | ✅ Complete | `agents`                            |
+| 4    | Workflow Patterns                | ✅ Complete | `workflows`                         |
+| 5    | Agent Evaluation                 | ✅ Complete | `evaluation`                        |
+| 6    | Router SLM Integration           | ✅ Complete | `agents`, `workflows`, `evaluation` |
+| 7    | Conversational Session Readiness | ✅ Complete | `agents`, `workflows`               |
+| 8    | Session Recap Route              | 🔜 Next     | `agents`, `workflows`               |
+| 9    | Human-in-the-Loop Approvals      | ⏳ Planned  | `workflows`                         |
+| 10   | Dynamic MCP Tool Discovery       | ⏳ Planned  | `mcp_server`, `agents`              |
+| 11   | Production Deployment            | ⏳ Planned  | `infra`                             |
+
+### What's next
+
+- **Part 8 — Session Recap Route.** Adds a workflow-free `recap` route so "summarize our conversation" is answered from stored session history via `SummarizationStrategy` + `SelectiveToolCallCompactionStrategy`, instead of triggering a GraphRAG retrieval fan-out. Preserves the Part 6 router metadata contract.
+- **Part 9 — Human-in-the-Loop Approvals.** Pause and resume router workflows for human approval, built on native Agent Framework capabilities (`approval_mode="always_require"` on function tools, `ToolApprovalMiddleware`, and the AG-UI interrupt/resume contract). Requires durable checkpoint storage for cross-process resume.
+- **Part 10 — Dynamic MCP Tool Discovery.** Runtime toolset resolution against the MCP server (`tools/list`) instead of a fixed tool list, with capability negotiation, graceful degradation, and the governance/audit trade-offs versus pinned tools.
+- **Part 11 — Production Deployment.** Container Apps hosting for the router, MCP server, and connector endpoint, with Key Vault secrets, Application Insights, and evaluation quality gates in CI/CD.
 
 ## Current Architecture
 
@@ -49,10 +59,10 @@ flowchart TD
     SQ & CC & HF & OOC --> OUT["WorkflowResult\n{answer, steps, metadata}"]
 ```
 
-| Surface             | Entry Point                           | Purpose                                        |
-| ------------------- | ------------------------------------- | ---------------------------------------------- |
-| DevUI               | `uv run python run_devui.py`          | Workflow graph visualization and event tracing |
-| Teams/Connector API | `uv run python run_router_chatbot.py` | `/api/messages` endpoint for Agents Playground |
+| Surface             | Entry Point                           | Purpose                                                        |
+| ------------------- | ------------------------------------- | -------------------------------------------------------------- |
+| DevUI               | `uv run python run_devui.py`          | Workflow graph visualization and event tracing                 |
+| Teams/Connector API | `uv run python run_router_chatbot.py` | `/api/messages` endpoint for Agents Playground (Bot Framework) |
 
 ## Quick Start
 
@@ -65,7 +75,7 @@ cp .env.example .env
 # Edit .env with your Azure OpenAI values
 
 # Build the knowledge graph from documents in input/documents/
-uv run python -m core.index
+uv run python -m maf_graphrag.core.index
 
 # Terminal 1: MCP server (tool backend)
 uv run python run_mcp_server.py
@@ -86,13 +96,13 @@ uv run python run_router_chatbot.py
 Build and query a knowledge graph from documents. Introduces entity extraction, relationship detection, community detection, and local vs. global search strategies.
 
 ```powershell
-uv run python -m core.index
-uv run python -m core.example "Who leads Project Alpha?"
-uv run python -m core.example "What are the main themes?" --type global
+uv run python -m maf_graphrag.core.index
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha?"
+uv run python -m maf_graphrag.core.example "What are the main themes?" --type global
 ```
 
 ```python
-from core import load_all, local_search, global_search
+from maf_graphrag.core import load_all, local_search, global_search
 
 data = load_all()
 response, _ = asyncio.run(local_search("Who leads Project Alpha?", data))
@@ -100,7 +110,7 @@ response, _ = asyncio.run(local_search("Who leads Project Alpha?", data))
 
 After indexing the 10 sample documents the knowledge graph contains 147 entities, 263 relationships, 32 communities, and 20 text units.
 
-📖 See [src/core/README.md](src/core/README.md) for the full API reference.
+📖 See [src/maf_graphrag/core/README.md](src/maf_graphrag/core/README.md) for the full API reference.
 
 ---
 
@@ -121,24 +131,21 @@ npx @modelcontextprotocol/inspector   # browser UI at http://localhost:6274
 | `list_entities`          | Browse entities       |
 | `get_entity`             | Entity details        |
 
-📖 See [src/mcp_server/README.md](src/mcp_server/README.md) for server documentation.
+📖 See [src/maf_graphrag/mcp_server/README.md](src/maf_graphrag/mcp_server/README.md) for server documentation.
 
 ---
 
 ## Part 3 — Agent Framework Patterns
 
-Introduced Agent Framework concepts that underpin all subsequent parts: MCP tool connectivity (`create_mcp_tool`), Foundry chat client factory (`create_client`), observability middleware pipeline, and the research delegate sub-agent pattern (`create_research_delegate`) for context-isolated deep searches.
-
-The Knowledge Captain conversational agent introduced in this part was superseded by the router-first workflow architecture in Part 6 and removed in Part 7.
+Introduced Agent Framework concepts that underpin all subsequent parts: MCP tool connectivity (`create_mcp_tool`), Foundry chat client factory (`create_client`), and the observability middleware pipeline. These primitives remain the foundation of the router-driven workflows that serve production traffic.
 
 | Pattern                                 | Where used today                                        |
 | --------------------------------------- | ------------------------------------------------------- |
 | `create_mcp_tool`                       | All workflow classes connect to the MCP server via this |
 | `create_client` / `create_azure_client` | Workflow agents and the router classifier               |
 | Middleware pipeline                     | Available for optional agent instrumentation            |
-| `create_research_delegate`              | Context-isolated sub-agent for deep graph searches      |
 
-📖 See [src/agents/README.md](src/agents/README.md) for the API reference.
+📖 See [src/maf_graphrag/agents/README.md](src/maf_graphrag/agents/README.md) for the API reference.
 
 ---
 
@@ -160,7 +167,7 @@ Multi-agent workflow patterns that the router selects between. All patterns conn
 ![Expert Handoff Workflow](docs/images/part4-handoff.png)
 
 ```python
-from workflows import ResearchPipelineWorkflow, ParallelSearchWorkflow, ExpertHandoffWorkflow
+from maf_graphrag.workflows import ResearchPipelineWorkflow, ParallelSearchWorkflow, ExpertHandoffWorkflow
 
 async with ResearchPipelineWorkflow() as wf:
     result = await wf.run("What is the technology strategy for Project Alpha?")
@@ -168,13 +175,19 @@ async with ResearchPipelineWorkflow() as wf:
     print(result.step_summary())
 ```
 
-📖 See [src/workflows/README.md](src/workflows/README.md) for workflow configuration and prompt references.
+📖 See [src/maf_graphrag/workflows/README.md](src/maf_graphrag/workflows/README.md) for workflow configuration and prompt references.
 
 ---
 
 ## Part 5 — Agent Evaluation
 
 End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based evaluators, OpenTelemetry tracing, and optional red team safety scanning.
+
+Quality pillars:
+
+- Monitoring — OpenTelemetry spans land in local OTLP backends or Application Insights for live agent observability.
+- Quality evaluation — Azure AI Evaluation SDK judges plus graph grounded evaluators score accuracy and coverage.
+- Safety evaluation — Red team flows (Azure AI Foundry) probe deployments with targeted attack strategies.
 
 | Step | Script                    | What it does                                           |
 | ---- | ------------------------- | ------------------------------------------------------ |
@@ -193,9 +206,9 @@ End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based
 | `EntityAccuracyEvaluator`       | Graph Parquet | Are entities in the response valid graph entities?    |
 | `RelationshipValidityEvaluator` | Graph Parquet | Do co-occurrences reflect actual graph relationships? |
 
-Telemetry tip: call `setup_monitoring(config)` from `evaluation.monitoring.otel_setup` before running evaluations so spans reach either an OTLP collector or Application Insights. Set `ENABLE_SENSITIVE_DATA=1` only when you need raw prompts and responses in telemetry; keep it disabled in shared environments.
+Telemetry tip: call `setup_monitoring(config)` from `maf_graphrag.evaluation.monitoring.otel_setup` before running evaluations so spans reach either an OTLP collector or Application Insights. Set `ENABLE_SENSITIVE_DATA=1` only when you need raw prompts and responses in telemetry; keep it disabled in shared environments.
 
-📖 See [src/evaluation/README.md](src/evaluation/README.md) for the complete reference.
+📖 See [src/maf_graphrag/evaluation/README.md](src/maf_graphrag/evaluation/README.md) for the complete reference.
 
 ---
 
@@ -240,6 +253,8 @@ npm install -g @microsoft/m365agentsplayground
 agentsplayground -e http://localhost:3978/api/messages -c msteams
 ```
 
+> **Note:** The router endpoint uses the Bot Framework activity contract when validating end to end with Microsoft 365 Agents Playground. FastMCP 4.x upgrades the server to the Model Context Protocol [Stateless 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) contract, but Agent Framework 1.17 still performs the legacy initialize handshake in MCPStreamableHTTPTool and does not send `server/discover`, so stateless-only metadata remains unused until that client implements discovery. The compatibility shim in [src/maf_graphrag/agents/mcp_compat.py](src/maf_graphrag/agents/mcp_compat.py) keeps legacy camelCase fields available for that client. An OpenAI Responses (/responses) host is planned so Foundry Toolkit can validate the same router workflow; until then, Teams Playground remains the reference surface for conversational testing.
+
 📖 See [.github/workflows/README.md](.github/workflows/README.md) for router evaluation inputs, PR gate behavior, and main-branch orchestration.
 
 ---
@@ -255,7 +270,7 @@ Delivers multi-turn session management on top of the Part 6 router architecture 
 - Session-aware query composition: bounded conversation history prepended to follow-up turns before routing.
 - Session and lock diagnostics propagated into router span attributes and structured logs.
 - `RouterWorkflowAgentAdapter`: agent-style facade over `RouterWorkflow` with optional `CheckpointStorage` — used by `RouterChatService` for the chatbot connector path.
-- Knowledge Captain removed; `RouterWorkflow` is the sole production conversational entry point.
+- `RouterWorkflow` is the sole production conversational entry point.
 - **Process-local checkpoint/resume**:
   - `ActiveWorkflowRun` dataclass tracking `checkpoint_id`, `workflow_type`, and resume status.
   - `InMemoryCheckpointStorage` threaded to `Workflow.run()` at call time; sub-workflows have fixed `WorkflowBuilder(name=...)` for reliable `get_latest()` queries.
@@ -343,53 +358,56 @@ Ruff (lint + format) and mypy run alongside tests in CI — see [.github/workflo
 
 ```
 maf-graphrag-series/
-├── pyproject.toml             # Project and dependency configuration
-├── settings.yaml              # GraphRAG configuration
-├── run_mcp_server.py          # Start MCP server (Part 2 backend)
-├── run_devui.py               # DevUI entry point — workflow visualization
-├── run_router_chatbot.py      # Connector endpoint (/api/messages)
-├── input/documents/           # 10 sample interconnected documents
-├── output/                    # Generated knowledge graph (Parquet + LanceDB)
+├── pyproject.toml         # Project and dependency configuration
+├── settings.yaml          # GraphRAG configuration
+├── run_mcp_server.py      # Start MCP server (Part 2 backend)
+├── run_devui.py           # DevUI entry point — workflow visualization
+├── run_router_chatbot.py  # Connector endpoint (/api/messages, Bot Framework)
+├── input/documents/       # 10 sample interconnected documents
+├── output/                # Generated knowledge graph (Parquet + LanceDB)
 └── src/
-    ├── core/                  # Part 1: GraphRAG indexing and search API
-    ├── mcp_server/            # Part 2: FastMCP server exposing GraphRAG tools
-    ├── agents/                # Parts 3+: Agent utilities, session store, classifier
-    │   ├── config.py          # Foundry router configuration
-    │   ├── middleware.py      # Observability middleware pipeline
-    │   ├── prompts.py         # System prompts
-    │   ├── router_classifier.py # RouterClassifier used by RouterWorkflow
-    │   ├── session_store.py   # InMemorySessionStore with TTL, LRU, metrics
-    │   ├── supervisor.py      # create_mcp_tool, create_client, create_research_delegate
-    │   └── tools.py           # Local @tool functions
-    ├── workflows/             # Parts 4+: All workflow patterns
-    │   ├── base.py            # WorkflowResult, WorkflowStep, MCPWorkflowBase, runners
-    │   ├── sequential.py      # Research Pipeline workflow
-    │   ├── concurrent.py      # Parallel Search workflow
-    │   ├── handoff.py         # Expert Handoff workflow
-    │   ├── router.py          # RouterWorkflow — production entry point
-    │   ├── router_agent.py    # RouterWorkflowAgentAdapter
-    │   └── router_chatbot_server.py  # /api/messages Starlette app
-    └── evaluation/            # Part 5: Evaluation pipeline
-        ├── config.py          # EvalConfig
-        ├── evaluators/        # LLM-judge + custom graph evaluators
-        ├── monitoring/        # OpenTelemetry setup
-        └── scripts/           # generate_eval_data, run_batch_evaluation, run_redteam
+    └── maf_graphrag/
+        ├── core/            # Part 1: GraphRAG indexing and search API
+        ├── mcp_server/      # Part 2: FastMCP server exposing GraphRAG tools
+        ├── agents/          # Parts 3+: Agent utilities, session store, classifier
+        │   ├── config.py              # Foundry router configuration
+        │   ├── mcp_compat.py          # FastMCP 4.x ↔ Agent Framework compatibility shim
+        │   ├── middleware.py          # Observability middleware pipeline
+        │   ├── router_classifier.py   # RouterClassifier used by RouterWorkflow
+        │   ├── session_store.py       # InMemorySessionStore with TTL, LRU, metrics
+        │   ├── factories.py           # create_mcp_tool, create_client factories
+        │   └── tools.py               # Local @tool functions
+        ├── workflows/       # Parts 4+: All workflow patterns
+        │   ├── base.py                     # WorkflowResult, WorkflowStep, MCPWorkflowBase, runners
+        │   ├── sequential.py               # Research Pipeline workflow
+        │   ├── concurrent.py               # Parallel Search workflow
+        │   ├── handoff.py                  # Expert Handoff workflow
+        │   ├── router.py                   # RouterWorkflow — production entry point
+        │   ├── router_agent.py             # RouterWorkflowAgentAdapter
+        │   └── router_chatbot_server.py    # /api/messages Starlette app
+        └── evaluation/      # Part 5: Evaluation pipeline
+            ├── config.py      # EvalConfig
+            ├── datasets/      # Router evaluation prompts and fixtures
+            ├── evaluators/    # LLM-judge + custom graph evaluators
+            ├── monitoring/    # OpenTelemetry setup
+            ├── results/       # Stored evaluation outputs (optional, gitignored)
+            └── scripts/       # generate_eval_data, run_batch_evaluation, run_redteam
 ```
 
 ## Key Files
 
-| File                              | Description                                              |
-| --------------------------------- | -------------------------------------------------------- |
-| `settings.yaml`                   | GraphRAG configuration (LLM, embeddings, storage)        |
-| `src/workflows/router.py`         | Production entry point — RouterWorkflow                  |
-| `src/workflows/router_agent.py`   | RouterWorkflowAgentAdapter for adapter-pattern consumers |
-| `src/agents/session_store.py`     | InMemorySessionStore with TTL, LRU eviction, and metrics |
-| `src/agents/router_classifier.py` | Foundry-backed classifier with retry and fallback policy |
-| `src/core/`                       | Python API for indexing, querying, and data access       |
-| `src/mcp_server/`                 | MCP server exposing GraphRAG tools                       |
-| `src/evaluation/`                 | Evaluation pipeline — evaluators, monitoring, scripts    |
-| `infra/README.md`                 | Terraform provisioning, deployments, and env outputs     |
-| `.env`                            | Azure OpenAI credentials (create from `.env.example`)    |
+| File                                           | Description                                              |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `settings.yaml`                                | GraphRAG configuration (LLM, embeddings, storage)        |
+| `src/maf_graphrag/workflows/router.py`         | Production entry point — RouterWorkflow                  |
+| `src/maf_graphrag/workflows/router_agent.py`   | RouterWorkflowAgentAdapter for adapter-pattern consumers |
+| `src/maf_graphrag/agents/session_store.py`     | InMemorySessionStore with TTL, LRU eviction, and metrics |
+| `src/maf_graphrag/agents/router_classifier.py` | Foundry-backed classifier with retry and fallback policy |
+| `src/maf_graphrag/core/`                       | Python API for indexing, querying, and data access       |
+| `src/maf_graphrag/mcp_server/`                 | MCP server exposing GraphRAG tools                       |
+| `src/maf_graphrag/evaluation/`                 | Evaluation pipeline — evaluators, monitoring, scripts    |
+| `infra/README.md`                              | Terraform provisioning, deployments, and env outputs     |
+| `.env`                                         | Azure OpenAI credentials (create from `.env.example`)    |
 
 ## License
 

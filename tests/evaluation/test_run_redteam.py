@@ -8,8 +8,8 @@ from typing import Any, cast
 
 import pytest
 
-from evaluation.config import EvalConfig
-from evaluation.scripts.run_redteam import (
+from maf_graphrag.evaluation.config import EvalConfig
+from maf_graphrag.evaluation.scripts.run_redteam import (
     _build_cloud_model_target,
     _build_redteam_failure_payload,
     _build_strategy_map,
@@ -249,13 +249,15 @@ class TestRunRedteamScan:
     async def test_raises_when_foundry_project_is_missing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config(has_project=False))
+        monkeypatch.setattr(
+            "maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config(has_project=False)
+        )
 
         with pytest.raises(ValueError, match="Foundry project required"):
             await run_redteam_scan(output_dir=tmp_path)
 
     async def test_writes_failure_payload_on_scan_error(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
+        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         _install_fake_redteam_module(
             monkeypatch,
             redteam_cls=_RedTeamFailure,
@@ -273,7 +275,7 @@ class TestRunRedteamScan:
     async def test_returns_completed_payload_for_successful_scan(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
+        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         _install_fake_redteam_module(
             monkeypatch,
             redteam_cls=_RedTeamSuccess,
@@ -281,7 +283,7 @@ class TestRunRedteamScan:
         )
         monkeypatch.setattr("azure.identity.DefaultAzureCredential", lambda: object(), raising=False)
         monkeypatch.setattr(
-            "evaluation.scripts.run_redteam._publish_new_foundry_redteam_reference",
+            "maf_graphrag.evaluation.scripts.run_redteam._publish_new_foundry_redteam_reference",
             lambda **_: {
                 "run_id": "run_1",
                 "status": "completed",

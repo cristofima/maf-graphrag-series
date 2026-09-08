@@ -113,6 +113,7 @@ jobs:
       route_gate_passed: ${{ steps.route_metrics.outputs.gate_passed }}
 
     env:
+      PYTHONPATH: src
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
       AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
       AZURE_OPENAI_API_VERSION: ${{ vars.AZURE_OPENAI_API_VERSION }}
@@ -156,7 +157,7 @@ jobs:
           MCP_PID=$!
           echo "MCP_PID=$MCP_PID" >> "$GITHUB_ENV"
           sleep 10
-          uv run python -m evaluation.scripts.generate_router_eval_data
+          uv run python -m maf_graphrag.evaluation.scripts.generate_router_eval_data
 
       - name: Stop MCP server
         if: ${{ always() && env.MCP_PID != '' }}
@@ -172,7 +173,7 @@ jobs:
           import os
           from pathlib import Path
 
-          dataset = Path("src/evaluation/datasets/eval_router_data.jsonl")
+          dataset = Path("src/maf_graphrag/evaluation/datasets/eval_router_data.jsonl")
           rows = [
               json.loads(line)
               for line in dataset.read_text(encoding="utf-8").splitlines()
@@ -225,17 +226,17 @@ jobs:
 
       - name: Run router batch evaluation
         if: ${{ inputs.run_batch_eval && (!inputs.publish_foundry || steps.foundry_auth.outputs.foundry_auth != 'true') }}
-        run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
 
       - name: Run router batch evaluation and publish to Foundry
         if: ${{ inputs.run_batch_eval && inputs.publish_foundry && steps.foundry_auth.outputs.foundry_auth == 'true' }}
-        run: uv run python -m evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
 
       - name: Run red-team safety scan
         id: redteam
         if: ${{ inputs.run_redteam && steps.foundry_auth.outputs.foundry_auth == 'true' }}
         continue-on-error: true
-        run: uv run python -m evaluation.scripts.run_redteam --flow "${{ inputs.redteam_flow }}"
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_redteam --flow "${{ inputs.redteam_flow }}"
 
       - name: Enforce red-team failure policy
         if: ${{ inputs.run_redteam && inputs.fail_on_redteam_error && steps.redteam.outcome == 'failure' }}
@@ -255,10 +256,10 @@ jobs:
         with:
           name: router-evaluation-results
           path: |
-            src/evaluation/datasets/eval_router_data.jsonl
-            src/evaluation/results/evaluation_results.json
-            src/evaluation/results/evaluation_report.md
-            src/evaluation/results/redteam_results.json
+            src/maf_graphrag/evaluation/datasets/eval_router_data.jsonl
+            src/maf_graphrag/evaluation/results/evaluation_results.json
+            src/maf_graphrag/evaluation/results/evaluation_report.md
+            src/maf_graphrag/evaluation/results/redteam_results.json
             mcp-server.log
           retention-days: 14
           if-no-files-found: warn
@@ -286,10 +287,10 @@ jobs:
           printf '%s\n' "- Publish Foundry: $publish_value" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Red team: $redteam_value (outcome=$redteam_outcome, fail_on_error=${{ inputs.fail_on_redteam_error }})" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Route gate: $gate_value (match=$route_match_value, accuracy=$route_accuracy_value, threshold=$route_threshold_value)" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -f src/evaluation/results/evaluation_report.md ]]; then
+          if [[ -f src/maf_graphrag/evaluation/results/evaluation_report.md ]]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "### Evaluation report preview" >> "$GITHUB_STEP_SUMMARY"
-            sed -n '1,40p' src/evaluation/results/evaluation_report.md >> "$GITHUB_STEP_SUMMARY"
+            sed -n '1,40p' src/maf_graphrag/evaluation/results/evaluation_report.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "- Evaluation report: not generated in this run." >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from agents.middleware import (
+from maf_graphrag.agents.middleware import (
     LoggingFunctionMiddleware,
     QueryRewritingChatMiddleware,
     TimingAgentMiddleware,
@@ -16,7 +16,7 @@ class TestTimingAgentMiddleware:
         context = MagicMock()
         call_next = AsyncMock()
 
-        with patch("agents.middleware.logger") as mock_logger:
+        with patch("maf_graphrag.agents.middleware.logger") as mock_logger:
             await mw.process(context, call_next)
 
         call_next.assert_awaited_once()
@@ -117,7 +117,7 @@ class TestLoggingFunctionMiddleware:
         context.arguments = {"query": "test"}
         call_next = AsyncMock()
 
-        with patch("agents.middleware.logger") as mock_logger:
+        with patch("maf_graphrag.agents.middleware.logger") as mock_logger:
             await mw.process(context, call_next)
 
         call_next.assert_awaited_once()

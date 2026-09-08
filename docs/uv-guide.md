@@ -34,24 +34,24 @@ uv sync --dev
 Use commands through uv so the project environment is always used:
 
 ```bash
-uv run python -m core.index
-uv run python -m core.example "Who leads Project Alpha?"
+uv run python -m maf_graphrag.core.index
+uv run python -m maf_graphrag.core.example "Who leads Project Alpha?"
 uv run pytest
 uv run python -m ruff check .
-uv run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/
+uv run python -m mypy src/maf_graphrag/core/ src/maf_graphrag/agents/ src/maf_graphrag/mcp_server/ src/maf_graphrag/workflows/
 ```
 
 ## Common Commands
 
-| Task | Command |
-| --- | --- |
-| Install/update lockfile | `uv lock` |
-| Sync environment with lockfile | `uv sync --dev` |
-| Sync only production deps | `uv sync --no-dev` |
-| Run tests | `uv run pytest` |
-| Run linter | `uv run python -m ruff check . --output-format github` |
-| Run formatter check | `uv run python -m ruff format src/ tests/ --check` |
-| Run type check | `uv run python -m mypy src/core/ src/agents/ src/mcp_server/ src/workflows/ --ignore-missing-imports --no-error-summary` |
+| Task                           | Command                                                                                                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install/update lockfile        | `uv lock`                                                                                                                                                                    |
+| Sync environment with lockfile | `uv sync --dev`                                                                                                                                                              |
+| Sync only production deps      | `uv sync --no-dev`                                                                                                                                                           |
+| Run tests                      | `uv run pytest`                                                                                                                                                              |
+| Run linter                     | `uv run python -m ruff check . --output-format github`                                                                                                                       |
+| Run formatter check            | `uv run python -m ruff format src/ tests/ --check`                                                                                                                           |
+| Run type check                 | `uv run python -m mypy src/maf_graphrag/core/ src/maf_graphrag/agents/ src/maf_graphrag/mcp_server/ src/maf_graphrag/workflows/ --ignore-missing-imports --no-error-summary` |
 
 ## CI Notes
 

@@ -6,8 +6,8 @@ from typing import Any, cast
 
 import pytest
 
-from evaluation.config import EvalConfig
-from evaluation.scripts.run_batch_evaluation import (
+from maf_graphrag.evaluation.config import EvalConfig
+from maf_graphrag.evaluation.scripts.run_batch_evaluation import (
     DATASETS_DIR,
     _build_evaluator_config,
     _build_expected_route_lines,
@@ -382,20 +382,22 @@ class TestRunBatchEvaluation:
     def test_runs_local_evaluation_without_foundry(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         self._write_eval_row(data_path)
-        monkeypatch.setattr("evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
 
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
+        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         monkeypatch.setattr(
-            "evaluation.evaluators.builtin.create_quality_evaluators",
+            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
             lambda _: {
                 "task_adherence": object(),
                 "intent_resolution": object(),
                 "tool_call_accuracy": object(),
             },
         )
-        monkeypatch.setattr("evaluation.scripts.run_batch_evaluation._supports_legacy_max_tokens", lambda _: False)
         monkeypatch.setattr(
-            "evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._supports_legacy_max_tokens", lambda _: False
+        )
+        monkeypatch.setattr(
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
             lambda evaluators, config, include_custom: None,
         )
         monkeypatch.setattr(
@@ -421,19 +423,19 @@ class TestRunBatchEvaluation:
     def test_continues_when_foundry_publish_fails(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         self._write_eval_row(data_path)
-        monkeypatch.setattr("evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
 
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
+        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         monkeypatch.setattr(
-            "evaluation.evaluators.builtin.create_quality_evaluators",
+            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
             lambda _: {"task_adherence": object()},
         )
         monkeypatch.setattr(
-            "evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
             lambda evaluators, config, include_custom: None,
         )
         monkeypatch.setattr(
-            "evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
             lambda **_: (_ for _ in ()).throw(RuntimeError("publish failed")),
         )
         monkeypatch.setattr(
@@ -457,19 +459,19 @@ class TestRunBatchEvaluation:
     ) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         self._write_eval_row(data_path)
-        monkeypatch.setattr("evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
 
-        monkeypatch.setattr("evaluation.config.EvalConfig.from_env", lambda: self._make_config())
+        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         monkeypatch.setattr(
-            "evaluation.evaluators.builtin.create_quality_evaluators",
+            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
             lambda _: {"task_adherence": object()},
         )
         monkeypatch.setattr(
-            "evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
             lambda evaluators, config, include_custom: None,
         )
         monkeypatch.setattr(
-            "evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
+            "maf_graphrag.evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
             lambda **_: {
                 "eval_id": "eval_1",
                 "run_id": "run_1",

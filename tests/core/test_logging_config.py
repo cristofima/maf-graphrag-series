@@ -6,7 +6,7 @@ import json
 import logging
 from pathlib import Path
 
-from core.logging_config import LoggingConfig, configure_app_logging
+from maf_graphrag.core.logging_config import LoggingConfig, configure_app_logging
 
 
 def _read_lines(path: Path) -> list[str]:

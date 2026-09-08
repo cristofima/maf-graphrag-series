@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from workflows.base import WorkflowType
-from workflows.sequential import ResearchPipelineWorkflow, _create_sequential_agents
+from maf_graphrag.workflows.base import WorkflowType
+from maf_graphrag.workflows.sequential import ResearchPipelineWorkflow, _create_sequential_agents
 
 
 def _agent_stub(text: str) -> MagicMock:
@@ -82,7 +82,7 @@ class TestCreateSequentialAgents:
     def test_creates_three_agents_with_correct_names(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.sequential.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.sequential.create_azure_client", MagicMock(return_value="client"))
 
         _create_sequential_agents(MagicMock())
 
@@ -92,7 +92,7 @@ class TestCreateSequentialAgents:
     def test_only_knowledge_searcher_receives_the_mcp_tool(self, monkeypatch):
         mock_agent_cls = MagicMock()
         monkeypatch.setattr("agent_framework.Agent", mock_agent_cls)
-        monkeypatch.setattr("workflows.sequential.create_azure_client", MagicMock(return_value="client"))
+        monkeypatch.setattr("maf_graphrag.workflows.sequential.create_azure_client", MagicMock(return_value="client"))
         mcp_tool = MagicMock()
 
         _create_sequential_agents(mcp_tool)
@@ -106,7 +106,7 @@ class TestCreateSequentialAgents:
 class TestResearchPipelineWorkflowCreateAgents:
     def test_delegates_to_create_sequential_agents(self, monkeypatch):
         stub_agents = (MagicMock(), MagicMock(), MagicMock())
-        monkeypatch.setattr("workflows.sequential._create_sequential_agents", lambda mcp_tool: stub_agents)
+        monkeypatch.setattr("maf_graphrag.workflows.sequential._create_sequential_agents", lambda mcp_tool: stub_agents)
 
         workflow = ResearchPipelineWorkflow()
         workflow._create_agents(MagicMock())

@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from workflows.base import (
+from maf_graphrag.workflows.base import (
     create_concurrent_workflow,
     create_handoff_workflow,
     create_router_workflow,
@@ -14,27 +14,27 @@ class TestWorkflowFactoryFunctions:
     """Test factory functions from workflows/base.py (improvement 4.4)."""
 
     def test_create_sequential_workflow_returns_instance(self):
-        from workflows.sequential import ResearchPipelineWorkflow
+        from maf_graphrag.workflows.sequential import ResearchPipelineWorkflow
 
         workflow = create_sequential_workflow()
         assert isinstance(workflow, ResearchPipelineWorkflow)
 
     def test_create_concurrent_workflow_returns_instance(self):
-        from workflows.concurrent import ParallelSearchWorkflow
+        from maf_graphrag.workflows.concurrent import ParallelSearchWorkflow
 
         workflow = create_concurrent_workflow()
         assert isinstance(workflow, ParallelSearchWorkflow)
 
     def test_create_handoff_workflow_returns_instance(self):
-        from workflows.handoff import ExpertHandoffWorkflow
+        from maf_graphrag.workflows.handoff import ExpertHandoffWorkflow
 
         workflow = create_handoff_workflow()
         assert isinstance(workflow, ExpertHandoffWorkflow)
 
     def test_create_router_workflow_returns_instance(self, monkeypatch):
-        from workflows.router import RouterWorkflow
+        from maf_graphrag.workflows.router import RouterWorkflow
 
-        monkeypatch.setattr("workflows.router.RouterClassifier", MagicMock(return_value=MagicMock()))
+        monkeypatch.setattr("maf_graphrag.workflows.router.RouterClassifier", MagicMock(return_value=MagicMock()))
         workflow = create_router_workflow()
         assert isinstance(workflow, RouterWorkflow)
 
@@ -51,7 +51,7 @@ class TestWorkflowFactoryFunctions:
         assert workflow._mcp_url == "http://localhost:9999/mcp"
 
     def test_create_router_passes_mcp_url(self, monkeypatch):
-        monkeypatch.setattr("workflows.router.RouterClassifier", MagicMock(return_value=MagicMock()))
+        monkeypatch.setattr("maf_graphrag.workflows.router.RouterClassifier", MagicMock(return_value=MagicMock()))
         workflow = create_router_workflow(mcp_url="http://localhost:9999/mcp")
         assert workflow._mcp_url == "http://localhost:9999/mcp"
 

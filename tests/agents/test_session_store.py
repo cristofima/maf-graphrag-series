@@ -52,6 +52,30 @@ async def test_ttl_expiration_removes_stale_session_and_counts_metric() -> None:
     assert store.metrics.ttl_expirations == 1
 
 
+async def test_concurrent_get_or_create_for_new_session_returns_single_record() -> None:
+    """Concurrent callers racing on a brand-new session_id must share one SessionRecord.
+
+    Without the creation lock, two coroutines can both observe "no existing record" and
+    each construct a distinct SessionRecord (with its own asyncio.Lock), silently defeating
+    the per-session lock other request handlers rely on to serialize same-session writes.
+    """
+    store = InMemorySessionStore(
+        ttl_seconds=300,
+        max_count=10,
+        cleanup_interval_seconds=1,
+        max_history_groups=4,
+    )
+    session_id = "shared-new-session"
+
+    results = await asyncio.gather(*[store.get_or_create(session_id) for _ in range(8)])
+
+    records = [record for record, _ in results]
+    created_flags = [created for _, created in results]
+
+    assert all(record is records[0] for record in records)
+    assert created_flags.count(True) == 1
+
+
 async def test_capacity_eviction_removes_oldest_record() -> None:
     clock = _Clock(0.0)
     store = InMemorySessionStore(

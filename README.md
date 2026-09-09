@@ -139,11 +139,11 @@ npx @modelcontextprotocol/inspector   # browser UI at http://localhost:6274
 
 Introduced Agent Framework concepts that underpin all subsequent parts: MCP tool connectivity (`create_mcp_tool`), Foundry chat client factory (`create_client`), and the observability middleware pipeline. These primitives remain the foundation of the router-driven workflows that serve production traffic.
 
-| Pattern                                 | Where used today                                        |
-| --------------------------------------- | ------------------------------------------------------- |
-| `create_mcp_tool`                       | All workflow classes connect to the MCP server via this |
-| `create_client` / `create_azure_client` | Workflow agents and the router classifier               |
-| Middleware pipeline                     | Available for optional agent instrumentation            |
+| Pattern             | Where used today                                        |
+| ------------------- | ------------------------------------------------------- |
+| `create_mcp_tool`   | All workflow classes connect to the MCP server via this |
+| `create_client`     | Workflow agents and the router classifier               |
+| Middleware pipeline | Available for optional agent instrumentation            |
 
 📖 See [src/maf_graphrag/agents/README.md](src/maf_graphrag/agents/README.md) for the API reference.
 
@@ -186,7 +186,7 @@ End-to-end evaluation pipeline: LLM-as-judge quality metrics, custom graph-based
 Quality pillars:
 
 - Monitoring — OpenTelemetry spans land in local OTLP backends or Application Insights for live agent observability.
-- Quality evaluation — Azure AI Evaluation SDK judges plus graph grounded evaluators score accuracy and coverage.
+- Quality evaluation — Microsoft Foundry evaluators (via `agent_framework_foundry.FoundryEvals`) plus graph grounded evaluators score accuracy and coverage.
 - Safety evaluation — Red team flows (Azure AI Foundry) probe deployments with targeted attack strategies.
 
 | Step | Script                    | What it does                                           |
@@ -196,15 +196,23 @@ Quality pillars:
 | 3    | `run_batch_evaluation.py` | Built-in + custom evaluators, write results and report |
 | 4    | `run_redteam.py`          | Safety scan (optional, requires Azure AI Foundry)      |
 
-| Evaluator                       | Type          | What it measures                                      |
-| ------------------------------- | ------------- | ----------------------------------------------------- |
-| `TaskAdherenceEvaluator`        | LLM-judge     | Does the response complete the task?                  |
-| `IntentResolutionEvaluator`     | LLM-judge     | Does the response address user intent?                |
-| `RelevanceEvaluator`            | LLM-judge     | Is the response relevant to the query?                |
-| `CoherenceEvaluator`            | LLM-judge     | Is the response logically consistent?                 |
-| `ResponseCompletenessEvaluator` | LLM-judge     | Does the response cover expected content?             |
-| `EntityAccuracyEvaluator`       | Graph Parquet | Are entities in the response valid graph entities?    |
-| `RelationshipValidityEvaluator` | Graph Parquet | Do co-occurrences reflect actual graph relationships? |
+| Evaluator                       | Type                    | What it measures                                      |
+| ------------------------------- | ----------------------- | ----------------------------------------------------- |
+| `relevance`                     | Foundry LLM-judge       | Is the response relevant to the query?                |
+| `coherence`                     | Foundry LLM-judge       | Is the response logically consistent?                 |
+| `task_adherence`                | Foundry agent evaluator | Did the agent follow its assigned task?               |
+| `tool_call_accuracy`            | Foundry agent evaluator | Were the right tools called with correct parameters?  |
+| `tool_selection`                | Foundry agent evaluator | Did the agent choose the correct, necessary tools?    |
+| `tool_input_accuracy`           | Foundry agent evaluator | Are tool call parameters strictly correct?            |
+| `tool_output_utilization`       | Foundry agent evaluator | Did the agent correctly use tool call results?        |
+| `tool_call_success`             | Foundry agent evaluator | Did tool calls succeed without technical errors?      |
+| `EntityAccuracyEvaluator`       | Graph Parquet           | Are entities in the response valid graph entities?    |
+| `RelationshipValidityEvaluator` | Graph Parquet           | Do co-occurrences reflect actual graph relationships? |
+
+Foundry agent evaluators require tool-call content typed with the OpenAI/Foundry vocabulary
+(`type: "tool_call"` / `"tool_result"`), which differs from Agent Framework's own internal
+`function_call`/`function_result` content types — see [Agent evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators)
+and the [evaluation README](src/maf_graphrag/evaluation/README.md#evaluators-reference) for details.
 
 Telemetry tip: call `setup_monitoring(config)` from `maf_graphrag.evaluation.monitoring.otel_setup` before running evaluations so spans reach either an OTLP collector or Application Insights. Set `ENABLE_SENSITIVE_DATA=1` only when you need raw prompts and responses in telemetry; keep it disabled in shared environments.
 
@@ -322,13 +330,14 @@ See [docs/qa-examples.md](docs/qa-examples.md) for more examples.
 
 ## Azure AI Services
 
-| Service                  | Purpose                    | Tooling                       |
-| ------------------------ | -------------------------- | ----------------------------- |
-| **Azure OpenAI**         | Entity extraction, queries | GPT-4.1 family + model-router |
-| **Azure OpenAI**         | Document embeddings        | text-embedding-3-small        |
-| **Agent Framework**      | Multi-agent orchestration  | Agent Framework SDK           |
-| **Azure AI Evaluation**  | LLM-as-judge + red team    | Azure AI Evaluation SDK       |
-| **Application Insights** | Distributed tracing        | OpenTelemetry + Azure Monitor |
+| Service                  | Purpose                              | Tooling                                |
+| ------------------------ | ------------------------------------ | -------------------------------------- |
+| **Azure OpenAI**         | Entity extraction, queries           | GPT-4.1 family + model-router          |
+| **Azure OpenAI**         | Document embeddings                  | text-embedding-3-small                 |
+| **Agent Framework**      | Multi-agent orchestration            | Agent Framework SDK                    |
+| **Microsoft Foundry**    | LLM-as-judge quality/tool evaluators | `agent_framework_foundry.FoundryEvals` |
+| **Azure AI Evaluation**  | Red-team safety scanning             | `azure-ai-evaluation[redteam]`         |
+| **Application Insights** | Distributed tracing                  | OpenTelemetry + Azure Monitor          |
 
 ---
 
@@ -391,7 +400,7 @@ maf-graphrag-series/
             ├── evaluators/    # LLM-judge + custom graph evaluators
             ├── monitoring/    # OpenTelemetry setup
             ├── results/       # Stored evaluation outputs (optional, gitignored)
-            └── scripts/       # generate_eval_data, run_batch_evaluation, run_redteam
+            └── scripts/       # generate_eval_data, generate_router_eval_data, run_batch_evaluation, run_redteam
 ```
 
 ## Key Files

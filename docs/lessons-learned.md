@@ -9,6 +9,7 @@ This document captures key insights, challenges, and solutions encountered durin
 3. **Agent Framework integration** with MCP Server (Challenges 11-13)
 4. **Multi-agent workflow patterns** — performance and concurrency (Challenges 14-16)
 5. **Agent evaluation (Part 5)** — monitoring, quality, safety, and Foundry integration (Challenges 17-21)
+6. **Foundry-native tool evaluators** — content-type vocabulary, evaluator opt-in, and polling (Challenges 27-30)
 
 Historical note: some challenge sections describe migration steps and interim APIs. For current runtime behavior, use module docs under `src/*/README.md` and [part6-implementation-notes.md](./part6-implementation-notes.md).
 
@@ -1181,6 +1182,110 @@ When adding resume support, store active run context as structured metadata inst
 
 ---
 
+## Challenge 27: Foundry Tool Evaluators Silently Lost `tool_call_id` Due to a Content-Type Vocabulary Mismatch
+
+### Problem
+
+Publishing `tool_call_accuracy` to Azure AI Foundry failed with:
+
+```
+(UserError) Each content items for role 'tool' must contain a 'tool_call_id' field.
+```
+
+This was surprising because `eval_data.jsonl` visibly contained `tool_call_id` on every tool message — the field was clearly present in the source data.
+
+### Root Cause
+
+Two different SDKs use **different `type` vocabularies for the same conceptual content** ( a tool call / a tool result):
+
+- Agent Framework's own `Content` model (`agent_framework/_types.py`) uses `type: "function_call"` / `"function_result"` internally.
+- The OpenAI/Foundry evaluation dataset schema — the format `eval_data.jsonl` is written in, via `AgentEvalConverter.convert_messages` — uses `type: "tool_call"` / `"tool_result"` (this is the vocabulary Microsoft documents as canonical for evaluator input; see references below).
+
+`run_batch_evaluation.py` loaded that Foundry-vocabulary JSONL back into `Message.from_dict(...)` for the local `agent_framework_foundry.FoundryEvals` SDK. `Content.from_dict` accepts **any** `type` string without validating it against a known set, so it silently kept `type="tool_call"`/`"tool_result"` on the parsed content instead of erroring. Downstream, `AgentEvalConverter.convert_messages` only recognizes `c.type == "function_call"` / `"function_result"` — the mismatched-type content was invisible to it. The tool message was re-emitted as `{"role": "tool", "content": [{"type": "text", "text": ""}]}` with **no `tool_call_id` at all**, which is exactly what Foundry's cloud-side validator rejected. This is not a model/LLM particularity — it's a naming mismatch between two SDK-internal content-type vocabularies that both happen to look like "OpenAI-style" messages on the surface.
+
+### Solution
+
+Added an explicit alias map in `_normalize_message_payload` (`src/maf_graphrag/evaluation/scripts/run_batch_evaluation.py`) that rewrites chunk `type` values (`"tool_call"` → `"function_call"`, `"tool_result"` → `"function_result"`) before constructing `Message` objects, so `AgentEvalConverter.convert_messages` recognizes the content and reconstructs `tool_call_id` correctly.
+
+### Key Insight
+
+When two SDKs claim to use "the same" tool-call message schema, diff the exact `type` discriminator strings each one expects — do not assume compatibility from a shared shape. Permissive parsers that accept any string without validation (like `Content.from_dict`) will not surface the mismatch at parse time; it only appears later, in whatever type-matching logic consumes the parsed object.
+
+### References
+
+- [Agent evaluators — Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators) — documents the `tool_call`/`tool_result`/`tool_call_id` vocabulary and the "Messages with tool calls" example.
+- [Evaluation dataset schema — Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/evaluation-dataset-schema) — canonical message structure spec (`type: "tool_call" | "tool_result"`, `tool_call_id` placement).
+- [Run evaluations from the SDK (cloud evaluation)](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/cloud-evaluation?tabs=python)
+- [azure-sdk-for-python agentic_evaluators samples](https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/ai/azure-ai-projects/samples/evaluations/agentic_evaluators) — `sample_tool_call_accuracy.py` and `sample_tool_selection.py` show the same vocabulary end to end.
+
+---
+
+## Challenge 28: `tool_selection` Is Never Auto-Selected by `FoundryEvals`
+
+### Problem
+
+Even after Challenge 27's fix, `tool_selection` never appeared in Foundry results, despite the dataset clearly containing tool calls.
+
+### Root Cause
+
+`agent_framework_foundry.FoundryEvals` resolves default evaluators from `_DEFAULT_EVALUATORS = ["relevance", "coherence", "task_adherence"]`, plus — only when items carry tool definitions — `_DEFAULT_TOOL_EVALUATORS = ["tool_call_accuracy"]`. `tool_selection` is a fully recognized built-in (`_BUILTIN_EVALUATORS["tool_selection"] = "builtin.tool_selection"`) but is never included unless the caller passes `evaluators=[...]` explicitly.
+
+### Solution
+
+Passed an explicit `evaluators=[...]` list to `FoundryEvals(...)` in `_evaluate_with_foundry`, adding `tool_selection` and — after confirming against the [Agent evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators) "Supported tools" table that every GraphRAG tool is a plain Function Tool (fully supported, none of the limited-support tool types apply) — `tool_input_accuracy`, `tool_output_utilization`, and `tool_call_success` as well.
+
+### Key Insight
+
+"Smart defaults" in a wrapper SDK can hide entire evaluator categories. Do not assume an omitted/`None` evaluator argument enumerates everything applicable to your data — check the SDK's own default-resolution source (or its docs) whenever a wrapper is doing evaluator selection on your behalf.
+
+---
+
+## Challenge 29: Local Poll Timeout Too Short Once the Evaluator Count Grows
+
+### Problem
+
+After adding the three evaluators from Challenge 28 (8 total), a full Foundry batch run finished locally with `status="timeout"` and empty metrics — even though the Foundry portal showed the run completing successfully shortly after.
+
+### Root Cause
+
+`FoundryEvals` defaults to `timeout=180.0` seconds for its local polling loop. LLM-judge work scales with `evaluator_count × item_count`; 8 evaluators × 10 items needed more wall-clock time than the default budget, so the local client gave up while the cloud run kept executing and eventually completed successfully.
+
+### Solution
+
+Passed `timeout=600.0` explicitly to `FoundryEvals(...)`. Verified the theory first by querying `client.evals.runs.retrieve(...)` mid-flight (`status="in_progress"`, not failed), then confirmed completion by polling the same run with `agent_framework_foundry._foundry_evals._poll_eval_run(..., timeout=420.0)`.
+
+### Key Insight
+
+A "timeout" result from a polling SDK does not mean the remote job failed — check whether the job is still running server-side (via the run/eval IDs) before assuming failure, and size local poll timeouts to the actual evaluator/item volume rather than trusting a one-size-fits-all default.
+
+---
+
+## Challenge 30: Evaluation Documentation Had Drifted From the Actual Pipeline
+
+### Problem
+
+`src/maf_graphrag/evaluation/README.md` and the root `README.md` still described the pre-Foundry-native evaluator set (`TaskAdherenceEvaluator`, `IntentResolutionEvaluator`, `RelevanceEvaluator`, `CoherenceEvaluator`, `ResponseCompletenessEvaluator` as local Azure AI Evaluation SDK classes, plus a "skip `IntentResolutionEvaluator` if the deployment rejects `max_tokens`" behavior) — none of which matches what `_evaluate_with_foundry` actually requests today.
+
+### Root Cause
+
+`run_batch_evaluation.py` migrated to the `agent_framework_foundry.FoundryEvals` wrapper (string evaluator names resolved against Foundry's `builtin.*` registry), but `create_quality_evaluators()` in `evaluators/builtin.py` — the function that builds the old local evaluator class instances — and the `max_tokens`-compatibility guard were left in place / undetected as dead relative to the batch-evaluation entry point. `create_quality_evaluators()` is now only exercised by its own unit test, not by any evaluation script. Documentation kept describing the old call path.
+
+### Solution
+
+Updated both READMEs' evaluator tables and Step 3 description to the current Foundry evaluator names (`relevance`, `coherence`, `task_adherence`, `tool_call_accuracy`, `tool_selection`, `tool_input_accuracy`, `tool_output_utilization`, `tool_call_success`) plus the two local graph evaluators that are still genuinely used (`EntityAccuracyEvaluator`, `RelationshipValidityEvaluator`). Deleted the dead code itself in a follow-up pass: `create_quality_evaluators()`, `run_single_evaluation()`, `convert_to_evaluator_messages()`, and their private helpers (`_extract_text`, `_extract_text_from_content`, `_extract_assistant_content`) in `evaluators/builtin.py`, plus their corresponding unit tests. `evaluators/builtin.py` now only exports `GRAPHRAG_TOOL_DEFINITIONS`, which `generate_eval_data.py` still consumes.
+
+### Key Insight
+
+When a pipeline migrates to a new SDK wrapper, grep for the _old_ entry point to confirm it is actually dead before trusting docs that still reference it — unused code and stale docs tend to reinforce each other silently. Once confirmed dead (no callers outside its own tests), delete it in the same pass rather than leaving it to accumulate — a repo policy of "remove all dead code" prevents this drift from recurring.
+
+### Follow-up: the vocabulary mismatch was already documented once, then lost
+
+The deleted `convert_to_evaluator_messages()` had a module docstring stating almost exactly the Challenge 27 root cause: "MAF uses `function_call`/`function_result` internally, but Azure AI Evaluation expects OpenAI-style `tool_call`/`tool_result` message schema." This was institutional knowledge encoded only in a comment on now-dead code — it did not surface in any living README, and disappeared from view once `create_quality_evaluators()` stopped being called after the `FoundryEvals` migration. It had to be rediscovered independently while debugging Challenge 27.
+
+Separately, `agent_framework`'s own `Message.to_dict()` / `Message.from_dict()` round-trip is fully symmetric and keeps the SDK's native `function_call`/`function_result` vocabulary with **no alias mapping required** (verified with a smoke test: serialize a `Message` with `to_dict()`, deserialize with `from_dict()`, then run `AgentEvalConverter.convert_messages()` — `tool_call_id` reconstructs correctly). `AgentEvalConverter.convert_messages()` is a one-way _export_ converter to the OpenAI/Foundry vocabulary; it was never meant to be the format read back by `Message.from_dict()`. Neither the [Agent Framework evaluation guide](https://learn.microsoft.com/agent-framework/agents/evaluation) nor the [Foundry agent evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators) page cross-references this — the Agent Framework docs only show evaluating **live** `Message` objects in memory (never persisted-then-reloaded JSONL), while the Foundry docs describe the `tool_call`/`tool_result` vocabulary strictly for the raw cloud dataset-upload API. `eval_data.jsonl` intentionally keeps the OpenAI/Foundry vocabulary on disk (so it can also be uploaded directly to the Foundry portal), so `_normalize_message_payload`'s alias mapping remains the correct bridge for that specific, deliberate on-disk format choice — but adopting native `Message.to_dict()` would be the way to remove the mapping entirely for any future format that does not need direct portal-upload compatibility.
+
+---
+
 ## Summary
 
 ### Critical Success Factors
@@ -1211,6 +1316,11 @@ When adding resume support, store active run context as structured metadata inst
 24. ✅ **Map `tool_definitions` explicitly for Foundry tool-aware evaluators**
 25. ✅ **Preserve router checkpoint telemetry examples as durable documentation artifacts**
 26. ✅ **Persist active workflow runs as structured session metadata for safe resume logic**
+27. ✅ **Align content-type vocabularies (`tool_call`/`tool_result` vs `function_call`/`function_result`) when bridging two SDKs' message schemas**
+28. ✅ **Explicitly request every applicable Foundry tool evaluator — wrapper SDK defaults do not enumerate them all**
+29. ✅ **Size local eval-run poll timeouts to evaluator count × item count, not a fixed default**
+30. ✅ **Grep for old entry points before trusting docs that reference them after an SDK migration — then actually delete confirmed-dead code**
+31. ✅ **Prefer a SDK's own native round-trip serialization (`Message.to_dict()`/`from_dict()`) over a one-way export converter when data needs to be read back into the same SDK**
 
 ### Final Architecture
 
@@ -1241,7 +1351,7 @@ Cost is now primarily driven by deployment capacities and run cadence (`main`, `
 
 ---
 
-**Document Version**: 7
-**Last Updated**: August 23, 2026
+**Document Version**: 9
+**Last Updated**: September 9, 2026
 **Author**: Cristopher Coronado
 **Series**: MAF + GraphRAG - Parts 1, 2, 3, 4, 5, 6 & 7

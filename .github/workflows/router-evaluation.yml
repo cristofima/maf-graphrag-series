@@ -224,13 +224,13 @@ jobs:
             echo "::warning::Foundry publish/red-team requested, but AZURE_TENANT_ID/AZURE_CLIENT_ID/AZURE_CLIENT_SECRET are missing. Running local batch evaluation only."
           fi
 
-      - name: Run router batch evaluation
+      - name: Run router batch evaluation (local, no Foundry)
         if: ${{ inputs.run_batch_eval && (!inputs.publish_foundry || steps.foundry_auth.outputs.foundry_auth != 'true') }}
-        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --local
 
       - name: Run router batch evaluation and publish to Foundry
         if: ${{ inputs.run_batch_eval && inputs.publish_foundry && steps.foundry_auth.outputs.foundry_auth == 'true' }}
-        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --foundry
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
 
       - name: Run red-team safety scan
         id: redteam

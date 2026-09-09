@@ -17,6 +17,7 @@ from maf_graphrag.workflows.router_chatbot_server import (
     RouterChatbotConfig,
     RouterChatReply,
     RouterChatService,
+    SessionScopedCheckpointStorage,
     create_router_chatbot_app,
 )
 
@@ -237,7 +238,8 @@ async def test_valid_checkpoint_passed_to_adapter_on_resume() -> None:
     assert len(captured_fake) == 1
     kwargs = captured_fake[0].last_stream_kwargs
     assert kwargs.get("checkpoint_id") == checkpoint_id
-    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    # Storage is session-scoped, not the raw shared instance, to prevent cross-session leakage.
+    assert isinstance(kwargs.get("checkpoint_storage"), SessionScopedCheckpointStorage)
     # Cleared after successful completion
     assert record.active_workflow_run is None
 
@@ -286,8 +288,8 @@ async def test_stale_checkpoint_rejected_proceeds_without_checkpoint_id() -> Non
     kwargs = captured_fake[0].last_stream_kwargs
     # No checkpoint_id passed — stale checkpoint discarded
     assert "checkpoint_id" not in kwargs
-    # Checkpoint_storage is still threaded through for future runs
-    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    # Checkpoint_storage is still threaded through for future runs (session-scoped)
+    assert isinstance(kwargs.get("checkpoint_storage"), SessionScopedCheckpointStorage)
     # Session history preserved; active_workflow_run cleared
     assert record.active_workflow_run is None
     assert len(record.history_groups) == 2  # previous + new turn
@@ -340,7 +342,7 @@ async def test_incompatible_checkpoint_rejected_proceeds_without_checkpoint_id()
     kwargs = captured_fake[0].last_stream_kwargs
     # Incompatible checkpoint must not be passed through
     assert "checkpoint_id" not in kwargs
-    assert kwargs.get("checkpoint_storage") is checkpoint_storage
+    assert isinstance(kwargs.get("checkpoint_storage"), SessionScopedCheckpointStorage)
     # History preserved and active_workflow_run cleared
     assert record.active_workflow_run is None
     assert len(record.history_groups) == 2
@@ -350,8 +352,6 @@ async def test_incompatible_checkpoint_rejected_proceeds_without_checkpoint_id()
 async def test_save_checkpoint_after_interruption_captures_sequential_checkpoint() -> None:
     """After a timeout the latest sequential checkpoint is saved to active_workflow_run."""
     checkpoint_storage = InMemoryCheckpointStorage()
-    checkpoint = WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-t1")
-    checkpoint_id = await checkpoint_storage.save(checkpoint)
 
     session_store = InMemorySessionStore(
         ttl_seconds=300, max_count=100, cleanup_interval_seconds=60, max_history_groups=4
@@ -367,13 +367,51 @@ async def test_save_checkpoint_after_interruption_captures_sequential_checkpoint
     record, _ = await session_store.get_or_create(key.session_id)
     session_store.append_turn(record, user_text="q", assistant_text="a")
 
-    await service._save_checkpoint_after_interruption(record)
+    # Save through the session-scoped view, mirroring what a real in-flight run would do.
+    scoped_storage = service._scoped_checkpoint_storage(record)
+    assert scoped_storage is not None
+    checkpoint = WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-t1")
+    checkpoint_id = await scoped_storage.save(checkpoint)
+
+    await service._save_checkpoint_after_interruption(record, scoped_storage)
 
     assert record.active_workflow_run is not None
     assert record.active_workflow_run.checkpoint_id == checkpoint_id
     assert record.active_workflow_run.workflow_type == "sequential"
     # History is unaffected by checkpoint capture
     assert len(record.history_groups) == 1
+
+
+@pytest.mark.asyncio
+async def test_save_checkpoint_after_interruption_does_not_leak_other_sessions_checkpoint() -> None:
+    """A checkpoint saved for a different session's scope must not be captured as this session's resume point."""
+    checkpoint_storage = InMemoryCheckpointStorage()
+
+    session_store = InMemorySessionStore(
+        ttl_seconds=300, max_count=100, cleanup_interval_seconds=60, max_history_groups=4
+    )
+    service = RouterChatService(
+        mcp_url=None,
+        request_timeout_seconds=30.0,
+        session_store=session_store,
+        checkpoint_storage=checkpoint_storage,
+    )
+
+    other_key = SessionKey.create(channel_id="msteams", conversation_id="conv-other", user_id="user-other")
+    other_record, _ = await session_store.get_or_create(other_key.session_id)
+    other_scoped_storage = service._scoped_checkpoint_storage(other_record)
+    assert other_scoped_storage is not None
+    await other_scoped_storage.save(WorkflowCheckpoint(workflow_name="sequential", graph_signature_hash="hash-other"))
+
+    key = SessionKey.create(channel_id="msteams", conversation_id="conv-t", user_id="user-t")
+    record, _ = await session_store.get_or_create(key.session_id)
+    scoped_storage = service._scoped_checkpoint_storage(record)
+    assert scoped_storage is not None
+
+    await service._save_checkpoint_after_interruption(record, scoped_storage)
+
+    # The other session's checkpoint must never be attributed to this session.
+    assert record.active_workflow_run is None
 
 
 @pytest.mark.asyncio
@@ -393,7 +431,8 @@ async def test_save_checkpoint_after_interruption_noop_when_storage_empty() -> N
 
     key = SessionKey.create(channel_id="msteams", conversation_id="conv-empty", user_id="user-e")
     record, _ = await session_store.get_or_create(key.session_id)
+    scoped_storage = service._scoped_checkpoint_storage(record)
 
-    await service._save_checkpoint_after_interruption(record)
+    await service._save_checkpoint_after_interruption(record, scoped_storage)
 
     assert record.active_workflow_run is None

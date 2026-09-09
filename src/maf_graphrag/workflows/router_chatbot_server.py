@@ -14,13 +14,19 @@ import os
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
 import httpx2 as httpx
-from agent_framework import CheckpointStorage, InMemoryCheckpointStorage, WorkflowCheckpointException
+from agent_framework import (
+    CheckpointID,
+    CheckpointStorage,
+    InMemoryCheckpointStorage,
+    WorkflowCheckpoint,
+    WorkflowCheckpointException,
+)
 from opentelemetry import trace
 from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind
@@ -155,6 +161,50 @@ class RouterChatbotConfig(BaseModel):
             raise ValueError(str(exc)) from exc
 
 
+class SessionScopedCheckpointStorage(CheckpointStorage):
+    """Namespaces ``workflow_name`` by session id on a shared CheckpointStorage.
+
+    Multiple concurrent sessions share one process-wide CheckpointStorage instance,
+    but every workflow pattern uses a fixed WorkflowBuilder name ("sequential",
+    "concurrent", "handoff"). Without scoping, get_latest()/list_checkpoints() would
+    resolve another session's most recent checkpoint. Resume validation only compares
+    graph_signature_hash (not workflow_name), so remapping the name at this boundary
+    is transparent to Workflow.run(checkpoint_id=...).
+    """
+
+    def __init__(self, inner: CheckpointStorage, *, session_id: str) -> None:
+        self._inner = inner
+        self._session_id = session_id
+
+    def _scoped_name(self, workflow_name: str) -> str:
+        return f"{workflow_name}:{self._session_id}"
+
+    def _unscope(self, checkpoint: WorkflowCheckpoint) -> WorkflowCheckpoint:
+        original_name = checkpoint.workflow_name.rsplit(f":{self._session_id}", 1)[0]
+        return replace(checkpoint, workflow_name=original_name)
+
+    async def save(self, checkpoint: WorkflowCheckpoint) -> CheckpointID:
+        scoped = replace(checkpoint, workflow_name=self._scoped_name(checkpoint.workflow_name))
+        return await self._inner.save(scoped)
+
+    async def load(self, checkpoint_id: CheckpointID) -> WorkflowCheckpoint:
+        return self._unscope(await self._inner.load(checkpoint_id))
+
+    async def list_checkpoints(self, *, workflow_name: str) -> list[WorkflowCheckpoint]:
+        checkpoints = await self._inner.list_checkpoints(workflow_name=self._scoped_name(workflow_name))
+        return [self._unscope(checkpoint) for checkpoint in checkpoints]
+
+    async def delete(self, checkpoint_id: CheckpointID) -> bool:
+        return await self._inner.delete(checkpoint_id)
+
+    async def get_latest(self, *, workflow_name: str) -> WorkflowCheckpoint | None:
+        checkpoint = await self._inner.get_latest(workflow_name=self._scoped_name(workflow_name))
+        return self._unscope(checkpoint) if checkpoint is not None else None
+
+    async def list_checkpoint_ids(self, *, workflow_name: str) -> list[CheckpointID]:
+        return await self._inner.list_checkpoint_ids(workflow_name=self._scoped_name(workflow_name))
+
+
 class RouterChatService:
     """Async facade that executes RouterWorkflow for a single user message."""
 
@@ -197,16 +247,22 @@ class RouterChatService:
         if lock_wait_ms is not None:
             runtime_telemetry = {"lock_wait_ms": lock_wait_ms}
 
+        # Scope checkpoint storage per session so concurrent sessions sharing the same
+        # process-wide backend never resolve get_latest()/list_checkpoints() to each other's data.
+        checkpoint_storage = self._scoped_checkpoint_storage(session_record)
+
         # Validate and resolve checkpoint for resume
         resume_checkpoint_id: str | None = None
         if session_record is not None and session_record.active_workflow_run is not None:
-            resume_checkpoint_id = await self._resolve_resume_checkpoint(session_record.active_workflow_run)
+            resume_checkpoint_id = await self._resolve_resume_checkpoint(
+                session_record.active_workflow_run, checkpoint_storage
+            )
             if resume_checkpoint_id is None:
                 session_record.active_workflow_run = None  # stale or incompatible — discard
 
         stream_kwargs: dict[str, Any] = {}
-        if self._checkpoint_storage is not None:
-            stream_kwargs["checkpoint_storage"] = self._checkpoint_storage
+        if checkpoint_storage is not None:
+            stream_kwargs["checkpoint_storage"] = checkpoint_storage
         if resume_checkpoint_id is not None:
             stream_kwargs["checkpoint_id"] = resume_checkpoint_id
 
@@ -224,7 +280,7 @@ class RouterChatService:
                 result = await finalize()
         except TimeoutError:
             if session_record is not None:
-                await self._save_checkpoint_after_interruption(session_record)
+                await self._save_checkpoint_after_interruption(session_record, checkpoint_storage)
             raise
 
         compaction_events = 0
@@ -254,12 +310,22 @@ class RouterChatService:
             checkpoint_id_used=resume_checkpoint_id,
         )
 
-    async def _resolve_resume_checkpoint(self, run: ActiveWorkflowRun) -> str | None:
-        """Validate a stored checkpoint and return its ID for resume, or None if stale/incompatible."""
+    def _scoped_checkpoint_storage(self, session_record: SessionRecord | None) -> CheckpointStorage | None:
+        """Return a per-session view of the checkpoint storage, or None if unavailable."""
         if self._checkpoint_storage is None:
             return None
+        if session_record is None:
+            return self._checkpoint_storage
+        return SessionScopedCheckpointStorage(self._checkpoint_storage, session_id=session_record.session_id)
+
+    async def _resolve_resume_checkpoint(
+        self, run: ActiveWorkflowRun, checkpoint_storage: CheckpointStorage | None
+    ) -> str | None:
+        """Validate a stored checkpoint and return its ID for resume, or None if stale/incompatible."""
+        if checkpoint_storage is None:
+            return None
         try:
-            loaded = await self._checkpoint_storage.load(run.checkpoint_id)
+            loaded = await checkpoint_storage.load(run.checkpoint_id)
             # Reject if the checkpoint was saved for a different workflow type.
             if loaded.workflow_name != run.workflow_type:
                 logger.debug(
@@ -275,12 +341,14 @@ class RouterChatService:
             logger.debug("Checkpoint %s is stale; discarding", run.checkpoint_id)
             return None
 
-    async def _save_checkpoint_after_interruption(self, session_record: SessionRecord) -> None:
+    async def _save_checkpoint_after_interruption(
+        self, session_record: SessionRecord, checkpoint_storage: CheckpointStorage | None
+    ) -> None:
         """Capture the latest superstep checkpoint into the session after a timeout."""
-        if self._checkpoint_storage is None:
+        if checkpoint_storage is None:
             return
         for workflow_type in ("sequential", "concurrent", "handoff"):
-            checkpoint = await self._checkpoint_storage.get_latest(workflow_name=workflow_type)
+            checkpoint = await checkpoint_storage.get_latest(workflow_name=workflow_type)
             if checkpoint is not None:
                 session_record.active_workflow_run = ActiveWorkflowRun(
                     workflow_run_id=str(uuid.uuid4()),

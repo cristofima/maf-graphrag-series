@@ -236,6 +236,7 @@ class ExpertFindingStage:
     content: str
     ran: bool
     tool_names: tuple[str, ...] = ()
+    messages: tuple[Any, ...] = ()
 
 
 class _RouterExecutor(InstrumentedAgentExecutor):
@@ -294,6 +295,7 @@ class _EntityExpertExecutor(InstrumentedAgentExecutor):
         should_run = stage.decision in ("entity", "both")
         tool_names = collect_tool_names(self._agent)
         metadata: dict[str, Any]
+        captured_messages: tuple[Any, ...] = ()
 
         if should_run:
             start = time.perf_counter()
@@ -306,6 +308,8 @@ class _EntityExpertExecutor(InstrumentedAgentExecutor):
                 "route": stage.decision,
                 "tools": tool_names,
             }
+            if hasattr(response, "messages"):
+                captured_messages = tuple(getattr(response, "messages", []) or [])
         else:
             elapsed = 0.0
             content = f"Skipped because router selected '{stage.decision}'."
@@ -331,6 +335,7 @@ class _EntityExpertExecutor(InstrumentedAgentExecutor):
                 content=content,
                 ran=should_run,
                 tool_names=tuple(tool_names),
+                messages=captured_messages,
             )
         )
 
@@ -347,6 +352,7 @@ class _ThemesExpertExecutor(InstrumentedAgentExecutor):
         should_run = stage.decision in ("themes", "both")
         tool_names = collect_tool_names(self._agent)
         metadata: dict[str, Any]
+        captured_messages: tuple[Any, ...] = ()
 
         if should_run:
             start = time.perf_counter()
@@ -359,6 +365,8 @@ class _ThemesExpertExecutor(InstrumentedAgentExecutor):
                 "route": stage.decision,
                 "tools": tool_names,
             }
+            if hasattr(response, "messages"):
+                captured_messages = tuple(getattr(response, "messages", []) or [])
         else:
             elapsed = 0.0
             content = f"Skipped because router selected '{stage.decision}'."
@@ -384,6 +392,7 @@ class _ThemesExpertExecutor(InstrumentedAgentExecutor):
                 content=content,
                 ran=should_run,
                 tool_names=tuple(tool_names),
+                messages=captured_messages,
             )
         )
 

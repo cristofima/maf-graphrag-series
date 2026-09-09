@@ -644,6 +644,8 @@ class RouterWorkflow:
             steps=combined_steps,
             total_elapsed_seconds=total_elapsed,
             query=inner_result.query or normalized_query or self._last_query or "",
+            raw_result=inner_result.raw_result,
+            workflow_graph=inner_result.workflow_graph,
         )
 
     def _build_out_of_context_finalize(
@@ -733,6 +735,8 @@ class RouterWorkflow:
             steps=[router_step, responder_step],
             total_elapsed_seconds=router_outcome.elapsed_seconds,
             query=normalized_query,
+            raw_result=None,
+            workflow_graph=None,
         )
 
     @staticmethod

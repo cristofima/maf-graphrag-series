@@ -415,6 +415,8 @@ workflows/
 ├── concurrent.py     # ParallelSearchWorkflow (asyncio.gather + synthesis)
 ├── handoff.py        # ExpertHandoffWorkflow (Router → specialist)
 ├── router.py         # RouterWorkflow (classifier + policy + delegation)
+├── router_agent.py   # RouterWorkflowAgentAdapter (agent-style facade over RouterWorkflow)
+├── router_chatbot_server.py # /api/messages Starlette app (run_router_chatbot.py entry point)
 └── README.md         # This file
 ```
 

@@ -1,32 +1,110 @@
 """Unit tests for evaluation/scripts/run_batch_evaluation.py helpers."""
 
+from __future__ import annotations
+
 import json
+import sys
+import types
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
 
 from maf_graphrag.evaluation.config import EvalConfig
+from maf_graphrag.evaluation.scripts import run_batch_evaluation as module
 from maf_graphrag.evaluation.scripts.run_batch_evaluation import (
     DATASETS_DIR,
-    _build_evaluator_config,
     _build_expected_route_lines,
-    _build_new_foundry_testing_criteria,
     _build_route_accuracy_lines,
     _build_route_summary_lines,
     _coerce_route_summary_row,
+    _collect_foundry_metrics,
     _compute_route_summary,
+    _evaluate_locally,
+    _evaluate_with_foundry,
     _extract_response_text,
     _extract_text_from_content,
-    _extract_tool_calls,
-    _load_new_foundry_rows,
+    _load_eval_items,
     _resolve_cli_data_path,
     _resolve_parquet_path,
-    _select_foundry_evaluator_names,
+    _summarize_foundry_run,
     _update_route_summary_counts,
     _write_report,
     run_batch_evaluation,
 )
+
+
+@pytest.fixture(autouse=True)
+def stub_agent_framework(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provide a lightweight agent_framework shim for tests."""
+
+    eval_module = types.ModuleType("agent_framework")
+
+    class EvalItem:  # pragma: no cover - lightweight shim
+        def __init__(
+            self,
+            *,
+            conversation: list[Any],
+            tools: list[Any] | None,
+            expected_output: str | None,
+            response: str | None = None,
+            expected_tool_calls: list[Any] | None = None,
+        ) -> None:
+            self.conversation = conversation
+            self.tools = tools
+            self.expected_output = expected_output
+            self.response = response
+            self.expected_tool_calls = expected_tool_calls
+
+    class FunctionTool:  # pragma: no cover - lightweight shim
+        def __init__(self, name: str | None) -> None:
+            self.name = name
+
+        @classmethod
+        def from_dict(cls, data: dict[str, Any]) -> FunctionTool:
+            return cls(data.get("name"))
+
+    eval_module.EvalItem = EvalItem
+    eval_module.FunctionTool = FunctionTool
+
+    class ExpectedToolCall:  # pragma: no cover - lightweight shim
+        def __init__(self, name: str, arguments: dict[str, Any] | None = None) -> None:
+            self.name = name
+            self.arguments = arguments
+
+    eval_module.ExpectedToolCall = ExpectedToolCall
+
+    types_module = types.ModuleType("agent_framework._types")
+
+    class Message:  # pragma: no cover - lightweight shim
+        def __init__(self, role: str, content: Any, *, text: str | None = None) -> None:
+            self.role = role
+            self.content = content
+            self.contents = content if isinstance(content, list) else None
+            self.text = text or (content if isinstance(content, str) else "")
+
+        @classmethod
+        def from_dict(cls, data: dict[str, Any]) -> Message:
+            role = str(data.get("role", ""))
+            contents = data.get("contents")
+            if isinstance(contents, list):
+                text_chunks: list[str] = []
+                for item in contents:
+                    if isinstance(item, str):
+                        text_chunks.append(item)
+                    elif isinstance(item, dict) and isinstance(item.get("text"), str):
+                        text_chunks.append(item["text"])
+                return cls(role, contents, text="\n".join(text_chunks))
+
+            content = data.get("content")
+            text_value = content if isinstance(content, str) else ""
+            return cls(role, content, text=text_value)
+
+    types_module.Message = Message
+
+    monkeypatch.setitem(sys.modules, "agent_framework", eval_module)
+    monkeypatch.setitem(sys.modules, "agent_framework._types", types_module)
 
 
 class TestResolveCliDataPath:
@@ -49,75 +127,6 @@ class TestResolveCliDataPath:
     def test_rejects_non_jsonl_files(self) -> None:
         with pytest.raises(ValueError, match=r"must point to a \.jsonl file"):
             _resolve_cli_data_path("eval_data.json")
-
-
-class TestSelectFoundryEvaluatorNames:
-    def test_selects_supported_foundry_evaluators(self) -> None:
-        selected = _select_foundry_evaluator_names(
-            {
-                "task_adherence": object(),
-                "intent_resolution": object(),
-                "coherence": object(),
-                "response_completeness": object(),
-                "tool_call_accuracy": object(),
-                "entity_accuracy": object(),
-            }
-        )
-
-        assert selected == {
-            "task_adherence",
-            "intent_resolution",
-            "coherence",
-            "response_completeness",
-            "tool_call_accuracy",
-        }
-
-    def test_ignores_unknown_or_disabled_evaluators(self) -> None:
-        selected = _select_foundry_evaluator_names({"entity_accuracy": object(), "foo": object()})
-
-        assert selected == set()
-
-
-class TestBuildNewFoundryTestingCriteria:
-    def test_maps_tool_definitions_for_task_and_intent(self) -> None:
-        criteria = _build_new_foundry_testing_criteria(
-            {"task_adherence", "intent_resolution"},
-            model_deployment="graphrag-main-eval",
-            has_structured_tool_calls=False,
-        )
-
-        by_name = {item["name"]: item for item in criteria}
-
-        task_mapping = cast(dict[str, str], by_name["task_adherence"]["data_mapping"])
-        intent_mapping = cast(dict[str, str], by_name["intent_resolution"]["data_mapping"])
-
-        assert task_mapping["tool_definitions"] == "{{item.tool_definitions}}"
-        assert intent_mapping["tool_definitions"] == "{{item.tool_definitions}}"
-
-
-class TestBuildEvaluatorConfig:
-    def test_includes_and_excludes_optional_mappings(self) -> None:
-        config = _build_evaluator_config(
-            {
-                "task_adherence": object(),
-                "tool_call_accuracy": object(),
-                "response_completeness": object(),
-                "entity_accuracy": object(),
-            }
-        )
-
-        assert "task_adherence" in config
-        assert "tool_call_accuracy" in config
-        assert "intent_resolution" not in config
-        assert config["tool_call_accuracy"]["column_mapping"] == {
-            "query": "${data.query}",
-            "response": "${data.response}",
-            "tool_definitions": "${data.tool_definitions}",
-        }
-        assert config["response_completeness"]["column_mapping"] == {
-            "ground_truth": "${data.ground_truth}",
-            "response": "${data.response}",
-        }
 
 
 class TestResponseExtractionHelpers:
@@ -152,51 +161,238 @@ class TestResponseExtractionHelpers:
 
         assert _extract_response_text(response) == '["a", 1]'
 
-    def test_extract_tool_calls_collects_tool_call_items(self) -> None:
-        response: list[object] = [
-            {
-                "content": [
-                    {"type": "tool_call", "tool_call": {"name": "search", "arguments": "{}"}},
-                    {"type": "text", "text": "ignored"},
-                ]
-            }
-        ]
 
-        assert _extract_tool_calls(response) == [{"name": "search", "arguments": "{}"}]
-
-
-class TestLoadNewFoundryRows:
-    def test_loads_rows_and_detects_structured_tool_calls(self, tmp_path: Path) -> None:
+class TestLoadEvalItems:
+    def test_loads_items_and_preserves_ground_truth(self, tmp_path: Path) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         row = {
             "query": "what is alpha",
-            "response": [
-                {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "tool_call", "tool_call": {"name": "local_search", "arguments": "{}"}},
-                        {"type": "text", "text": "answer"},
-                    ],
-                }
+            "conversation": [
+                {"role": "assistant", "contents": [{"type": "text", "text": "answer"}]},
             ],
-            "ground_truth": "answer",
-            "tool_definitions": [{"name": "local_search"}],
+            "ground_truth": "alpha",
+            "tool_definitions": [{"name": "search"}],
         }
         data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
 
-        rows, has_tool_calls = _load_new_foundry_rows(data_path)
+        items, rows_for_custom = _load_eval_items(data_path)
 
-        assert has_tool_calls is True
-        assert rows[0]["query"] == "what is alpha"
-        assert rows[0]["response"] == "answer"
-        assert rows[0]["tool_calls"] == [{"name": "local_search", "arguments": "{}"}]
+        assert len(items) == 1
+        assert items[0].expected_output == "alpha"
+        assert rows_for_custom[0]["response_text"] == "answer"
 
-    def test_raises_when_no_valid_rows_are_loaded(self, tmp_path: Path) -> None:
+    def test_raises_when_no_rows_are_valid(self, tmp_path: Path) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         data_path.write_text(json.dumps({"query": " ", "response": "x"}) + "\n", encoding="utf-8")
 
         with pytest.raises(ValueError, match="No evaluation rows were loaded"):
-            _load_new_foundry_rows(data_path)
+            _load_eval_items(data_path)
+
+    def test_loads_plain_string_response_rows(self, tmp_path: Path) -> None:
+        """Router-style rows (eval_router_data.jsonl) carry a plain-string ``response``
+        with no ``conversation`` field; this must not be skipped as empty."""
+        data_path = tmp_path / "eval_router_data.jsonl"
+        row = {
+            "query": "Hi there",
+            "response": "I can help with questions about the knowledge base.",
+            "tool_definitions": [{"name": "search_knowledge_graph"}],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, rows_for_custom = _load_eval_items(data_path)
+
+        assert len(items) == 1
+        conversation = items[0].conversation
+        assert [getattr(m, "role", None) for m in conversation] == ["user", "assistant"]
+        assert rows_for_custom[0]["response_text"] == "I can help with questions about the knowledge base."
+
+    def test_injects_query_message_when_missing(self, tmp_path: Path) -> None:
+        data_path = tmp_path / "eval_data.jsonl"
+        row = {
+            "query": "who leads alpha",
+            "conversation": [
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {"type": "text", "text": "alpha overview"},
+                    ],
+                }
+            ],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, _ = _load_eval_items(data_path)
+
+        first_message = items[0].conversation[0]
+
+        assert first_message.role == "user"
+        assert getattr(first_message, "text", "") == "who leads alpha"
+
+    def test_converts_expected_tools_into_expected_tool_calls(self, tmp_path: Path) -> None:
+        data_path = tmp_path / "eval_data.jsonl"
+        row = {
+            "query": "list key projects",
+            "conversation": [
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": "Project Alpha focus",
+                        }
+                    ],
+                }
+            ],
+            "expected_tools": ["global_search"],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, _ = _load_eval_items(data_path)
+
+        expected_calls = items[0].expected_tool_calls
+
+        assert expected_calls is not None
+        assert len(expected_calls) == 1
+        assert expected_calls[0].name == "global_search"
+
+    def test_derives_expected_tool_calls_from_tool_calls(self, tmp_path: Path) -> None:
+        data_path = tmp_path / "eval_data.jsonl"
+        row = {
+            "query": "find strategic themes",
+            "conversation": [
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": "Themes overview",
+                        }
+                    ],
+                }
+            ],
+            "tool_calls": [
+                {
+                    "name": "global_search",
+                    "arguments": {
+                        "query": "find strategic themes",
+                        "community_level": 2,
+                    },
+                }
+            ],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, _ = _load_eval_items(data_path)
+
+        expected_calls = items[0].expected_tool_calls
+
+        assert expected_calls is not None
+        assert len(expected_calls) == 1
+        assert expected_calls[0].name == "global_search"
+        assert expected_calls[0].arguments == {
+            "query": "find strategic themes",
+            "community_level": 2,
+        }
+
+    def test_derives_expected_tool_calls_from_conversation_chunks(self, tmp_path: Path) -> None:
+        data_path = tmp_path / "eval_data.jsonl"
+        row = {
+            "query": "detail major themes",
+            "conversation": [
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {
+                            "type": "tool_call",
+                            "name": "global_search",
+                            "arguments": {
+                                "query": "detail major themes",
+                                "response_type": "Multiple Paragraphs",
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "contents": [
+                        {
+                            "type": "tool_result",
+                            "tool_result": "Themes response",
+                        }
+                    ],
+                },
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": "Themes summary",
+                        }
+                    ],
+                },
+            ],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, _ = _load_eval_items(data_path)
+
+        expected_calls = items[0].expected_tool_calls
+
+        assert expected_calls is not None
+        assert len(expected_calls) == 1
+        assert expected_calls[0].name == "global_search"
+        assert expected_calls[0].arguments == {
+            "query": "detail major themes",
+            "response_type": "Multiple Paragraphs",
+        }
+
+    def test_normalizes_tool_messages_for_agent_framework(self, tmp_path: Path) -> None:
+        data_path = tmp_path / "eval_data.jsonl"
+        row = {
+            "query": "show tool call metadata",
+            "conversation": [
+                {
+                    "role": "assistant",
+                    "contents": [
+                        {
+                            "type": "tool_call",
+                            "tool_call_id": "call_123",
+                            "name": "global_search",
+                            "arguments": {"query": "alpha", "response_type": "Summary"},
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_123",
+                    "contents": [
+                        {
+                            "type": "tool_result",
+                            "tool_result": {"text": "alpha response"},
+                        }
+                    ],
+                },
+            ],
+        }
+        data_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+        items, _ = _load_eval_items(data_path)
+
+        conversation = items[0].conversation
+        call_chunks = conversation[1].contents
+        result_chunks = conversation[2].contents
+
+        assert isinstance(call_chunks, list)
+        assert call_chunks[0]["call_id"] == "call_123"
+        assert call_chunks[0]["type"] == "function_call"
+        assert "tool_call_id" not in call_chunks[0]
+        assert call_chunks[0]["tool_name"] == "global_search"
+
+        assert isinstance(result_chunks, list)
+        assert result_chunks[0]["call_id"] == "call_123"
+        assert result_chunks[0]["type"] == "function_result"
+        assert result_chunks[0]["result"] == {"text": "alpha response"}
+        assert "tool_result" not in result_chunks[0]
 
 
 class TestComputeRouteSummary:
@@ -370,7 +566,14 @@ class TestRunBatchEvaluation:
             json.dumps(
                 {
                     "query": "What is Project Alpha?",
-                    "response": "Project Alpha is...",
+                    "response": [
+                        {
+                            "role": "assistant",
+                            "content": [
+                                {"type": "text", "text": "Project Alpha is..."},
+                            ],
+                        }
+                    ],
                     "ground_truth": "Project Alpha is...",
                     "tool_definitions": [],
                 }
@@ -379,118 +582,164 @@ class TestRunBatchEvaluation:
             encoding="utf-8",
         )
 
-    def test_runs_local_evaluation_without_foundry(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_runs_foundry_evaluation_and_merges_metrics(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         data_path = tmp_path / "eval_data.jsonl"
         self._write_eval_row(data_path)
-        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        monkeypatch.setattr(module, "DATASETS_DIR", tmp_path)
+        output_dir = tmp_path / "results"
+        monkeypatch.setattr(module, "RESULTS_DIR", output_dir)
 
-        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
         monkeypatch.setattr(
-            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
-            lambda _: {
-                "task_adherence": object(),
-                "intent_resolution": object(),
-                "tool_call_accuracy": object(),
-            },
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._supports_legacy_max_tokens", lambda _: False
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
-            lambda evaluators, config, include_custom: None,
-        )
-        monkeypatch.setattr(
-            "azure.ai.evaluation.evaluate",
-            lambda **_: {
-                "metrics": {"task_adherence": 0.9},
-            },
-            raising=False,
+            "maf_graphrag.evaluation.config.EvalConfig.from_env",
+            lambda: self._make_config(),
         )
 
-        result = run_batch_evaluation(
-            data_path="eval_data.jsonl",
-            output_dir=tmp_path,
-            use_foundry=False,
-            include_custom=False,
+        class DummyResult:
+            def __init__(self) -> None:
+                self.items = [
+                    SimpleNamespace(
+                        scores=[
+                            SimpleNamespace(name="coherence", score=0.8),
+                            SimpleNamespace(name="coherence", score=1.0),
+                        ]
+                    )
+                ]
+                self.provider = "foundry"
+                self.status = "succeeded"
+                self.passed = 1
+                self.failed = 0
+                self.total = 1
+                self.per_evaluator = {"coherence": {"passed": 1, "failed": 0}}
+                self.report_url = "https://studio"
+                self.eval_id = "eval-123"
+                self.run_id = "run-123"
+                self.error = None
+
+        dummy_result = DummyResult()
+
+        async def fake_foundry_eval(items: list[Any], config: EvalConfig, eval_name: str) -> DummyResult:
+            assert len(items) == 1
+            assert eval_name.startswith("graphrag-batch-")
+            return dummy_result
+
+        monkeypatch.setattr(module, "_evaluate_with_foundry", fake_foundry_eval)
+        monkeypatch.setattr(module, "_run_custom_evaluators", lambda rows, config: {"entity_accuracy": 0.5})
+
+        result = run_batch_evaluation(data_path=data_path, output_dir=output_dir, use_foundry=True)
+
+        assert result["metrics"] == {"coherence": 0.9, "entity_accuracy": 0.5}
+        assert result["studio_url"] == "https://studio"
+        assert (output_dir / "evaluation_results.json").exists()
+        assert (output_dir / "evaluation_report.md").exists()
+
+
+class TestFoundryHelpers:
+    def test_collect_foundry_metrics_averages_scores(self) -> None:
+        result = SimpleNamespace(
+            items=[
+                SimpleNamespace(scores=[SimpleNamespace(name="coherence", score=0.8)]),
+                SimpleNamespace(scores=[SimpleNamespace(name="coherence", score=0.6)]),
+            ],
+            per_evaluator={},
         )
 
-        assert result["metrics"] == {"task_adherence": 0.9}
-        assert "new_foundry" not in result
-        assert "foundry_publish_error" not in result
-        assert (tmp_path / "evaluation_report.md").exists()
+        metrics = _collect_foundry_metrics(result)
 
-    def test_continues_when_foundry_publish_fails(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        data_path = tmp_path / "eval_data.jsonl"
-        self._write_eval_row(data_path)
-        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        assert metrics == {"coherence": 0.7}
 
-        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
-            lambda _: {"task_adherence": object()},
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
-            lambda evaluators, config, include_custom: None,
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
-            lambda **_: (_ for _ in ()).throw(RuntimeError("publish failed")),
-        )
-        monkeypatch.setattr(
-            "azure.ai.evaluation.evaluate",
-            lambda **_: {"metrics": {"coherence": 0.8}},
-            raising=False,
+    def test_summarize_foundry_run_includes_metadata(self) -> None:
+        result = SimpleNamespace(
+            provider="foundry",
+            status="succeeded",
+            passed=1,
+            failed=0,
+            total=1,
+            per_evaluator={"coherence": {"passed": 1, "failed": 0}},
+            eval_id="eval-123",
+            run_id="run-456",
+            report_url="https://studio",
+            error=None,
         )
 
-        result = run_batch_evaluation(
-            data_path="eval_data.jsonl",
-            output_dir=tmp_path,
-            use_foundry=True,
-            include_custom=False,
+        summary = _summarize_foundry_run(result)
+
+        assert summary["provider"] == "foundry"
+        assert summary["eval_id"] == "eval-123"
+        assert summary["per_evaluator"]["coherence"]["passed"] == 1
+
+
+class TestEvaluateWithFoundry:
+    @staticmethod
+    def _make_config() -> EvalConfig:
+        return EvalConfig(
+            azure_endpoint="https://example.openai.azure.com/",
+            api_key="test-key",
+            chat_deployment="gpt-4o",
+            eval_chat_deployment="gpt-4o-eval",
+            redteam_chat_deployment="gpt-4o-redteam",
+            api_version="2024-08-01-preview",
         )
 
-        assert result["metrics"] == {"coherence": 0.8}
-        assert "foundry_publish_error" in result
+    async def test_requests_tool_selection_alongside_default_evaluators(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_kwargs: dict[str, Any] = {}
 
-    def test_sets_studio_url_when_foundry_publish_succeeds(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        data_path = tmp_path / "eval_data.jsonl"
-        self._write_eval_row(data_path)
-        monkeypatch.setattr("maf_graphrag.evaluation.scripts.run_batch_evaluation.DATASETS_DIR", tmp_path)
+        class FakeFoundryEvals:
+            def __init__(self, **kwargs: Any) -> None:
+                captured_kwargs.update(kwargs)
 
-        monkeypatch.setattr("maf_graphrag.evaluation.config.EvalConfig.from_env", lambda: self._make_config())
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.evaluators.builtin.create_quality_evaluators",
-            lambda _: {"task_adherence": object()},
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._add_custom_evaluators",
-            lambda evaluators, config, include_custom: None,
-        )
-        monkeypatch.setattr(
-            "maf_graphrag.evaluation.scripts.run_batch_evaluation._publish_new_foundry_batch_run",
-            lambda **_: {
-                "eval_id": "eval_1",
-                "run_id": "run_1",
-                "status": "completed",
-                "report_url": "https://ai.azure.com/report",
-            },
-        )
-        monkeypatch.setattr(
-            "azure.ai.evaluation.evaluate",
-            lambda **_: {"metrics": {"coherence": 0.8}},
-            raising=False,
-        )
+            async def evaluate(self, items: Any, *, eval_name: str) -> str:
+                return "result"
 
-        result = run_batch_evaluation(
-            data_path="eval_data.jsonl",
-            output_dir=tmp_path,
-            use_foundry=True,
-            include_custom=False,
-        )
+        fake_module = types.ModuleType("agent_framework_foundry")
+        fake_module.FoundryChatClient = SimpleNamespace  # type: ignore[attr-defined]
+        fake_module.FoundryEvals = FakeFoundryEvals  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "agent_framework_foundry", fake_module)
 
-        assert result["studio_url"] == "https://ai.azure.com/report"
-        assert result["new_foundry"]["status"] == "completed"
+        result = await _evaluate_with_foundry([], self._make_config(), "graphrag-batch-test")
+
+        assert result == "result"
+        assert captured_kwargs["evaluators"] == [
+            "relevance",
+            "coherence",
+            "task_adherence",
+            "tool_call_accuracy",
+            "tool_selection",
+            "tool_input_accuracy",
+            "tool_output_utilization",
+            "tool_call_success",
+        ]
+        assert captured_kwargs["timeout"] == 600.0
+        assert "client" not in captured_kwargs
+
+
+class TestEvaluateLocally:
+    async def test_uses_native_local_evaluator_with_tool_call_checks(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Local-only path must use agent_framework's own LocalEvaluator/checks —
+        no Foundry client, no network calls — so cost-sensitive profiles stay free."""
+        captured: dict[str, Any] = {}
+
+        class FakeLocalEvaluator:
+            def __init__(self, *checks: Any) -> None:
+                captured["checks"] = checks
+
+            async def evaluate(self, items: Any, *, eval_name: str) -> str:
+                captured["items"] = items
+                captured["eval_name"] = eval_name
+                return "local-result"
+
+        def fake_tool_calls_present() -> None:  # pragma: no cover - identity marker only
+            raise AssertionError("should not be invoked directly in this test")
+
+        def fake_tool_call_args_match() -> None:  # pragma: no cover - identity marker only
+            raise AssertionError("should not be invoked directly in this test")
+
+        agent_framework_module = sys.modules["agent_framework"]
+        monkeypatch.setattr(agent_framework_module, "LocalEvaluator", FakeLocalEvaluator, raising=False)
+        monkeypatch.setattr(agent_framework_module, "tool_calls_present", fake_tool_calls_present, raising=False)
+        monkeypatch.setattr(agent_framework_module, "tool_call_args_match", fake_tool_call_args_match, raising=False)
+
+        result = await _evaluate_locally([], "graphrag-batch-local-test")
+
+        assert result == "local-result"
+        assert captured["checks"] == (fake_tool_calls_present, fake_tool_call_args_match)
+        assert captured["eval_name"] == "graphrag-batch-local-test"

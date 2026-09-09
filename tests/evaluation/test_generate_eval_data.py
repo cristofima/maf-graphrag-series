@@ -4,17 +4,50 @@ RouterWorkflowAgentAdapter and file I/O are fully mocked; no credentials needed.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from maf_graphrag.evaluation.scripts.generate_eval_data import generate_eval_data
 
+STUB_CONVERSATION = [
+    {
+        "role": "user",
+        "contents": [
+            {"type": "text", "text": "Who leads Project Alpha?"},
+        ],
+    },
+    {
+        "role": "assistant",
+        "contents": [
+            {"type": "text", "text": "Dr. Harrison leads it"},
+        ],
+    },
+]
 
-def _stub_adapter(answer: str = "stub answer") -> MagicMock:
-    result = MagicMock()
-    result.answer = answer
-    adapter = MagicMock()
+STUB_AGENT_TURNS = [{"executor_id": "router", "conversation": STUB_CONVERSATION}]
+STUB_TOOL_DEFINITIONS = [{"name": "search", "description": "", "parameters": {}}]
+STUB_TOOL_CALLS = [
+    {
+        "executor_id": "router",
+        "tool_call_id": "call-1",
+        "name": "search",
+        "arguments": {"query": "Project Alpha"},
+    }
+]
+
+
+def _stub_adapter(answer: str = "stub answer") -> object:
+    result = SimpleNamespace(
+        answer=answer,
+        raw_result=None,
+        workflow_graph=None,
+        steps=[],
+        workflow_type=SimpleNamespace(value="sequential"),
+        query="",
+    )
+    adapter = SimpleNamespace()
     adapter.run = AsyncMock(return_value=result)
     return adapter
 
@@ -46,8 +79,14 @@ class TestGenerateEvalDataHappyPath:
             ],
         )
 
-        with patch(
-            "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter("answer")
+        with (
+            patch(
+                "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter("answer")
+            ),
+            patch(
+                "maf_graphrag.evaluation.scripts.generate_eval_data._extract_agent_turn_payloads",
+                return_value=(STUB_AGENT_TURNS, STUB_TOOL_DEFINITIONS, STUB_TOOL_CALLS),
+            ),
         ):
             count = await generate_eval_data(input_path=input_path, output_path=output_path)
 
@@ -60,27 +99,41 @@ class TestGenerateEvalDataHappyPath:
         output_path = tmp_path / "eval_data.jsonl"
         _write_golden_questions(input_path, [{"query": "Who leads Project Alpha?", "ground_truth": "Dr. Harrison"}])
 
-        with patch(
-            "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter",
-            return_value=_stub_adapter("Dr. Harrison leads it"),
+        with (
+            patch(
+                "maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter",
+                return_value=_stub_adapter("Dr. Harrison leads it"),
+            ),
+            patch(
+                "maf_graphrag.evaluation.scripts.generate_eval_data._extract_agent_turn_payloads",
+                return_value=(STUB_AGENT_TURNS, STUB_TOOL_DEFINITIONS, STUB_TOOL_CALLS),
+            ),
         ):
             await generate_eval_data(input_path=input_path, output_path=output_path)
 
         record = json.loads(output_path.read_text(encoding="utf-8").strip())
         assert record["query"] == "Who leads Project Alpha?"
         assert record["ground_truth"] == "Dr. Harrison"
-        assert record["response"] == [
-            {"role": "user", "content": "Who leads Project Alpha?"},
-            {"role": "assistant", "content": "Dr. Harrison leads it"},
-        ]
-        assert isinstance(record["tool_definitions"], list)
+        assert record["response_text"] == "Dr. Harrison leads it"
+        assert record["conversation"] == STUB_CONVERSATION
+        assert record["response"] == "Dr. Harrison leads it"
+        assert record["agent_turns"] == STUB_AGENT_TURNS
+        assert record["tool_definitions"] == STUB_TOOL_DEFINITIONS
+        assert record["tool_calls"] == STUB_TOOL_CALLS
+        assert record["route_metadata"]["routed_workflow"] == "sequential"
 
     async def test_missing_ground_truth_defaults_to_empty_string(self, tmp_path):
         input_path = tmp_path / "golden_questions.jsonl"
         output_path = tmp_path / "eval_data.jsonl"
         _write_golden_questions(input_path, [{"query": "What are the main themes?"}])
 
-        with patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
+        with (
+            patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()),
+            patch(
+                "maf_graphrag.evaluation.scripts.generate_eval_data._extract_agent_turn_payloads",
+                return_value=(STUB_AGENT_TURNS, STUB_TOOL_DEFINITIONS, STUB_TOOL_CALLS),
+            ),
+        ):
             await generate_eval_data(input_path=input_path, output_path=output_path)
 
         record = json.loads(output_path.read_text(encoding="utf-8").strip())
@@ -94,7 +147,13 @@ class TestGenerateEvalDataHappyPath:
             encoding="utf-8",
         )
 
-        with patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()):
+        with (
+            patch("maf_graphrag.workflows.router_agent.RouterWorkflowAgentAdapter", return_value=_stub_adapter()),
+            patch(
+                "maf_graphrag.evaluation.scripts.generate_eval_data._extract_agent_turn_payloads",
+                return_value=(STUB_AGENT_TURNS, STUB_TOOL_DEFINITIONS, STUB_TOOL_CALLS),
+            ),
+        ):
             count = await generate_eval_data(input_path=input_path, output_path=output_path)
 
         assert count == 2

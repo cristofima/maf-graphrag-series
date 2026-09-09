@@ -16,6 +16,7 @@ The module provides three distinct capabilities that support the `RouterWorkflow
 agents/
 ├── __init__.py          # Public API exports
 ├── config.py            # AgentConfig + SessionConfig (validated from env)
+├── mcp_compat.py        # ensure_mcp_client_compatibility() FastMCP 4.x <-> Agent Framework shim
 ├── middleware.py        # Four-layer observability middleware pipeline
 ├── router_classifier.py # RouterClassifier used by RouterWorkflow
 ├── session_store.py     # InMemorySessionStore with TTL, LRU, checkpoint tracking
@@ -41,7 +42,7 @@ agents/
 | `ensure_mcp_client_compatibility` | Patches Agent Framework ↔ MCP field naming gaps before establishing sessions     |
 
 ```python
-from agents.session_store import InMemorySessionStore, SessionKey
+from maf_graphrag.agents.session_store import InMemorySessionStore, SessionKey
 
 store = InMemorySessionStore(
     ttl_seconds=1800,
@@ -62,7 +63,7 @@ diagnostics = store.append_turn(record, user_text="Hello", assistant_text="Hi!")
 `SessionRecord.active_workflow_run` holds an optional `ActiveWorkflowRun` that correlates the session with a native framework checkpoint after a workflow timeout or interruption:
 
 ```python
-from agents.session_store import ActiveWorkflowRun
+from maf_graphrag.agents.session_store import ActiveWorkflowRun
 
 # Set by RouterChatService._save_checkpoint_after_interruption() on timeout
 record.active_workflow_run = ActiveWorkflowRun(
@@ -90,8 +91,8 @@ Session defaults are sourced from environment variables via `SessionConfig`:
 `RouterClassifier` is called by `RouterWorkflow` to classify a query and select a sub-workflow. It uses an `OpenAIChatCompletionClient` pointed at the Foundry model-router deployment.
 
 ```python
-from agents.router_classifier import RouterClassifier
-from agents.config import AgentConfig
+from maf_graphrag.agents.router_classifier import RouterClassifier
+from maf_graphrag.agents.config import AgentConfig
 
 config = AgentConfig.from_env()
 classifier = RouterClassifier(config)
@@ -113,7 +114,7 @@ Configuration variables:
 A focused set of factory helpers create Azure OpenAI chat clients and MCP tools that align with the router workflow defaults:
 
 ```python
-from agents.factories import create_client, create_mcp_tool
+from maf_graphrag.agents.factories import create_client, create_mcp_tool
 
 # Foundry OpenAI chat client scoped to RouterWorkflow defaults
 client = create_client()
@@ -124,7 +125,7 @@ mcp_tool = create_mcp_tool(mcp_url="http://localhost:8011/mcp")
 
 ### MCP Compatibility Shim
 
-FastMCP 4.x replaced several camelCase handshake fields (for example `protocolVersion`, `inputSchema`, `nextCursor`) with snake_case names. Microsoft Agent Framework 1.17 still accesses the legacy names. `create_mcp_tool()` calls `ensure_mcp_client_compatibility()` before instantiating `MCPStreamableHTTPTool`; the helper adds read/write aliases so RouterWorkflow, DevUI, and Teams-based agents remain functional without downgrading dependencies.
+FastMCP 4.x replaced several camelCase handshake fields (for example `protocolVersion`, `inputSchema`, `nextCursor`) with snake_case names. Microsoft Agent Framework 1.17 still accesses the legacy names. `create_mcp_tool()` calls `ensure_mcp_client_compatibility()` (defined in `mcp_compat.py`) before instantiating `MCPStreamableHTTPTool`; the helper adds read/write aliases so RouterWorkflow, DevUI, and Teams-based agents remain functional without downgrading dependencies.
 
 ## Observability Middleware
 
@@ -138,7 +139,7 @@ A four-layer middleware pipeline for agent observability and context management:
 | Function | `LoggingFunctionMiddleware`    | Logs MCP tool calls with arguments     |
 
 ```python
-from agents.middleware import (
+from maf_graphrag.agents.middleware import (
     TimingAgentMiddleware,
     QueryRewritingChatMiddleware,
     TokenCountingChatMiddleware,
@@ -151,7 +152,7 @@ from agents.middleware import (
 `AgentConfig` validates all Azure OpenAI settings from environment variables:
 
 ```python
-from agents.config import AgentConfig, get_agent_config
+from maf_graphrag.agents.config import AgentConfig, get_agent_config
 
 config = AgentConfig.from_env()   # or get_agent_config() for a cached singleton
 client = create_client(config)

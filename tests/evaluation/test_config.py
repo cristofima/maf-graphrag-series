@@ -1,7 +1,10 @@
 """Unit tests for evaluation/config.py — EvalConfig Pydantic model."""
 
+from types import SimpleNamespace
+
 import pytest
 
+import maf_graphrag.evaluation.config as config_module
 from maf_graphrag.evaluation.config import EvalConfig
 
 
@@ -38,6 +41,9 @@ class TestEvalConfigFromEnv:
         assert config.api_version == "2025-04-01-preview"
         assert config.azure_ai_project is None
         assert str(config.otel_tracing_endpoint) == "http://localhost:4317"
+        assert config.azure_tenant_id is None
+        assert config.azure_client_id is None
+        assert config.azure_client_secret is None
 
     def test_raises_when_endpoint_missing(self, monkeypatch):
         monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
@@ -106,6 +112,20 @@ class TestEvalConfigFromEnv:
 
         assert config.app_insights_connection_string is not None
         assert "InstrumentationKey" in config.app_insights_connection_string
+
+    def test_foundry_credential_env_fields(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "key")
+        monkeypatch.setenv("AZURE_CLIENT_ID", "client")
+        monkeypatch.setenv("AZURE_CLIENT_SECRET", "secret")
+        monkeypatch.setenv("AZURE_TENANT_ID", "tenant")
+
+        config = EvalConfig.from_env()
+
+        assert config.azure_client_id == "client"
+        assert config.azure_client_secret == "secret"
+        assert config.azure_tenant_id == "tenant"
+        assert config.has_foundry_credentials is True
 
     def test_custom_parquet_paths(self, monkeypatch):
         monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com/")
@@ -208,3 +228,84 @@ class TestEvalConfigProperties:
         )
         assert str(config.entities_parquet_path) == "output/create_final_entities.parquet"
         assert str(config.relationships_parquet_path) == "output/create_final_relationships.parquet"
+
+    def test_build_foundry_credential_prefers_client_secret(self, monkeypatch):
+        sentinel = object()
+
+        class FakeCredential:
+            def __init__(self, *, tenant_id, client_id, client_secret):
+                assert tenant_id == "tenant"
+                assert client_id == "client"
+                assert client_secret == "secret"
+                self.marker = sentinel
+
+        class FailDefault:
+            def __init__(self, **_kwargs):  # pragma: no cover - defensive
+                raise AssertionError("Default credential should not be constructed")
+
+        monkeypatch.setattr(config_module, "ClientSecretCredential", FakeCredential, raising=True)
+        monkeypatch.setattr(config_module, "DefaultAzureCredential", FailDefault, raising=True)
+
+        config = EvalConfig(
+            azure_endpoint="https://e.openai.azure.com/",
+            api_key="k",
+            chat_deployment="gpt-4o",
+            eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
+            azure_ai_project="https://account.services.ai.azure.com/api/projects/proj",
+            azure_tenant_id="tenant",
+            azure_client_id="client",
+            azure_client_secret="secret",
+        )
+
+        credential = config.build_foundry_credential()
+
+        assert getattr(credential, "marker", None) is sentinel
+
+    def test_build_foundry_credential_uses_default_when_no_secret(self, monkeypatch):
+        sentinel = object()
+
+        monkeypatch.setattr(config_module, "ClientSecretCredential", SimpleNamespace, raising=True)
+
+        class FakeDefault:
+            def __init__(self, **kwargs):
+                assert kwargs.get("exclude_interactive_browser_credential") is True
+                assert kwargs.get("exclude_visual_studio_code_credential") is True
+                assert kwargs.get("exclude_shared_token_cache_credential") is True
+                self.marker = sentinel
+
+        monkeypatch.setattr(config_module, "DefaultAzureCredential", FakeDefault, raising=True)
+
+        config = EvalConfig(
+            azure_endpoint="https://e.openai.azure.com/",
+            api_key="k",
+            chat_deployment="gpt-4o",
+            eval_chat_deployment="gpt-4o",
+            redteam_chat_deployment="gpt-4o",
+            azure_ai_project="https://account.services.ai.azure.com/api/projects/proj",
+        )
+
+        credential = config.build_foundry_credential()
+
+        assert getattr(credential, "marker", None) is sentinel
+
+    def test_build_foundry_client_kwargs_includes_endpoint_and_model(self, monkeypatch):
+        sentinel = object()
+
+        config = EvalConfig(
+            azure_endpoint="https://e.openai.azure.com/",
+            api_key="k",
+            chat_deployment="gpt-4o",
+            eval_chat_deployment="gpt-4o-eval",
+            redteam_chat_deployment="gpt-4o",
+            azure_ai_project="https://account.services.ai.azure.com/api/projects/proj",
+        )
+
+        monkeypatch.setattr(EvalConfig, "build_foundry_credential", lambda self: sentinel, raising=False)
+
+        kwargs = config.build_foundry_client_kwargs()
+
+        assert kwargs["project_endpoint"] == "https://account.services.ai.azure.com/api/projects/proj"
+        assert kwargs["model"] == "gpt-4o-eval"
+        assert kwargs["credential"] is sentinel
+        assert config.foundry_auth_mode == "default_credential"

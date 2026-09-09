@@ -47,16 +47,16 @@ The most important configuration surface is [router-evaluation.yml](router-evalu
 
 ### Manual inputs (workflow_dispatch)
 
-| Input                 | Type    | Default     | Effect                                                            |
-| --------------------- | ------- | ----------- | ----------------------------------------------------------------- |
-| ref                   | string  | empty       | Branch, tag, or SHA to evaluate. Empty means current SHA.         |
-| regenerate_data       | boolean | false       | Regenerates eval_router_data.jsonl via MCP server before scoring. |
-| run_batch_eval        | boolean | true        | Runs batch evaluators (token-consuming).                          |
-| publish_foundry       | boolean | false       | Publishes batch evaluation run to Azure AI Foundry.               |
-| run_redteam           | boolean | false       | Runs red-team safety scan.                                        |
-| fail_on_redteam_error | boolean | false       | Fails workflow if red-team step fails.                            |
-| redteam_flow          | string  | cloud-model | Selects red-team execution flow.                                  |
-| min_route_accuracy    | string  | 0.95        | Pass/fail threshold for route gate.                               |
+| Input                 | Type    | Default     | Effect                                                                                                                                                                  |
+| --------------------- | ------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ref                   | string  | empty       | Branch, tag, or SHA to evaluate. Empty means current SHA.                                                                                                               |
+| regenerate_data       | boolean | false       | Regenerates eval_router_data.jsonl via MCP server before scoring.                                                                                                       |
+| run_batch_eval        | boolean | true        | Runs batch evaluators. Token-consuming only when publish_foundry is true and Foundry auth succeeds; otherwise scores locally (`--local`) with zero Azure/network calls. |
+| publish_foundry       | boolean | false       | Publishes batch evaluation run to Azure AI Foundry.                                                                                                                     |
+| run_redteam           | boolean | false       | Runs red-team safety scan.                                                                                                                                              |
+| fail_on_redteam_error | boolean | false       | Fails workflow if red-team step fails.                                                                                                                                  |
+| redteam_flow          | string  | cloud-model | Selects red-team execution flow.                                                                                                                                        |
+| min_route_accuracy    | string  | 0.95        | Pass/fail threshold for route gate.                                                                                                                                     |
 
 ### Reusable inputs (workflow_call)
 
@@ -95,6 +95,11 @@ If publish_foundry or run_redteam is requested but service principal secrets are
 - skips Foundry-dependent paths,
 - and can still run local batch evaluation.
 
+"Local batch evaluation" means `run_batch_evaluation.py --local`: Agent Framework's native
+`LocalEvaluator` (`tool_calls_present`, `tool_call_args_match`) scores the already-generated
+`eval_router_data.jsonl` with zero Azure OpenAI/Foundry calls. Signal is limited to tool-call
+correctness; run with `publish_foundry=true` for quality/safety LLM-judge signal.
+
 ## Router PR Merge Gate Behavior
 
 [router-pr-merge-gate.yml](router-pr-merge-gate.yml) has four jobs:
@@ -113,13 +118,24 @@ The gate runs when one of these is true:
 
 ### What can skip evaluation
 
-If changed files do not match router/evaluation-sensitive paths, the gate exits successfully without running router batch eval.
+Change detection is deny-list based, not allow-list based: it skips the gate only when every
+changed file is provably doc/metadata-only (`*.md`, `docs/`, `LICENSE`, `.gitignore`,
+`.gitattributes`). Any other change (code, MCP tool schemas, prompts, `settings.yaml`,
+dependency files, workflow YAML, article assets, etc.) runs the gate. This is intentional —
+an allow-list of "known relevant" paths silently stops protecting new code as the repo grows;
+a deny-list only needs updating when a new _safe-to-skip_ path type appears. Both
+[router-pr-merge-gate.yml](router-pr-merge-gate.yml) and
+[router-main-evaluation.yml](router-main-evaluation.yml) use the identical deny-list.
 
 ## Router Main Evaluation Behavior
 
 [router-main-evaluation.yml](router-main-evaluation.yml) is the main-branch cloud validation wrapper.
 
-- Trigger: push to main with router/evaluation-sensitive file changes. Intentionally scoped to `main` only
+- Trigger: push to main with router/evaluation-sensitive file changes (`**.py`, `prompts/**`,
+  `settings.yaml`, `pyproject.toml`, `uv.lock`, and the workflow files themselves at the GitHub
+  Actions path-filter level; the in-job change-detection step then applies the same deny-list
+  logic as the PR merge gate — see [What can skip evaluation](#what-can-skip-evaluation)).
+  Intentionally scoped to `main` only
   (not `develop`) so the full-cloud profile (Foundry publish + red-team) stays reserved for the branch that
   actually ships; `develop` gets CI and the local PR merge gate only.
 - Executes change detection first.
@@ -143,12 +159,18 @@ Use [router-evaluation.yml](router-evaluation.yml) with one of these presets.
 - publish_foundry=false
 - run_redteam=false
 
+Scores the existing `eval_router_data.jsonl` with the local, zero-cost `LocalEvaluator` path —
+no MCP server, no Azure OpenAI/Foundry calls at all.
+
 ### Data refresh plus local eval
 
 - regenerate_data=true
 - run_batch_eval=true
 - publish_foundry=false
 - run_redteam=false
+
+Regenerates `eval_router_data.jsonl` against a live MCP server + router run (Azure OpenAI
+tokens for the router/search calls), then scores it locally with zero additional Foundry cost.
 
 ### Full cloud validation
 

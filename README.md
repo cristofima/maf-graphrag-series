@@ -189,25 +189,33 @@ Quality pillars:
 - Quality evaluation — Microsoft Foundry evaluators (via `agent_framework_foundry.FoundryEvals`) plus graph grounded evaluators score accuracy and coverage.
 - Safety evaluation — Red team flows (Azure AI Foundry) probe deployments with targeted attack strategies.
 
-| Step | Script                    | What it does                                           |
-| ---- | ------------------------- | ------------------------------------------------------ |
-| 1    | `run_mcp_server.py`       | Start the MCP server                                   |
-| 2    | `generate_eval_data.py`   | Run router on golden questions → `eval_data.jsonl`     |
-| 3    | `run_batch_evaluation.py` | Built-in + custom evaluators, write results and report |
-| 4    | `run_redteam.py`          | Safety scan (optional, requires Azure AI Foundry)      |
+| Step | Script                         | What it does                                                                |
+| ---- | ------------------------------ | --------------------------------------------------------------------------- |
+| 1    | `run_mcp_server.py`            | Start the MCP server                                                        |
+| 2    | `generate_eval_data.py`        | Run router on golden questions → `eval_data.jsonl` (workflow dataset)       |
+| 2b   | `generate_router_eval_data.py` | Run router on routing questions → `eval_router_data.jsonl` (router dataset) |
+| 3    | `run_batch_evaluation.py`      | Built-in + custom evaluators, write results and report per `--eval-type`    |
+| 4    | `run_redteam.py`               | Safety scan (optional, requires Azure AI Foundry)                           |
 
-| Evaluator                       | Type                    | What it measures                                      |
-| ------------------------------- | ----------------------- | ----------------------------------------------------- |
-| `relevance`                     | Foundry LLM-judge       | Is the response relevant to the query?                |
-| `coherence`                     | Foundry LLM-judge       | Is the response logically consistent?                 |
-| `task_adherence`                | Foundry agent evaluator | Did the agent follow its assigned task?               |
-| `tool_call_accuracy`            | Foundry agent evaluator | Were the right tools called with correct parameters?  |
-| `tool_selection`                | Foundry agent evaluator | Did the agent choose the correct, necessary tools?    |
-| `tool_input_accuracy`           | Foundry agent evaluator | Are tool call parameters strictly correct?            |
-| `tool_output_utilization`       | Foundry agent evaluator | Did the agent correctly use tool call results?        |
-| `tool_call_success`             | Foundry agent evaluator | Did tool calls succeed without technical errors?      |
-| `EntityAccuracyEvaluator`       | Graph Parquet           | Are entities in the response valid graph entities?    |
-| `RelationshipValidityEvaluator` | Graph Parquet           | Do co-occurrences reflect actual graph relationships? |
+`run_batch_evaluation.py --eval-type {router,workflow}` selects the Foundry evaluator suite —
+`router` runs the routing-focused subset (`relevance`, `coherence`, `task_adherence`) against
+`eval_router_data.jsonl`, while `workflow` runs the full evaluator set (including tool-call
+evaluators when the dataset has tool expectations) against `eval_data.jsonl`. Each eval type
+writes its own results/report so scores from one type never overwrite or mix with the other —
+see [.github/workflows/README.md](.github/workflows/README.md) for how CI runs both in one job.
+
+| Evaluator                       | Type                    | Eval type(s)     | What it measures                                      |
+| ------------------------------- | ----------------------- | ---------------- | ----------------------------------------------------- |
+| `relevance`                     | Foundry LLM-judge       | router, workflow | Is the response relevant to the query?                |
+| `coherence`                     | Foundry LLM-judge       | router, workflow | Is the response logically consistent?                 |
+| `task_adherence`                | Foundry agent evaluator | router, workflow | Did the agent follow its assigned task?               |
+| `tool_call_accuracy`            | Foundry agent evaluator | workflow         | Were the right tools called with correct parameters?  |
+| `tool_selection`                | Foundry agent evaluator | workflow         | Did the agent choose the correct, necessary tools?    |
+| `tool_input_accuracy`           | Foundry agent evaluator | workflow         | Are tool call parameters strictly correct?            |
+| `tool_output_utilization`       | Foundry agent evaluator | workflow         | Did the agent correctly use tool call results?        |
+| `tool_call_success`             | Foundry agent evaluator | workflow         | Did tool calls succeed without technical errors?      |
+| `EntityAccuracyEvaluator`       | Graph Parquet           | workflow         | Are entities in the response valid graph entities?    |
+| `RelationshipValidityEvaluator` | Graph Parquet           | workflow         | Do co-occurrences reflect actual graph relationships? |
 
 Foundry agent evaluators require tool-call content typed with the OpenAI/Foundry vocabulary
 (`type: "tool_call"` / `"tool_result"`), which differs from Agent Framework's own internal

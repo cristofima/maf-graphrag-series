@@ -22,7 +22,7 @@ on:
         type: string
         default: ""
       regenerate_data:
-        description: "Regenerate eval_router_data.jsonl before evaluation (requires MCP data availability)."
+        description: "Regenerate eval_router_data.jsonl and eval_data.jsonl before evaluation (requires MCP data availability)."
         required: false
         default: true
         type: boolean
@@ -63,7 +63,7 @@ on:
         required: false
         type: string
       regenerate_data:
-        description: "Regenerate eval_router_data.jsonl before evaluation (requires MCP data availability)."
+        description: "Regenerate eval_router_data.jsonl and eval_data.jsonl before evaluation (requires MCP data availability)."
         required: false
         default: false
         type: boolean
@@ -150,7 +150,7 @@ jobs:
         if: ${{ inputs.run_redteam }}
         run: uv sync --dev --group redteam --frozen
 
-      - name: Regenerate router eval data
+      - name: Regenerate evaluation datasets (router + workflow)
         if: ${{ inputs.regenerate_data }}
         run: |
           uv run python run_mcp_server.py > mcp-server.log 2>&1 &
@@ -158,6 +158,7 @@ jobs:
           echo "MCP_PID=$MCP_PID" >> "$GITHUB_ENV"
           sleep 10
           uv run python -m maf_graphrag.evaluation.scripts.generate_router_eval_data
+          uv run python -m maf_graphrag.evaluation.scripts.generate_eval_data
 
       - name: Stop MCP server
         if: ${{ always() && env.MCP_PID != '' }}
@@ -226,11 +227,31 @@ jobs:
 
       - name: Run router batch evaluation (local, no Foundry)
         if: ${{ inputs.run_batch_eval && (!inputs.publish_foundry || steps.foundry_auth.outputs.foundry_auth != 'true') }}
-        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom --local
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --eval-type router --no-custom --local
 
       - name: Run router batch evaluation and publish to Foundry
         if: ${{ inputs.run_batch_eval && inputs.publish_foundry && steps.foundry_auth.outputs.foundry_auth == 'true' }}
-        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --no-custom
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --eval-type router --no-custom
+
+      - name: Save router evaluation results
+        if: ${{ inputs.run_batch_eval }}
+        run: |
+          cp src/maf_graphrag/evaluation/results/evaluation_results.json src/maf_graphrag/evaluation/results/evaluation_results-router.json
+          cp src/maf_graphrag/evaluation/results/evaluation_report.md src/maf_graphrag/evaluation/results/evaluation_report-router.md
+
+      - name: Run workflow batch evaluation (local, no Foundry)
+        if: ${{ inputs.run_batch_eval && (!inputs.publish_foundry || steps.foundry_auth.outputs.foundry_auth != 'true') }}
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_data.jsonl --eval-type workflow --no-custom --local
+
+      - name: Run workflow batch evaluation and publish to Foundry
+        if: ${{ inputs.run_batch_eval && inputs.publish_foundry && steps.foundry_auth.outputs.foundry_auth == 'true' }}
+        run: uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_data.jsonl --eval-type workflow --no-custom
+
+      - name: Save workflow evaluation results
+        if: ${{ inputs.run_batch_eval }}
+        run: |
+          cp src/maf_graphrag/evaluation/results/evaluation_results.json src/maf_graphrag/evaluation/results/evaluation_results-workflow.json
+          cp src/maf_graphrag/evaluation/results/evaluation_report.md src/maf_graphrag/evaluation/results/evaluation_report-workflow.md
 
       - name: Run red-team safety scan
         id: redteam
@@ -257,19 +278,22 @@ jobs:
           name: router-evaluation-results
           path: |
             src/maf_graphrag/evaluation/datasets/eval_router_data.jsonl
-            src/maf_graphrag/evaluation/results/evaluation_results.json
-            src/maf_graphrag/evaluation/results/evaluation_report.md
+            src/maf_graphrag/evaluation/datasets/eval_data.jsonl
+            src/maf_graphrag/evaluation/results/evaluation_results-router.json
+            src/maf_graphrag/evaluation/results/evaluation_report-router.md
+            src/maf_graphrag/evaluation/results/evaluation_results-workflow.json
+            src/maf_graphrag/evaluation/results/evaluation_report-workflow.md
             src/maf_graphrag/evaluation/results/redteam_results.json
             mcp-server.log
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Publish router evaluation summary
+      - name: Publish evaluation summary
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "## Router Evaluation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Router & Workflow Evaluation Summary" >> "$GITHUB_STEP_SUMMARY"
           ref_value='${{ inputs.ref != '' && inputs.ref || github.sha }}'
           regenerate_value='${{ inputs.regenerate_data }}'
           batch_value='${{ inputs.run_batch_eval }}'
@@ -287,10 +311,19 @@ jobs:
           printf '%s\n' "- Publish Foundry: $publish_value" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Red team: $redteam_value (outcome=$redteam_outcome, fail_on_error=${{ inputs.fail_on_redteam_error }})" >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "- Route gate: $gate_value (match=$route_match_value, accuracy=$route_accuracy_value, threshold=$route_threshold_value)" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -f src/maf_graphrag/evaluation/results/evaluation_report.md ]]; then
+
+          if [[ -f src/maf_graphrag/evaluation/results/evaluation_report-router.md ]]; then
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "### Evaluation report preview" >> "$GITHUB_STEP_SUMMARY"
-            sed -n '1,40p' src/maf_graphrag/evaluation/results/evaluation_report.md >> "$GITHUB_STEP_SUMMARY"
+            echo "### Router evaluation report preview" >> "$GITHUB_STEP_SUMMARY"
+            sed -n '1,40p' src/maf_graphrag/evaluation/results/evaluation_report-router.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "- Evaluation report: not generated in this run." >> "$GITHUB_STEP_SUMMARY"
+            echo "- Router evaluation report: not generated in this run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ -f src/maf_graphrag/evaluation/results/evaluation_report-workflow.md ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "### Workflow evaluation report preview" >> "$GITHUB_STEP_SUMMARY"
+            sed -n '1,40p' src/maf_graphrag/evaluation/results/evaluation_report-workflow.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- Workflow evaluation report: not generated in this run." >> "$GITHUB_STEP_SUMMARY"
           fi

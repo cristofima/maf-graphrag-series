@@ -21,6 +21,7 @@ from maf_graphrag.evaluation.scripts.run_batch_evaluation import (
     _coerce_route_summary_row,
     _collect_foundry_metrics,
     _compute_route_summary,
+    _determine_foundry_evaluators,
     _evaluate_locally,
     _evaluate_with_foundry,
     _extract_response_text,
@@ -575,7 +576,8 @@ class TestRunBatchEvaluation:
                         }
                     ],
                     "ground_truth": "Project Alpha is...",
-                    "tool_definitions": [],
+                    "tool_definitions": [{"name": "global_search"}],
+                    "expected_tools": ["global_search"],
                 }
             )
             + "\n",
@@ -617,9 +619,15 @@ class TestRunBatchEvaluation:
 
         dummy_result = DummyResult()
 
-        async def fake_foundry_eval(items: list[Any], config: EvalConfig, eval_name: str) -> DummyResult:
+        async def fake_foundry_eval(
+            items: list[Any],
+            config: EvalConfig,
+            eval_name: str,
+            evaluators: list[str],
+        ) -> DummyResult:
             assert len(items) == 1
-            assert eval_name.startswith("graphrag-batch-")
+            assert eval_name.startswith("graphrag-batch-workflow-")
+            assert evaluators == module._DEFAULT_FOUNDRY_EVALUATORS
             return dummy_result
 
         monkeypatch.setattr(module, "_evaluate_with_foundry", fake_foundry_eval)
@@ -631,6 +639,53 @@ class TestRunBatchEvaluation:
         assert result["studio_url"] == "https://studio"
         assert (output_dir / "evaluation_results.json").exists()
         assert (output_dir / "evaluation_report.md").exists()
+
+    def test_router_eval_type_uses_distinct_eval_name_and_evaluator_subset(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Router and workflow batches must never share a Foundry Eval object: evaluators
+        (testing_criteria) are bound to the Eval at creation time, not per run, so mixing
+        them would force a union set and report NA/blank scores for inapplicable evaluators."""
+        data_path = tmp_path / "eval_router_data.jsonl"
+        data_path.write_text(
+            json.dumps({"query": "Hi there", "response": "I can help.", "tool_definitions": []}) + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(module, "DATASETS_DIR", tmp_path)
+        output_dir = tmp_path / "results"
+        monkeypatch.setattr(module, "RESULTS_DIR", output_dir)
+        monkeypatch.setattr(
+            "maf_graphrag.evaluation.config.EvalConfig.from_env",
+            lambda: self._make_config(),
+        )
+
+        class DummyResult:
+            def __init__(self) -> None:
+                self.items = [SimpleNamespace(scores=[SimpleNamespace(name="coherence", score=0.9)])]
+                self.provider = "foundry"
+                self.status = "succeeded"
+                self.passed = 1
+                self.failed = 0
+                self.total = 1
+                self.per_evaluator = {"coherence": {"passed": 1, "failed": 0}}
+                self.report_url = None
+                self.eval_id = "eval-router"
+                self.run_id = "run-router"
+                self.error = None
+
+        async def fake_foundry_eval(
+            items: list[Any],
+            config: EvalConfig,
+            eval_name: str,
+            evaluators: list[str],
+        ) -> DummyResult:
+            assert eval_name.startswith("graphrag-batch-router-")
+            assert evaluators == module._ROUTER_FOUNDRY_EVALUATORS
+            return DummyResult()
+
+        monkeypatch.setattr(module, "_evaluate_with_foundry", fake_foundry_eval)
+
+        run_batch_evaluation(data_path=data_path, output_dir=output_dir, include_custom=False, eval_type="router")
 
 
 class TestFoundryHelpers:
@@ -668,6 +723,34 @@ class TestFoundryHelpers:
         assert summary["per_evaluator"]["coherence"]["passed"] == 1
 
 
+class TestDetermineFoundryEvaluators:
+    def test_router_eval_type_uses_router_subset(self) -> None:
+        evaluators = _determine_foundry_evaluators(
+            "router",
+            [SimpleNamespace(expected_tool_calls=None)],
+        )
+
+        assert evaluators == module._ROUTER_FOUNDRY_EVALUATORS
+
+    def test_strips_tool_metrics_when_no_expected_calls_present(self) -> None:
+        evaluators = _determine_foundry_evaluators(
+            "workflow",
+            [SimpleNamespace(expected_tool_calls=None)],
+        )
+
+        assert evaluators == [
+            name for name in module._DEFAULT_FOUNDRY_EVALUATORS if not name.startswith(module._TOOL_EVALUATOR_PREFIX)
+        ]
+
+    def test_keeps_tool_metrics_when_expected_calls_present(self) -> None:
+        evaluators = _determine_foundry_evaluators(
+            "workflow",
+            [SimpleNamespace(expected_tool_calls=[object()])],
+        )
+
+        assert evaluators == module._DEFAULT_FOUNDRY_EVALUATORS
+
+
 class TestEvaluateWithFoundry:
     @staticmethod
     def _make_config() -> EvalConfig:
@@ -695,19 +778,15 @@ class TestEvaluateWithFoundry:
         fake_module.FoundryEvals = FakeFoundryEvals  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "agent_framework_foundry", fake_module)
 
-        result = await _evaluate_with_foundry([], self._make_config(), "graphrag-batch-test")
+        result = await _evaluate_with_foundry(
+            [],
+            self._make_config(),
+            "graphrag-batch-test",
+            module._DEFAULT_FOUNDRY_EVALUATORS,
+        )
 
         assert result == "result"
-        assert captured_kwargs["evaluators"] == [
-            "relevance",
-            "coherence",
-            "task_adherence",
-            "tool_call_accuracy",
-            "tool_selection",
-            "tool_input_accuracy",
-            "tool_output_utilization",
-            "tool_call_success",
-        ]
+        assert captured_kwargs["evaluators"] == module._DEFAULT_FOUNDRY_EVALUATORS
         assert captured_kwargs["timeout"] == 600.0
         assert "client" not in captured_kwargs
 

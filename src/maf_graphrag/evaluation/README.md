@@ -165,12 +165,23 @@ Evaluation data written to src/maf_graphrag/evaluation/datasets/eval_data.jsonl
 
 Publishes to Azure AI Foundry through `agent_framework_foundry.FoundryEvals`, which resolves
 evaluator names against Foundry's `builtin.*` registry and runs them as an LLM-judge cloud
-evaluation. `run_batch_evaluation.py` requests the full evaluator set explicitly
-(`relevance`, `coherence`, `task_adherence`, `tool_call_accuracy`, `tool_selection`,
-`tool_input_accuracy`, `tool_output_utilization`, `tool_call_success`); `FoundryEvals` still
-drops the tool evaluators automatically for rows without `tool_definitions`. The two custom
-graph evaluators (`EntityAccuracyEvaluator`, `RelationshipValidityEvaluator`) run locally
-against the Parquet outputs and are merged into the same result file.
+evaluation. The evaluator suite requested depends on `--eval-type` (default `workflow`):
+`workflow` requests the full set explicitly (`relevance`, `coherence`, `task_adherence`,
+`tool_call_accuracy`, `tool_selection`, `tool_input_accuracy`, `tool_output_utilization`,
+`tool_call_success`), dropping the tool evaluators automatically when no loaded item carries
+`expected_tool_calls`; `router` requests only `relevance`, `coherence`, and `task_adherence`,
+since router dataset rows carry no tool-call expectations and would otherwise report a
+misleading 0% on tool metrics. The two custom graph evaluators (`EntityAccuracyEvaluator`,
+`RelationshipValidityEvaluator`) run locally against the Parquet outputs and are merged into
+the same result file.
+
+> **Router and workflow batches always land in separate Foundry Evals.** `FoundryEvals`
+> calls `client.evals.create(testing_criteria=...)` on every invocation, so the evaluator
+> set is bound to the Eval object itself — not to individual runs inside it. Two runs
+> cannot share one Eval with different evaluators; the run-generated name is
+> `graphrag-batch-{eval_type}-{timestamp}` so router and workflow batches are always
+> distinguishable as separate Evals in the Foundry portal, never one Eval with mismatched
+> per-run evaluator columns.
 
 > Tool evaluators (`tool_call_accuracy`, `tool_selection`, `tool_input_accuracy`,
 > `tool_output_utilization`, `tool_call_success`) require tool-call content typed with the
@@ -197,8 +208,8 @@ Foundry path for quality/safety signal.
 # Standard evaluation (results saved locally)
 uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation
 
-# Router-focused dataset evaluation
-uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl
+# Router-focused dataset evaluation (selects the reduced router evaluator suite)
+uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --data eval_router_data.jsonl --eval-type router
 
 # Skip custom graph evaluators (no Parquet needed)
 uv run python -m maf_graphrag.evaluation.scripts.run_batch_evaluation --no-custom

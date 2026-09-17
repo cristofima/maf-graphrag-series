@@ -25,7 +25,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from dotenv import load_dotenv
 
@@ -44,6 +44,11 @@ logger = logging.getLogger(__name__)
 DATASETS_DIR = Path(__file__).resolve().parent.parent / "datasets"
 EVAL_DATA_PATH = DATASETS_DIR / "eval_data.jsonl"
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "results"
+
+# Explicit dataset kind selects the Foundry evaluator suite; callers must state intent
+# rather than have it inferred from a dataset's file name.
+EvalDatasetKind = Literal["router", "workflow"]
+DEFAULT_EVAL_DATASET_KIND: EvalDatasetKind = "workflow"
 
 
 def _resolve_cli_data_path(path_value: str | Path) -> Path:
@@ -73,6 +78,7 @@ def run_batch_evaluation(
     use_foundry: bool = False,
     include_custom: bool = True,
     local_only: bool = False,
+    eval_type: EvalDatasetKind = DEFAULT_EVAL_DATASET_KIND,
 ) -> dict[str, object]:
     """Run batch evaluation and return aggregated metrics."""
     from maf_graphrag.evaluation.config import EvalConfig
@@ -89,15 +95,22 @@ def run_batch_evaluation(
 
     config = EvalConfig.from_env()
     items, rows_for_custom = _load_eval_items(data_path)
+    foundry_evaluators = _determine_foundry_evaluators(eval_type, items)
 
-    eval_name = f"graphrag-batch-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
+    # FoundryEvals.evaluate() calls client.evals.create(testing_criteria=...) on every
+    # invocation, so evaluators are bound to the resulting Eval object, not to individual
+    # runs within it. Router and workflow batches must therefore land in distinct Eval
+    # objects (never share one) or Foundry would report NA/blank scores for whichever
+    # evaluator doesn't apply to a given run's rows. Encoding eval_type in the name keeps
+    # the two batches identifiable as separate Evals in the Foundry portal.
+    eval_name = f"graphrag-batch-{eval_type}-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}"
 
     if local_only:
         logger.info("Running local-only evaluation (no Foundry calls) on %s", data_path)
         eval_result = asyncio.run(_evaluate_locally(items, eval_name))
     else:
         logger.info("Running Foundry evaluation on %s", data_path)
-        eval_result = asyncio.run(_evaluate_with_foundry(items, config, eval_name))
+        eval_result = asyncio.run(_evaluate_with_foundry(items, config, eval_name, foundry_evaluators))
 
     metrics: dict[str, float] = {}
     metrics.update(_collect_foundry_metrics(eval_result))
@@ -388,11 +401,10 @@ def _load_eval_items(data_path: Path) -> tuple[list[EvalItem], list[dict[str, ob
 
 
 # FoundryEvals defaults to relevance/coherence/task_adherence and only auto-adds
-# tool_call_accuracy for tool-aware items. All GraphRAG tools are plain Function Tools
-# (fully supported by agent evaluators, per the Foundry agent-evaluators guidance), so the
-# remaining process evaluators are safe to request explicitly; FoundryEvals drops them
-# automatically for items without tool definitions.
-_FOUNDRY_EVALUATORS: list[str] = [
+# tool_call_accuracy for tool-aware items. GraphRAG tools ride the standard Function Tool
+# pathway, so we request the remaining tool-focused evaluators explicitly for datasets that
+# include tool expectations.
+_DEFAULT_FOUNDRY_EVALUATORS: list[str] = [
     "relevance",
     "coherence",
     "task_adherence",
@@ -403,14 +415,42 @@ _FOUNDRY_EVALUATORS: list[str] = [
     "tool_call_success",
 ]
 
+_ROUTER_FOUNDRY_EVALUATORS: list[str] = [
+    "relevance",
+    "coherence",
+    "task_adherence",
+]
 
-async def _evaluate_with_foundry(items: Sequence[EvalItem], config: EvalConfig, eval_name: str) -> EvalResults:
+_TOOL_EVALUATOR_PREFIX = "tool_"
+
+
+def _determine_foundry_evaluators(eval_type: EvalDatasetKind, items: Sequence[EvalItem]) -> list[str]:
+    """Choose the Foundry evaluators to run for the requested dataset kind."""
+
+    if eval_type == "router":
+        return list(_ROUTER_FOUNDRY_EVALUATORS)
+
+    evaluators = list(_DEFAULT_FOUNDRY_EVALUATORS)
+
+    has_tool_expectations = any(getattr(item, "expected_tool_calls", None) for item in items)
+    if not has_tool_expectations:
+        return [name for name in evaluators if not name.startswith(_TOOL_EVALUATOR_PREFIX)]
+
+    return evaluators
+
+
+async def _evaluate_with_foundry(
+    items: Sequence[EvalItem],
+    config: EvalConfig,
+    eval_name: str,
+    evaluators: Sequence[str],
+) -> EvalResults:
     """Evaluate items with Microsoft Foundry."""
     from agent_framework_foundry import FoundryChatClient, FoundryEvals
 
     evaluator_kwargs: dict[str, Any] = {
         "model": config.eval_chat_deployment,
-        "evaluators": _FOUNDRY_EVALUATORS,
+        "evaluators": list(evaluators),
         # 8 evaluators per item take longer than FoundryEvals' 180s default poll timeout;
         # the run itself keeps executing in Foundry, but the client gives up and reports
         # status="timeout" with empty metrics if we don't raise the local poll budget.
@@ -800,6 +840,13 @@ if __name__ == "__main__":
         help="Run local-only evaluation (agent_framework LocalEvaluator); no Azure/Foundry calls",
     )
     parser.add_argument("--data", type=str, default=str(EVAL_DATA_PATH), help="Path to eval data JSONL")
+    parser.add_argument(
+        "--eval-type",
+        type=str,
+        choices=["router", "workflow"],
+        default=DEFAULT_EVAL_DATASET_KIND,
+        help="Dataset kind, which selects the Foundry evaluator suite (default: workflow)",
+    )
     args = parser.parse_args()
 
     result = run_batch_evaluation(
@@ -807,6 +854,7 @@ if __name__ == "__main__":
         use_foundry=args.foundry,
         include_custom=not args.no_custom,
         local_only=args.local,
+        eval_type=args.eval_type,
     )
 
     print("\n=== Evaluation Metrics ===")

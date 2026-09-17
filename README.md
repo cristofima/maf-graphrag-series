@@ -3,6 +3,8 @@
 Building knowledge-graph assistants with Microsoft GraphRAG, Agent Framework, and Azure OpenAI.
 
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=bugs)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=cristofima_maf-graphrag-series&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=cristofima_maf-graphrag-series)

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-09-17
+
+### Added
+
+- **Dataset-specific evaluator selection**: Batch evaluation applies evaluator sets per dataset instead of one shared set across all seed data. ([c9efc00](https://github.com/cristofima/maf-graphrag-series/commit/c9efc00))
+- **Foundry service-principal authentication**: `EvalConfig` accepts Foundry service-principal credentials for authenticated evaluation publishing. ([f6e49c3](https://github.com/cristofima/maf-graphrag-series/commit/f6e49c3))
+- **Session-scoped checkpoint storage**: Router chatbot checkpoint storage is keyed by session id. ([cb6313c](https://github.com/cristofima/maf-graphrag-series/commit/cb6313c))
+- **`WorkflowResult` diagnostics**: `WorkflowResult` exposes `raw_result` and `workflow_graph` for deeper workflow introspection. ([0696b7a](https://github.com/cristofima/maf-graphrag-series/commit/0696b7a))
+- **MCP server metadata**: MCP server exposes its name and version as tool-discoverable metadata. ([c7b8917](https://github.com/cristofima/maf-graphrag-series/commit/c7b8917))
+- **Test coverage**: Added tests for factory-based agent construction, session-store race guarding, dataset-specific evaluator selection, and Foundry authentication config. ([9ebf379](https://github.com/cristofima/maf-graphrag-series/commit/9ebf379), [f11b308](https://github.com/cristofima/maf-graphrag-series/commit/f11b308), [c9efc00](https://github.com/cristofima/maf-graphrag-series/commit/c9efc00), [f6e49c3](https://github.com/cristofima/maf-graphrag-series/commit/f6e49c3))
+
+### Changed
+
+- **BREAKING — Source layout**: Consolidated `src` into the `src/maf_graphrag` namespace package, removing the root-level shim packages. ([c24aeed](https://github.com/cristofima/maf-graphrag-series/commit/c24aeed))
+- **Agent construction**: Supervisor layer replaced with factory functions for agent and workflow-component construction. ([9ebf379](https://github.com/cristofima/maf-graphrag-series/commit/9ebf379))
+- **Package exports**: `maf_graphrag` submodules (`core`, `evaluation`, `mcp_server`, `workflows`) expose consolidated `__init__` exports for consumers. ([2fa588f](https://github.com/cristofima/maf-graphrag-series/commit/2fa588f))
+- **Evaluation pipeline**: Batch evaluation rewritten on native Foundry and local evaluator APIs. ([7be7444](https://github.com/cristofima/maf-graphrag-series/commit/7be7444))
+- **Dependency stack**: `agent-framework-foundry` added, with Agent Framework and FastMCP dependencies upgraded to their latest versions. ([af6c980](https://github.com/cristofima/maf-graphrag-series/commit/af6c980), [cd451f5](https://github.com/cristofima/maf-graphrag-series/commit/cd451f5), [fb10f95](https://github.com/cristofima/maf-graphrag-series/commit/fb10f95))
+- **Router evaluation CI**: Router evaluation workflow runs batch evaluation per dataset, change detection switched to a deny-list with local batch-eval enabled, and `PYTHONPATH` set for `-m` module invocations. ([e14d442](https://github.com/cristofima/maf-graphrag-series/commit/e14d442), [56527ed](https://github.com/cristofima/maf-graphrag-series/commit/56527ed), [237d71b](https://github.com/cristofima/maf-graphrag-series/commit/237d71b))
+- **Documentation**: README and module docs realigned to the `maf_graphrag` namespace, dual evaluation flows, Foundry evaluator lessons learned, and the revised series roadmap. ([7396fda](https://github.com/cristofima/maf-graphrag-series/commit/7396fda), [dcd5760](https://github.com/cristofima/maf-graphrag-series/commit/dcd5760), [6650656](https://github.com/cristofima/maf-graphrag-series/commit/6650656), [e1e175b](https://github.com/cristofima/maf-graphrag-series/commit/e1e175b), [61fea32](https://github.com/cristofima/maf-graphrag-series/commit/61fea32), [94a38e2](https://github.com/cristofima/maf-graphrag-series/commit/94a38e2), [29aa6fb](https://github.com/cristofima/maf-graphrag-series/commit/29aa6fb), [c236454](https://github.com/cristofima/maf-graphrag-series/commit/c236454), [459a1e8](https://github.com/cristofima/maf-graphrag-series/commit/459a1e8), [513391a](https://github.com/cristofima/maf-graphrag-series/commit/513391a), [a646e17](https://github.com/cristofima/maf-graphrag-series/commit/a646e17), [b05106b](https://github.com/cristofima/maf-graphrag-series/commit/b05106b))
+
+### Fixed
+
+- **Session-store concurrency**: `get_or_create` guarded against concurrent session-creation races. ([f11b308](https://github.com/cristofima/maf-graphrag-series/commit/f11b308))
+- **MCP compatibility**: camelCase MCP field shimming, `MCPError`/`inputSchema` handling, and the chatbot's transport import corrected for Agent Framework compatibility. ([e5d8a59](https://github.com/cristofima/maf-graphrag-series/commit/e5d8a59), [1414f56](https://github.com/cristofima/maf-graphrag-series/commit/1414f56), [70d2ab5](https://github.com/cristofima/maf-graphrag-series/commit/70d2ab5))
+
 ## [4.2.0] - 2026-09-03
 
 ### Added
@@ -345,7 +371,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **LICENSE**: Copyright holder update. ([d3ab331](https://github.com/cristofima/maf-graphrag-series/commit/d3ab331))
 
-[unreleased]: https://github.com/cristofima/maf-graphrag-series/compare/v4.2.0...HEAD
+[unreleased]: https://github.com/cristofima/maf-graphrag-series/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/cristofima/maf-graphrag-series/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/cristofima/maf-graphrag-series/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/cristofima/maf-graphrag-series/compare/v4.0.0...v4.1.0
 [4.0.0]: https://github.com/cristofima/maf-graphrag-series/compare/v3.2.0...v4.0.0

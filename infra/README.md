@@ -158,11 +158,11 @@ Overall infrastructure cost is variable and depends on model SKU, capacity setti
 
 **No manual changes are needed to use the Evaluation Dashboard: everything is ready after `terraform apply`.**
 
-### Foundry User Role (Required for Local `--foundry` Publish)
+### Foundry User Role (Required for Batch Evaluation Publish)
 
-Publishing local evaluation runs to Foundry (`run_batch_evaluation.py --foundry`) authenticates via `DefaultAzureCredential` and calls the project's `openai/v1/evals` endpoint. Without the **Foundry User** role on the project scope, this fails with a 403 (`does not have permissions for Microsoft.Ma...`).
+Publishing evaluation runs to Foundry (`run_batch_evaluation.py`, default behavior unless `--local` is passed) authenticates via `DefaultAzureCredential` and calls the project's `openai/v1/evals` endpoint. Without the **Foundry User** role on the project scope, this fails with a 403 (`does not have permissions for Microsoft.Ma...`).
 
-Set `foundry_user_principal_ids` in `terraform.tfvars` to the Entra object ID(s) (users, groups, or service principals) that need to run `--foundry` locally, then `terraform apply`:
+Set `foundry_user_principal_ids` in `terraform.tfvars` to the Entra object ID(s) (users, groups, or service principals) that need to run batch evaluation locally, then `terraform apply`:
 
 ```hcl
 foundry_user_principal_ids = ["<your-entra-object-id>"]

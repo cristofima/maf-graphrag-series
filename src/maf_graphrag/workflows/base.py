@@ -85,6 +85,8 @@ class WorkflowResult:
     steps: list[WorkflowStep] = field(default_factory=list)
     total_elapsed_seconds: float = 0.0
     query: str = ""
+    raw_result: Any | None = None
+    workflow_graph: Any | None = None
 
     def step_summary(self) -> str:
         """Return a human-readable summary of the workflow trace."""
@@ -223,12 +225,20 @@ class WorkflowGraphSupport:
         status_values = self._collect_status_values(run_result)
         self._attach_status_metadata(steps, status_values)
 
+        workflow_clone: Any | None = None
+        try:
+            workflow_clone = self.get_workflow()
+        except Exception:  # pragma: no cover - defensive guard when cloning fails
+            workflow_clone = None
+
         return WorkflowResult(
             answer=answer,
             workflow_type=self.workflow_type,
             steps=steps,
             total_elapsed_seconds=total_elapsed,
             query=normalized_query,
+            raw_result=run_result,
+            workflow_graph=workflow_clone,
         )
 
     def _collect_workflow_outputs(self, run_result: Any) -> list[Any]:

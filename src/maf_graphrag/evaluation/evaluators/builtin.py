@@ -1,18 +1,15 @@
 """
-Built-in Agent Evaluator Wrappers.
+GraphRAG tool definitions shared by Foundry tool-aware evaluators.
 
-Provides message conversion utilities and wrapper functions for
-Azure AI Evaluation SDK built-in agent evaluators.
-
-The key challenge is that MAF uses ``function_call``/``function_result``
-internally, but Azure AI Evaluation expects OpenAI-style
-``tool_call``/``tool_result`` message schema. The ``convert_to_evaluator_messages``
-function handles this remapping.
+``GRAPHRAG_TOOL_DEFINITIONS`` is consumed by ``generate_eval_data.py`` as the
+fallback tool schema (name/description/parameters) for tool-focused evaluators
+(``tool_call_accuracy``, ``tool_selection``, etc.) run through
+``agent_framework_foundry.FoundryEvals``.
 """
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 _QUERY_DESC = "The question to answer"
 _COMMUNITY_LEVEL_DESC = "Community hierarchy level (0-2)"
@@ -88,163 +85,3 @@ GRAPHRAG_TOOL_DEFINITIONS: list[dict[str, Any]] = [
         },
     },
 ]
-
-
-def convert_to_evaluator_messages(messages: list[Any]) -> list[dict[str, Any]]:
-    """Convert MAF agent thread messages to OpenAI-style evaluator message schema.
-
-    The Azure AI Evaluation SDK expects messages in the OpenAI tool_call/tool_result
-    format, while MAF uses function_call/function_result internally.
-
-    Args:
-        messages: List of MAF message objects from an AgentThread.
-
-    Returns:
-        List of dicts in OpenAI-style message format suitable for evaluation.
-    """
-    evaluator_messages: list[dict[str, Any]] = []
-
-    for msg in messages:
-        role = getattr(msg, "role", None)
-        if role is None:
-            continue
-
-        role_str = str(role).lower().replace("messagerole.", "")
-
-        if role_str == "user":
-            text = _extract_text(msg)
-            evaluator_messages.append({"role": "user", "content": text})
-
-        elif role_str == "assistant":
-            content_items = _extract_assistant_content(msg)
-            if content_items:
-                evaluator_messages.append({"role": "assistant", "content": content_items})
-
-        elif role_str == "tool":
-            tool_call_id = getattr(msg, "tool_call_id", None) or "unknown"
-            text = _extract_text(msg)
-            evaluator_messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": [{"type": "tool_result", "tool_result": text}],
-                }
-            )
-
-    return evaluator_messages
-
-
-def _extract_text(msg: Any) -> str:
-    """Extract text content from a MAF message."""
-    if hasattr(msg, "text") and msg.text:
-        return str(msg.text)
-    if hasattr(msg, "content"):
-        return _extract_text_from_content(msg.content)
-    return ""
-
-
-def _extract_text_from_content(content: Any) -> str:
-    """Extract plain text from a message content field (str or list)."""
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return ""
-    texts = [
-        item if isinstance(item, str) else str(item.text)
-        for item in content
-        if isinstance(item, str) or hasattr(item, "text")
-    ]
-    return " ".join(texts) if texts else ""
-
-
-def _extract_assistant_content(msg: Any) -> list[dict[str, Any]]:
-    """Extract assistant content including tool calls from a MAF message."""
-    items: list[dict[str, Any]] = []
-
-    # Check for items/content list (may contain tool calls)
-    content = getattr(msg, "content", None) or getattr(msg, "items", None) or []
-    if isinstance(content, str):
-        return [{"type": "text", "text": content}]
-
-    for item in content if isinstance(content, list) else []:
-        item_type = getattr(item, "type", None)
-
-        if item_type == "function_call" or hasattr(item, "call_id"):
-            # MAF function_call → OpenAI tool_call
-            call_id = getattr(item, "call_id", None) or getattr(item, "id", "")
-            name = getattr(item, "name", "")
-            arguments = getattr(item, "arguments", {})
-            items.append(
-                {
-                    "type": "tool_call",
-                    "tool_call": {
-                        "id": str(call_id),
-                        "type": "function",
-                        "function": {"name": str(name), "arguments": arguments if isinstance(arguments, dict) else {}},
-                    },
-                }
-            )
-        elif hasattr(item, "text"):
-            items.append({"type": "text", "text": str(item.text)})
-
-    # If no items extracted, try plain text
-    if not items:
-        text = _extract_text(msg)
-        if text:
-            items.append({"type": "text", "text": text})
-
-    return items
-
-
-def create_quality_evaluators(model_config: dict[str, str]) -> dict[str, Any]:
-    """Create a dict of quality evaluators for batch evaluation.
-
-    Uses Azure OpenAI as LLM-judge — no Azure AI Foundry project required.
-
-    Args:
-        model_config: Dict with azure_endpoint, api_key, azure_deployment.
-
-    Returns:
-        Dict mapping evaluator names to evaluator instances.
-    """
-    from azure.ai.evaluation import (
-        CoherenceEvaluator,
-        IntentResolutionEvaluator,
-        RelevanceEvaluator,
-        ResponseCompletenessEvaluator,
-        TaskAdherenceEvaluator,
-        ToolCallAccuracyEvaluator,
-    )
-
-    return {
-        "task_adherence": TaskAdherenceEvaluator(model_config=model_config),
-        "intent_resolution": IntentResolutionEvaluator(model_config=model_config),
-        "relevance": RelevanceEvaluator(model_config=model_config),
-        "coherence": CoherenceEvaluator(model_config=model_config),
-        "response_completeness": ResponseCompletenessEvaluator(model_config=model_config),
-        "tool_call_accuracy": ToolCallAccuracyEvaluator(model_config=model_config),
-    }
-
-
-def run_single_evaluation(
-    evaluator: Any,
-    *,
-    query: str,
-    response: str | list[dict[str, Any]],
-    tool_definitions: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    """Run a single evaluator on one query-response pair.
-
-    Args:
-        evaluator: An initialized evaluator instance.
-        query: The user query.
-        response: The agent response (string or conversation array).
-        tool_definitions: Optional tool definitions for tool-focused evaluators.
-
-    Returns:
-        Dict with evaluation scores and details.
-    """
-    kwargs: dict[str, Any] = {"query": query, "response": response}
-    if tool_definitions is not None:
-        kwargs["tool_definitions"] = tool_definitions
-    return cast(dict[str, Any], evaluator(**kwargs))

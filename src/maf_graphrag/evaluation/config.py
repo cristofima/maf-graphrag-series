@@ -4,8 +4,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from pydantic import AnyHttpUrl, BaseModel, Field, ValidationError, field_validator
+
+try:  # pragma: no cover - optional import guard for environments without azure-identity
+    from azure.identity import ClientSecretCredential, DefaultAzureCredential
+except ImportError:  # pragma: no cover
+    ClientSecretCredential = DefaultAzureCredential = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - TokenCredential moved to azure-core exports
+    from azure.core.credentials import TokenCredential
+except ImportError:  # pragma: no cover
+    TokenCredential = Any  # type: ignore[assignment]
 
 DEFAULT_EVAL_API_VERSION = "2025-04-01-preview"
 
@@ -39,6 +50,19 @@ class EvalConfig(BaseModel):
         default="output/create_final_relationships.parquet",
         description="Relationships parquet path",
     )
+    azure_tenant_id: str | None = Field(
+        default=None,
+        description="Tenant ID for Foundry service principal authentication",
+    )
+    azure_client_id: str | None = Field(
+        default=None,
+        description="Client ID for Foundry service principal authentication",
+    )
+    azure_client_secret: str | None = Field(
+        default=None,
+        description="Client secret for Foundry service principal authentication",
+        repr=False,
+    )
 
     @field_validator("api_key", "chat_deployment", "eval_chat_deployment", "redteam_chat_deployment")
     @classmethod
@@ -57,6 +81,14 @@ class EvalConfig(BaseModel):
     @classmethod
     def _normalize_path(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("azure_tenant_id", "azure_client_id", "azure_client_secret")
+    @classmethod
+    def _normalize_optional_str(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped if stripped else None
 
     @classmethod
     def from_env(cls) -> EvalConfig:
@@ -80,6 +112,9 @@ class EvalConfig(BaseModel):
                 "RELATIONSHIPS_PARQUET_PATH",
                 "output/create_final_relationships.parquet",
             ),
+            "azure_tenant_id": os.getenv("AZURE_TENANT_ID"),
+            "azure_client_id": os.getenv("AZURE_CLIENT_ID"),
+            "azure_client_secret": os.getenv("AZURE_CLIENT_SECRET"),
         }
 
         if data["eval_chat_deployment"] is None:
@@ -116,6 +151,22 @@ class EvalConfig(BaseModel):
         return self.app_insights_connection_string is not None
 
     @property
+    def has_foundry_credentials(self) -> bool:
+        """Return True when Foundry service principal credentials are configured."""
+
+        return (
+            self.azure_tenant_id is not None
+            and self.azure_client_id is not None
+            and self.azure_client_secret is not None
+        )
+
+    @property
+    def foundry_auth_mode(self) -> str:
+        """Describe the authentication mode used for Foundry publication."""
+
+        return "client_secret" if self.has_foundry_credentials else "default_credential"
+
+    @property
     def entities_parquet_path_obj(self) -> Path:
         """Return entities parquet path as ``Path`` instance."""
 
@@ -126,3 +177,37 @@ class EvalConfig(BaseModel):
         """Return relationships parquet path as ``Path`` instance."""
 
         return Path(self.relationships_parquet_path)
+
+    def build_foundry_credential(self) -> TokenCredential:
+        """Construct an Azure credential for Foundry interactions."""
+
+        if ClientSecretCredential is None or DefaultAzureCredential is None:  # pragma: no cover
+            raise RuntimeError("azure-identity must be installed to build Foundry credentials.")
+
+        if self.has_foundry_credentials:
+            return ClientSecretCredential(
+                tenant_id=self.azure_tenant_id,
+                client_id=self.azure_client_id,
+                client_secret=self.azure_client_secret,
+            )
+
+        return DefaultAzureCredential(
+            exclude_interactive_browser_credential=True,
+            exclude_visual_studio_code_credential=True,
+            exclude_shared_token_cache_credential=True,
+        )
+
+    def build_foundry_client_kwargs(self) -> dict[str, object]:
+        """Return keyword arguments for ``FoundryChatClient`` construction."""
+
+        if not self.azure_ai_project:
+            raise ValueError("AZURE_AI_PROJECT must be configured to build a Foundry client")
+
+        kwargs: dict[str, object] = {
+            "project_endpoint": str(self.azure_ai_project),
+            "model": self.eval_chat_deployment,
+        }
+
+        credential = self.build_foundry_credential()
+        kwargs["credential"] = credential
+        return kwargs

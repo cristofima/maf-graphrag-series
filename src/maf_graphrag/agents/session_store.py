@@ -188,6 +188,9 @@ class InMemorySessionStore(SessionStore):
         self._records: dict[str, SessionRecord] = {}
         self._metrics = SessionStoreMetrics()
         self._last_cleanup_monotonic = self._clock()
+        # Guards the check-then-create section of get_or_create so concurrent callers
+        # racing on a brand-new session_id cannot each construct a distinct SessionRecord.
+        self._create_lock = asyncio.Lock()
 
     @property
     def metrics(self) -> SessionStoreMetrics:
@@ -289,30 +292,31 @@ class InMemorySessionStore(SessionStore):
         Cleanup and eviction are async so native AgentSession entries remain in sync.
         """
         await self._run_cleanup_if_needed()
-        existing = self._records.get(session_id)
-        if existing is not None:
+        async with self._create_lock:
+            existing = self._records.get(session_id)
+            if existing is not None:
+                now = self._clock()
+                if existing.expires_at_monotonic > now:
+                    self._refresh_record(existing, now)
+                    self._metrics.active_sessions = len(self._records)
+                    return existing, False
+                else:
+                    # Expired
+                    del self._records[session_id]
+                    await super().delete(session_id)
+                    self._metrics.ttl_expirations += 1
+                logger.debug("Session %s expired during get_or_create", session_id)
             now = self._clock()
-            if existing.expires_at_monotonic > now:
-                self._refresh_record(existing, now)
-                self._metrics.active_sessions = len(self._records)
-                return existing, False
-            else:
-                # Expired
-                del self._records[session_id]
-                await super().delete(session_id)
-                self._metrics.ttl_expirations += 1
-            logger.debug("Session %s expired during get_or_create", session_id)
-        now = self._clock()
-        created = SessionRecord(
-            session_id=session_id,
-            created_at_monotonic=now,
-            updated_at_monotonic=now,
-            expires_at_monotonic=now + self._ttl_seconds,
-        )
-        self._records[session_id] = created
-        await self._enforce_capacity(skip_session_id=session_id)
-        self._metrics.active_sessions = len(self._records)
-        return created, True
+            created = SessionRecord(
+                session_id=session_id,
+                created_at_monotonic=now,
+                updated_at_monotonic=now,
+                expires_at_monotonic=now + self._ttl_seconds,
+            )
+            self._records[session_id] = created
+            await self._enforce_capacity(skip_session_id=session_id)
+            self._metrics.active_sessions = len(self._records)
+            return created, True
 
     def append_turn(
         self, record: SessionRecord, *, user_text: str, assistant_text: str
